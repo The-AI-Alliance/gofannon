@@ -11,7 +11,9 @@ class ToolConfig:
         self.config = {
             'github_api_key': os.getenv('GITHUB_API_KEY'),
             'deepinfra_api_key': os.getenv('DEEPINFRA_API_KEY'),
-            'arxiv_api_key': os.getenv('ARXIV_API_KEY')
+            'arxiv_api_key': os.getenv('ARXIV_API_KEY'),
+            'google_search_api_key': os.getenv('GOOGLE_SEARCH_API_KEY'),
+            'google_search_engine_id': os.getenv('GOOGLE_SEARCH_ENGINE_ID')
         }
 
     @classmethod
