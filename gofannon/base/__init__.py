@@ -1,29 +1,14 @@
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, Any, Callable
+from typing import Any, Callable
 import json
 import logging
 from pathlib import Path
 from ..config import ToolConfig
 
-from typing import Any, Dict
-
-
-try:
-    from smolagents.tools import Tool as SmolTool
-    from smolagents.tools import tool as smol_tool_decorator
-    _HAS_SMOLAGENTS = True
-except ImportError:
-    _HAS_SMOLAGENTS = False
-
-try:
-    from langchain.tools import BaseTool as LangchainBaseTool
-    from langchain.pydantic_v1 import BaseModel, Field
-    from typing import Type, Optional
-    _HAS_LANGCHAIN = True
-except ImportError:
-    _HAS_LANGCHAIN = False
+from .smol_agents import SmolAgentsMixin
+from .langchain import LangchainMixin
 
 @dataclass
 class ToolResult:
@@ -73,7 +58,7 @@ class WorkflowContext:
         }
         self.execution_log.append(entry)
 
-class BaseTool(ABC):
+class BaseTool(SmolAgentsMixin, LangchainMixin, ABC):
     def __init__(self, **kwargs):
         self.logger = logging.getLogger(f"{self.__class__.__module__}.{self.__class__.__name__}")
         self._load_config()
@@ -125,127 +110,3 @@ class BaseTool(ABC):
                 error=str(e),
                 retryable=True
             )
-
-    def import_from_smolagents(self, smol_tool: "SmolTool"):
-        """
-        Takes a smolagents Tool instance and adapts it into this Tool.
-        """
-        if not _HAS_SMOLAGENTS:
-            raise RuntimeError(
-                "smolagents is not installed or could not be imported. "
-                "Install it or check your environment."
-            )
-        self.name = smol_tool.name[0]
-        self.description = smol_tool.description #getattr(smol_tool, "description", "No description provided.")
-
-
-        def adapted_fn(*args, **kwargs):
-            return smol_tool.forward(*args, **kwargs)
-
-
-        self.fn = adapted_fn
-
-    def export_to_smolagents(self) -> "SmolTool":
-        """
-        Export this Tool as a smolagents Tool instance.
-        This sets up a smolagents-style forward method that calls self.fn.
-        """
-        if not _HAS_SMOLAGENTS:
-            raise RuntimeError(
-                "smolagents is not installed or could not be imported. "
-                "Install it or check your environment."
-            )
-
-            # Provide a standard forward function that calls self.fn
-        def smol_forward(*args, **kwargs):
-            return self.fn(*args, **kwargs)
-
-
-        inputs_definition = {
-            "example_arg": {
-                "type": "string",
-                "description": "Example argument recognized by this tool"
-            }
-        }
-        output_type = "string"
-
-        # Construct a new smolagents Tool with the minimal fields
-        exported_tool = SmolTool()
-        exported_tool.name = getattr(self, "name", "exported_base_tool")
-        exported_tool.description = getattr(self, "description", "Exported from Tool")
-        exported_tool.inputs = inputs_definition
-        exported_tool.output_type = output_type
-        exported_tool.forward = smol_forward
-        exported_tool.is_initialized = True
-
-        return exported_tool
-
-    def import_from_langchain(self, langchain_tool: "LangchainBaseTool"):
-        if not _HAS_LANGCHAIN:
-            raise RuntimeError("langchain is not installed. Install with `pip install langchain-core`")
-
-        self.name = getattr(langchain_tool, "name", "exported_langchain_tool")
-        self.description = getattr(langchain_tool, "description", "No description provided.")
-
-        maybe_args_schema = getattr(langchain_tool, "args_schema", None)
-        if maybe_args_schema and hasattr(maybe_args_schema, "schema") and callable(maybe_args_schema.schema):
-            args_schema = maybe_args_schema.schema()
-        else:
-            args_schema = {}
-
-            # Store parameters to avoid modifying the definition property directly
-        self._parameters = args_schema.get("properties", {})
-        self._required = args_schema.get("required", [])
-
-        # Adapt the LangChain tool's execution method
-        def adapted_fn(*args, **kwargs):
-            return langchain_tool._run(*args, **kwargs)
-
-        self.fn = adapted_fn
-
-    def export_to_langchain(self) -> "LangchainBaseTool":
-        if not _HAS_LANGCHAIN:
-            raise RuntimeError(
-                "langchain is not installed. Install with `pip install langchain-core`"
-            )
-
-        from pydantic import create_model
-
-        # Create type mapping from JSON schema types to Python types
-        type_map = {
-            "number": float,
-            "string": str,
-            "integer": int,
-            "boolean": bool,
-            "object": dict,
-            "array": list
-        }
-
-        parameters = self.definition.get("function", {}).get("parameters", {})
-        param_properties = parameters.get("properties", {})
-
-        # Dynamically create ArgsSchema using pydantic.create_model
-        fields = {}
-        for param_name, param_def in param_properties.items():
-            param_type = param_def.get("type", "string")
-            description = param_def.get("description", "")
-            fields[param_name] = (
-                type_map.get(param_type, str),
-                Field(..., description=description)
-            )
-
-        ArgsSchema = create_model('ArgsSchema', **fields)
-
-        # Create tool subclass with our functionality
-        class ExportedTool(LangchainBaseTool):
-            name: str = self.definition.get("function", {}).get("name", "")
-            description: str = self.definition.get("function", {}).get("description", "")
-            args_schema: Type[BaseModel] = ArgsSchema
-            fn: Callable = self.fn
-
-            def _run(self, *args, **kwargs):
-                return self.fn(*args, **kwargs)
-
-        # Instantiate and return the tool
-        tool = ExportedTool()
-        return tool
