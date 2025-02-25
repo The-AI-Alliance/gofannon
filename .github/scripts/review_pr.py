@@ -58,23 +58,28 @@ def main():
     if all_comments:
         pr.create_issue_comment(f"🔍 Found {len(all_comments)} potential issues:")
         for comment in all_comments:
-            # Get the commit object for the head of the PR
             commit = repo.get_commit(pr.head.sha)
 
-            pr.create_review_comment(
-                body=comment['body'],
-                commit=commit,
-                path=comment['path'],
-                line=comment['line'] if comment['line'] > 0 else NotSet
-            )
-
-    checks_list = "\n- ".join(["TODO: Implement Checks list"])
-    files_list = "\n- ".join(sorted(analyzed_files))
-    pr.create_issue_comment(
-        f"✅ Automated review completed by {model_name}\n\n"
-        f"Files analyzed:\n- {files_list}\n\n"
-        f"Checks Performed:\n- {checks_list}"
-    )
+            # Handle different types of comments
+            if comment['path'] == "GENERAL":
+                # For general PR comments, create a regular issue comment
+                pr.create_issue_comment(comment['body'])
+            else:
+                # For file-specific comments, create review comments
+                pr.create_review_comment(
+                    body=comment['body'],
+                    commit=commit,
+                    path=comment['path'],
+                    line=comment['line'] if comment['line'] > 0 else NotSet,
+                    side='RIGHT'
+                )
+    else:
+        files_list = "\n- ".join(sorted(analyzed_files))
+        pr.create_issue_comment(
+            f"✅ Automated review completed by {model_name}\n\n"
+            f"Files analyzed:\n- {files_list}\n\n"
+            "No issues found. Everything looks good!"
+        )
 
 if __name__ == "__main__":
     main()
