@@ -55,13 +55,16 @@ def main():
             all_comments.extend(pr_comments)
 
     if all_comments:
-        pr.create_issue_comment(f"🔍 Found {len(all_comments)} potential schema issues:")
+        pr.create_issue_comment(f"🔍 Found {len(all_comments)} potential issues:")
         for comment in all_comments:
+            # Get the commit object for the head of the PR
+            commit = repo.get_commit(pr.head.sha)
+
             pr.create_review_comment(
                 body=comment['body'],
-                commit_id=pr.head.sha,
+                commit=commit,
                 path=comment['path'],
-                line=comment['line']
+                line=comment['line'] if comment['line'] > 0 else None
             )
 
     checks_list = "\n- ".join(["TODO: Implement Checks list"])
