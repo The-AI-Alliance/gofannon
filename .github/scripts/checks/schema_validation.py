@@ -40,8 +40,11 @@ class SchemaValidationCheck:
             if isinstance(node, ast.ClassDef):
                 base_names = [base.id for base in node.bases if isinstance(base, ast.Name)]
                 if 'BaseTool' in base_names:
+                    print('found a baseTool')
                     for decorator in node.decorator_list:
+                        print('found a decorator')
                         if isinstance(decorator, ast.Call) and getattr(decorator.func, 'attr', None) == 'register':
+
                             tool_info = {
                                 'class_name': node.name,
                                 'definition': None
@@ -51,6 +54,8 @@ class SchemaValidationCheck:
                                     visitor.definition = sub_node
                                     tool_info['definition'] = visitor.get_definition_return()
                             tools.append(tool_info)
+                        else:
+                            print("the last one failed though")
         return tools
 
     def validate_definition(self, definition):
