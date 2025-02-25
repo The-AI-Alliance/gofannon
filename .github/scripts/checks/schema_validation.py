@@ -133,7 +133,13 @@ Example of valid structure:
             analyzed = True
             content = repo.get_contents(file.filename, ref=pr.head.sha).decoded_content.decode()
             tools = self.analyze_file(content)
-            print(f"found {len(tools)} tools...")
+            print(f"found {len(tools)} tools in file {file.filename}...")
+            if len(tools) == 0:
+                comments.append({
+                    "path": file.filename,
+                    "body": f"No tools found in file '{file.filename}'",
+                    "line": 1
+                })
             for tool in tools:
                 if tool['definition']:
                     validation = self.validate_definition(tool['definition'])
@@ -143,7 +149,7 @@ Example of valid structure:
                             "body": f"File {tool['class_name']} seems to have a valid schema",
                             "line": 1
                         })
-                    if not validation.get('valid', False):
+                    else:
                         message = f"⚠️ **Schema Issue in {tool['class_name']}**\n"
                         if validation.get('missing_fields'):
                             message += f"Missing fields: {', '.join(validation['missing_fields'])}\n"
