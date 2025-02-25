@@ -85,7 +85,7 @@ def main():
         pr.create_issue_comment("\n".join(summary))
 
         # Post individual comments.
-        # We use create_issue_comment for general comments
+        # Use create_issue_comment for general comments
         # and create_review_comment for file-specific comments.
         for comment in all_comments:
             if comment['path'] == "GENERAL":
@@ -94,21 +94,15 @@ def main():
                 )
             else:
                 commit = repo.get_commit(pr.head.sha)
-                diff_hunk = file_patches.get(comment['path'])
-                # Validate that the diff hunk exists. If not, fallback to an issue comment.
-                if diff_hunk:
-                    pr.create_review_comment(
-                        body=f"**{comment['check_name'].replace('Check', '')}:**\n{comment['body']}",
-                        commit=commit,
-                        path=comment['path'],
-                        line=comment['line'] if comment['line'] > 0 else NotSet,
-                        diff_hunk=diff_hunk,
-                        side='RIGHT'
-                    )
-                else:
-                    pr.create_issue_comment(
-                        f"**{comment['check_name'].replace('Check', '')} on {comment['path']}:** {comment['body']}"
-                    )
+                # NOTE: Although we build file_patches, we do not pass diff_hunk
+                # because PyGithub's create_review_comment does not accept it.
+                pr.create_review_comment(
+                    body=f"**{comment['check_name'].replace('Check', '')}:**\n{comment['body']}",
+                    commit=commit,
+                    path=comment['path'],
+                    line=comment['line'] if comment['line'] > 0 else NotSet,
+                    side='RIGHT'
+                )
     else:
         files_list = "\n- ".join(sorted(analyzed_files))
         pr.create_issue_comment(
@@ -118,4 +112,4 @@ def main():
         )
 
 if __name__ == "__main__":
-    main()  
+    main()
