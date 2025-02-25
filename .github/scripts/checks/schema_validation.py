@@ -128,7 +128,7 @@ Example of valid structure:
         comments = []
         analyzed = False
 
-        if file.filename.contains('gofannon/') and file.filename.endswith('.py'):
+        if 'gofannon/' in file.filename and file.filename.endswith('.py'):
             analyzed = True
             content = repo.get_contents(file.filename, ref=pr.head.sha).decoded_content.decode()
             tools = self.analyze_file(content)
