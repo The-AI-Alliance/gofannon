@@ -23,6 +23,7 @@ jobs:
 
       - name: Run PR Review
         env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
           OPENAI_MODEL_NAME: ${{ secrets.OPENAI_MODEL_NAME }}
