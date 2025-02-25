@@ -62,7 +62,7 @@ def main():
             pr_comments, analyzed = check.process_pr(pr)
             for comment in pr_comments:
                 comment['check_name'] = check_name
-                all_comments.append(f"{check_name}: {comment})
+                all_comments.append(f"{check_name}: {comment}")
                 check_results[check_name].append(comment)
 
                 # Create summary comment
