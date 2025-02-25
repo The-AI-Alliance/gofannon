@@ -1,6 +1,7 @@
 import os
 import importlib.util
-from github import Github, NotSet
+from github import Github
+from github.GithubObject import NotSet
 from openai import OpenAI
 
 def load_checks():
