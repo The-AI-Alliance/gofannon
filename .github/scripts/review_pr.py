@@ -16,10 +16,12 @@ def load_checks():
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 
-            if hasattr(module, 'SchemaValidationCheck'):
-                checks.append(module.SchemaValidationCheck)
+            # Add all classes that end with 'Check'
+            for name, obj in module.__dict__.items():
+                if name.endswith('Check') and isinstance(obj, type):
+                    checks.append(obj)
 
-            return checks
+    return checks
 
 def main():
     pr_number = int(os.environ['PR_NUMBER'])
@@ -37,12 +39,20 @@ def main():
     all_comments = []
     analyzed_files = set()
 
+    # Process file-specific checks
     for check in checks:
-        for file in pr.get_files():
-            file_comments, analyzed = check.process_pr_file(file, repo, pr)
-            if analyzed:
-                analyzed_files.add(file.filename)
-            all_comments.extend(file_comments)
+        if hasattr(check, 'process_pr_file'):
+            for file in pr.get_files():
+                file_comments, analyzed = check.process_pr_file(file, repo, pr)
+                if analyzed:
+                    analyzed_files.add(file.filename)
+                all_comments.extend(file_comments)
+
+                # Process PR-level checks
+    for check in checks:
+        if hasattr(check, 'process_pr'):
+            pr_comments, analyzed = check.process_pr(pr)
+            all_comments.extend(pr_comments)
 
     if all_comments:
         pr.create_issue_comment(f"🔍 Found {len(all_comments)} potential schema issues:")
@@ -53,13 +63,14 @@ def main():
                 path=comment['path'],
                 line=comment['line']
             )
-    else:
-        files_list = "\n- ".join(sorted(analyzed_files))
-        pr.create_issue_comment(
-            f"✅ Automated review completed by {model_name}\n\n"
-            f"Files analyzed:\n- {files_list}\n\n"
-            "No schema issues found. Everything looks good!"
-        )
+
+    checks_list = "\n- ".join(["TODO: Implement Checks list"])
+    files_list = "\n- ".join(sorted(analyzed_files))
+    pr.create_issue_comment(
+        f"✅ Automated review completed by {model_name}\n\n"
+        f"Files analyzed:\n- {files_list}\n\n"
+        f"Checks Performed:\n- {checks_list}"
+    )
 
 if __name__ == "__main__":
     main()

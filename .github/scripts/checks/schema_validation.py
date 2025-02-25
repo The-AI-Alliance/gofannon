@@ -61,14 +61,55 @@ class SchemaValidationCheck:
   
 Schema to validate: {json.dumps(definition, indent=2)}    
   
-Follow these validation rules from OpenAI's documentation:    
-1. Must have 'type' set to 'function'    
-2. Must have 'function' object containing:    
-   a. 'name' (string, required)    
-   b. 'description' (string, required)    
-   c. 'parameters' (object, required) following JSON Schema format    
-3. Parameters must define 'type' for each property    
-4. No markdown formatting in descriptions"""
+Follow these validation rules based on the example structure:  
+1. Must have 'type' set to 'function'  
+2. Must have 'function' object containing:  
+   a. 'name' (string, required)  
+   b. 'description' (string, required)  
+   c. 'parameters' (object, required) following JSON Schema format  
+3. Parameters object must contain:  
+   a. 'type' set to 'object'  
+   b. 'properties' object containing parameter definitions  
+   c. 'required' array listing required parameters  
+   d. 'additionalProperties' set to false  
+4. Each parameter in 'properties' must define:  
+   a. 'type' (string, required)  
+   b. 'description' (string, required)  
+   c. 'enum' (array, optional) if parameter has specific allowed values  
+5. The 'function' object should include 'strict' set to true  
+6. No markdown formatting in descriptions  
+  
+Example of valid structure:  
+{{  
+    "type": "function",  
+    "function": {{  
+        "name": "get_weather",  
+        "description": "Retrieves current weather for the given location.",  
+        "parameters": {{  
+            "type": "object",  
+            "properties": {{  
+                "location": {{  
+                    "type": "string",  
+                    "description": "City and country e.g. Bogotá, Colombia"  
+                }},  
+                "units": {{  
+                    "type": "string",  
+                    "enum": [  
+                        "celsius",  
+                        "fahrenheit"  
+                    ],  
+                    "description": "Units the temperature will be returned in."  
+                }}  
+            }},  
+            "required": [  
+                "location",  
+                "units"  
+            ],  
+            "additionalProperties": false  
+        }},  
+        "strict": true  
+    }}  
+}}"""
 
         response = self.client.chat.completions.create(
             model=self.model_name,
