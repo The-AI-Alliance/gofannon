@@ -127,8 +127,9 @@ Example of valid structure:
     def process_pr_file(self, file, repo, pr):
         comments = []
         analyzed = False
-
-        if 'gofannon/' in file.filename and file.filename.endswith('.py'):
+        print("prints work")
+        if file.filename.endswith('.py'):
+            print("in the loop!")
             analyzed = True
             content = repo.get_contents(file.filename, ref=pr.head.sha).decoded_content.decode()
             tools = self.analyze_file(content)
