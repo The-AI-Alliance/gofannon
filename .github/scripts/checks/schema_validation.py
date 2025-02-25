@@ -136,6 +136,12 @@ Example of valid structure:
             for tool in tools:
                 if tool['definition']:
                     validation = self.validate_definition(tool['definition'])
+                    if validation.get('valid'):
+                        comments.append({
+                            "path": file.filename,
+                            "body": f"File {tool['class_name']} seems to have a valid schema",
+                            "line": 1
+                        })
                     if not validation.get('valid', False):
                         message = f"⚠️ **Schema Issue in {tool['class_name']}**\n"
                         if validation.get('missing_fields'):
