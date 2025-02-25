@@ -12,7 +12,7 @@ def load_checks():
             module_name = file[:-3]
             spec = importlib.util.spec_from_file_location(
                 module_name,
-                os.path.join(checks_dir, file)
+                os.path.join(checks_dir, file))
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 
@@ -62,4 +62,4 @@ def main():
         )
 
 if __name__ == "__main__":
-    main()  
+    main()
