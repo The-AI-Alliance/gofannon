@@ -39,35 +39,52 @@ def main():
     checks = [check(client, model_name) for check in load_checks()]
     all_comments = []
     analyzed_files = set()
+    check_results = {}
 
-    # Process file-specific checks
+    # Process all checks
     for check in checks:
+        check_name = check.__class__.__name__
+        check_results[check_name] = []
+
+        # Process file-specific checks
         if hasattr(check, 'process_pr_file'):
             for file in pr.get_files():
                 file_comments, analyzed = check.process_pr_file(file, repo, pr)
                 if analyzed:
                     analyzed_files.add(file.filename)
-                all_comments.extend(file_comments)
+                    for comment in file_comments:
+                        comment['check_name'] = check_name
+                        all_comments.append(comment)
+                        check_results[check_name].append(comment)
 
-                # Process PR-level checks
-    for check in checks:
+                        # Process PR-level checks
         if hasattr(check, 'process_pr'):
             pr_comments, analyzed = check.process_pr(pr)
-            all_comments.extend(pr_comments)
+            for comment in pr_comments:
+                comment['check_name'] = check_name
+                all_comments.append(comment)
+                check_results[check_name].append(comment)
 
+                # Create summary comment
     if all_comments:
-        pr.create_issue_comment(f"🔍 Found {len(all_comments)} potential issues:")
-        for comment in all_comments:
-            commit = repo.get_commit(pr.head.sha)
+        summary = ["🔍 Found potential issues:"]
+        for check_name, comments in check_results.items():
+            if comments:
+                summary.append(f"\n### {check_name.replace('Check', '')} ({len(comments)} issues)")
+                for i, comment in enumerate(comments, 1):
+                    summary.append(f"{i}. {comment['body'].split('\n')[0]}...")
 
-            # Handle different types of comments
+                    # Post summary comment
+        pr.create_issue_comment("\n".join(summary))
+
+        # Post individual comments
+        for comment in all_comments:
             if comment['path'] == "GENERAL":
-                # For general PR comments, create a regular issue comment
-                pr.create_issue_comment(comment['body'])
+                pr.create_issue_comment(f"**{comment['check_name'].replace('Check', '')}:**\n{comment['body']}")
             else:
-                # For file-specific comments, create review comments
+                commit = repo.get_commit(pr.head.sha)
                 pr.create_review_comment(
-                    body=comment['body'],
+                    body=f"**{comment['check_name'].replace('Check', '')}:**\n{comment['body']}",
                     commit=commit,
                     path=comment['path'],
                     line=comment['line'] if comment['line'] > 0 else NotSet,
