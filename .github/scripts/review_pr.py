@@ -72,7 +72,8 @@ def main():
             if comments:
                 summary.append(f"\n### {check_name.replace('Check', '')} ({len(comments)} issues)")
                 for i, comment in enumerate(comments, 1):
-                    summary.append(f"{i}. {comment['body'].split('\n')[0]}...")
+                    local_comment = comment['body'].split('\n')[0]
+                    summary.append(f"{i}. {local_comment}...")
 
                     # Post summary comment
         pr.create_issue_comment("\n".join(summary))
