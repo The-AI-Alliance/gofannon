@@ -62,21 +62,21 @@ def main():
             pr_comments, analyzed = check.process_pr(pr)
             for comment in pr_comments:
                 comment['check_name'] = check_name
-                all_comments.append(f"{check_name}: {comment}")
+                all_comments.append(comment)
                 check_results[check_name].append(comment)
 
                 # Create summary comment
     if all_comments:
-        # summary = ["🔍 Found potential issues:"]
-        # for check_name, comments in check_results.items():
-        #     if comments:
-        #         summary.append(f"\n### {check_name.replace('Check', '')} ({len(comments)} issues)")
-        #         for i, comment in enumerate(comments, 1):
-        #             local_comment = comment['body'].split('\n')[0]
-        #             summary.append(f"{i}. {local_comment}...")
-        #
-        #             # Post summary comment
-        # pr.create_issue_comment("\n".join(summary))
+        summary = ["🔍 Found potential issues:"]
+        for check_name, comments in check_results.items():
+            if comments:
+                summary.append(f"\n### {check_name.replace('Check', '')} ({len(comments)} issues)")
+                for i, comment in enumerate(comments, 1):
+                    local_comment = comment['body'].split('\n')[0]
+                    summary.append(f"{i}. {local_comment}...")
+
+                    # Post summary comment
+        pr.create_issue_comment("\n".join(summary))
 
         # Post individual comments
         for comment in all_comments:
