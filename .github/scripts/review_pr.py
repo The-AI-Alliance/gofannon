@@ -94,9 +94,11 @@ def main():
     model_name = os.environ['OPENAI_MODEL_NAME']
 
     comments = []
+    analyzed_files = []
 
     for file in pr.get_files():
         if file.filename.startswith('gofannon/') and file.filename.endswith('.py'):
+            analyzed_files.append(file.filename)
             content = repo.get_contents(file.filename, ref=pr.head.sha).decoded_content.decode()
             tools = analyze_file(content)
 
@@ -109,8 +111,8 @@ def main():
                         if validation.get('missing_fields'):
                             missing_fields = ', '.join(validation['missing_fields'])
                             message += f"Missing required fields: {missing_fields}\n"
-                            if validation.get('errors'):
-                                message += "Validation errors:\n- " + "\n- ".join(validation['errors'])
+                        if validation.get('errors'):
+                            message += "Validation errors:\n- " + "\n- ".join(validation['errors'])
 
                         comments.append({
                             "path": file.filename,
@@ -122,6 +124,13 @@ def main():
         pr.create_issue_comment(f"🔍 Found {len(comments)} potential schema issues:")
         for comment in comments:
             pr.create_review_comment(body=comment['body'], commit_id=pr.head.sha, path=comment['path'], line=comment['line'])
+    else:
+        files_list = "\n- ".join(analyzed_files)
+        pr.create_issue_comment(
+            f"✅ Automated review completed by {model_name}\n\n"
+            f"Files analyzed:\n- {files_list}\n\n"
+            "No schema issues found. Everything looks good!"
+        )
 
 if __name__ == "__main__":
     main()
