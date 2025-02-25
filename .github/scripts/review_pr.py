@@ -82,9 +82,9 @@ Follow these validation rules from OpenAI's documentation:
     return json.loads(response.choices[0].message.content)
 
 def main():
-    pr_number = int(os.environ['GITHUB_EVENT_PULL_REQUEST_NUMBER'])
+    pr_number = int(os.environ['PR_NUMBER'])
     g = Github(os.environ['GITHUB_TOKEN'])
-    repo = g.get_repo(os.environ['GITHUB_REPOSITORY'])
+    repo = g.get_repo(os.environ['REPO_NAME'])
     pr = repo.get_pull(pr_number)
 
     client = OpenAI(
