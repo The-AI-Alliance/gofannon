@@ -27,8 +27,34 @@ class SchemaValidationCheck:
         def get_definition_return(self):
             for node in ast.walk(self.definition):
                 if isinstance(node, ast.Return):
-                    return ast.literal_eval(node.value)
+                    return self.node_to_value(node.value)
             return None
+
+        def node_to_value(self, node):
+            if isinstance(node, ast.Dict):
+                return {
+                    self.node_to_value(key): self.node_to_value(value)
+                    for key, value in zip(node.keys, node.values)
+                }
+            elif isinstance(node, ast.Constant): # for Python 3.8+
+                return node.value
+            elif isinstance(node, ast.Str): # for older Python versions
+                return node.s
+            elif isinstance(node, ast.Num):
+                return node.n
+            elif isinstance(node, ast.Name):
+                return node.id
+            elif isinstance(node, ast.Attribute):
+            # Return a string representation for non-literal attribute values (e.g., "self.name")
+                return f"{self.node_to_value(node.value)}.{node.attr}"
+            elif isinstance(node, ast.List):
+                return [self.node_to_value(e) for e in node.elts]
+            elif isinstance(node, ast.Tuple):
+                return tuple(self.node_to_value(e) for e in node.elts)
+            elif isinstance(node, ast.Set):
+                return {self.node_to_value(e) for e in node.elts}
+            else:
+                return None
 
     def analyze_file(self, content):
         tree = ast.parse(content)
