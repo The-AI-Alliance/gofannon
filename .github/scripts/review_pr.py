@@ -36,17 +36,25 @@ def main():
     )
     model_name = os.environ['OPENAI_MODEL_NAME']
 
+    # Load all checks
     checks = [check(client, model_name) for check in load_checks()]
+
     all_comments = []
     analyzed_files = set()
     check_results = {}
 
-    # Process all checks
+    # Build a mapping of filename to diff hunk (patch)
+    file_patches = {}
+    for file in pr.get_files():
+        # file.patch contains the diff snippet for that file
+        file_patches[file.filename] = file.patch
+
+        # Process each check for every file in the PR
     for check in checks:
         check_name = check.__class__.__name__
         check_results[check_name] = []
 
-        # Process file-specific checks
+        # Process file-specific checks.
         if hasattr(check, 'process_pr_file'):
             for file in pr.get_files():
                 file_comments, analyzed = check.process_pr_file(file, repo, pr)
@@ -57,7 +65,7 @@ def main():
                         all_comments.append(comment)
                         check_results[check_name].append(comment)
 
-                        # Process PR-level checks
+                        # Process PR-level checks.
         if hasattr(check, 'process_pr'):
             pr_comments, analyzed = check.process_pr(pr)
             for comment in pr_comments:
@@ -65,7 +73,7 @@ def main():
                 all_comments.append(comment)
                 check_results[check_name].append(comment)
 
-                # Create summary comment
+                # Create a summary comment if there are any issues.
     if all_comments:
         summary = ["🔍 Found potential issues:"]
         for check_name, comments in check_results.items():
@@ -74,23 +82,33 @@ def main():
                 for i, comment in enumerate(comments, 1):
                     local_comment = comment['body'].split('\n')[0]
                     summary.append(f"{i}. {local_comment}...")
-
-                    # Post summary comment
         pr.create_issue_comment("\n".join(summary))
 
-        # Post individual comments
+        # Post individual comments.
+        # We use create_issue_comment for general comments
+        # and create_review_comment for file-specific comments.
         for comment in all_comments:
             if comment['path'] == "GENERAL":
-                pr.create_issue_comment(f"**{comment['check_name'].replace('Check', '')}:**\n{comment['body']}")
+                pr.create_issue_comment(
+                    f"**{comment['check_name'].replace('Check', '')}:**\n{comment['body']}"
+                )
             else:
                 commit = repo.get_commit(pr.head.sha)
-                pr.create_review_comment(
-                    body=f"**{comment['check_name'].replace('Check', '')}:**\n{comment['body']}",
-                    commit=commit,
-                    path=comment['path'],
-                    line=comment['line'] if comment['line'] > 0 else NotSet,
-                    side='RIGHT'
-                )
+                diff_hunk = file_patches.get(comment['path'])
+                # Validate that the diff hunk exists. If not, fallback to an issue comment.
+                if diff_hunk:
+                    pr.create_review_comment(
+                        body=f"**{comment['check_name'].replace('Check', '')}:**\n{comment['body']}",
+                        commit=commit,
+                        path=comment['path'],
+                        line=comment['line'] if comment['line'] > 0 else NotSet,
+                        diff_hunk=diff_hunk,
+                        side='RIGHT'
+                    )
+                else:
+                    pr.create_issue_comment(
+                        f"**{comment['check_name'].replace('Check', '')} on {comment['path']}:** {comment['body']}"
+                    )
     else:
         files_list = "\n- ".join(sorted(analyzed_files))
         pr.create_issue_comment(
@@ -100,4 +118,4 @@ def main():
         )
 
 if __name__ == "__main__":
-    main()
+    main()  
