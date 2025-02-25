@@ -1,6 +1,6 @@
 import os
 import importlib.util
-from github import Github
+from github import Github, NotSet
 from openai import OpenAI
 
 def load_checks():
@@ -64,7 +64,7 @@ def main():
                 body=comment['body'],
                 commit=commit,
                 path=comment['path'],
-                line=comment['line'] if comment['line'] > 0 else None
+                line=comment['line'] if comment['line'] > 0 else NotSet
             )
 
     checks_list = "\n- ".join(["TODO: Implement Checks list"])
