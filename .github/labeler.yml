@@ -1,0 +1,8 @@
+docs:
+  - docs/**/*
+  - website/**/*
+code:
+  - gofannon/**/*
+  - tests/**/*
+  - pyproject.toml
+  - poetry.lock
