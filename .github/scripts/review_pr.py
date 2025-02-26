@@ -1,7 +1,24 @@
 import os
 import importlib.util
+import sys
+
 from github import Github
 from openai import OpenAI
+
+def check_env_vars():
+    required_vars = {
+        'GITHUB_TOKEN': lambda v: '****' + v[-4:],
+        'OPENAI_API_KEY': lambda v: '****' + v[-4:],
+        'OPENAI_BASE_URL': lambda v: v,
+        'OPENAI_MODEL_NAME': lambda v: v,
+    }
+    for var, formatter in required_vars.items():
+        value = os.environ.get(var)
+        if not value:
+            sys.exit(f"Error: Required environment variable '{var}' is missing.")
+        print(f"{var} = {formatter(value)}")
+
+check_env_vars()
 
 def load_checks():
     checks = []
