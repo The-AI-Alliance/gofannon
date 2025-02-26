@@ -1,15 +1,23 @@
 name: PR Tool Review
 on:
-  pull_request:
-    types: [opened, synchronize]
+  pull_request_target:
+    types: [labeled]
 
 jobs:
   review:
+    # Only run the job if the newly added label is "run-tests"
+    if: github.event.label.name == 'run-tests'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out base repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Fetch fork code
+        run: |
+          git fetch origin +refs/pull/${{ github.event.pull_request.number }}/head:pr-${{ github.event.pull_request.number }}
+          git checkout pr-${{ github.event.pull_request.number }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -21,9 +29,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install openai pygithub python-dotenv
 
-      - name: Run PR Review
+      - name: Run Integration Tests
         env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
           OPENAI_MODEL_NAME: ${{ vars.OPENAI_MODEL_NAME }}
