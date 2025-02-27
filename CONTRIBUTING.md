@@ -27,3 +27,16 @@ class NewTool(BaseTool):
         # Define your tool functionality  
         pass  
 ```
+
+## PR Requirements
+
+- Code changes require:
+    - Passing unit tests
+    - Code review approval
+    - Updated documentation if API changes (or for additions)
+
+- Documentation changes require:
+    - Successful site build
+    - No code review required (but still appreciated)
+
+- Mixed changes must satisfy all relevant requirements  
