@@ -1,3 +1,4 @@
+
 /* Base website styles */
 body {
     font-family: Arial, sans-serif;
@@ -77,13 +78,34 @@ footer p {
     font-size: 0.9rem;
 }
 
-/* Optional: Improve spacing between elements on mobile */
 @media (max-width: 576px) {
     .row {
         margin-left: 0;
         margin-right: 0;
     }
+
     .card {
         margin-bottom: 1rem;
     }
+}
+
+html, body {
+    height: 100%;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1 0 auto;
+}
+
+.footer-wrapper {
+    flex-shrink: 0;
+}
+
+footer {
+    margin-top: auto;
 }
