@@ -1,9 +1,0 @@
-blank_issues_enabled: false
-
-choices:
-  - name: "Documentation/Website Change"
-    description: "For changes to documentation or website content"
-    file: "docs_website_pr.md"
-  - name: "New Function or Feature"
-    description: "For proposing a new function or tool"
-    file: "general_code_pr.md"
