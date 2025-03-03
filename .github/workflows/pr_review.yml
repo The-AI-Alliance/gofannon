@@ -32,4 +32,4 @@ jobs:
           # Optionally, specify a custom review checks file:
           # PR_REVIEW_CHECKS_PATH: ".github/scripts/my_custom_checks.py"
         run: |
-          python .github/scripts/review_pr.py
+          poetry run python .github/scripts/review_pr.py
