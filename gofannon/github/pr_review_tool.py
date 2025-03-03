@@ -89,14 +89,15 @@ class PRReviewTool(BaseTool):
                     all_comments.append(comment)
                     check_results[check_name].append(comment)
 
-        summary = "Automated PR Review Summary:\n"
+        summary = "## 🤖 Automated PR Review Summary 🤖\n\n"
         for check_name, comments in check_results.items():
-            if comments:
-                summary += f"\n{check_name}: {len(comments)} issue(s) detected.\n"
-                for c in comments:
-                    issue = c.get("body", "").split("\n")[0]
-                    file_path = c.get("path", "GENERAL")
-                    summary += f" - {issue} (File: {file_path})\n"
+            summary += f"### 🤖 {check_name} 🤖\n\n"
+            for comment in comments:
+                body = comment.get("body", "")
+                file_path = comment.get("path", "")
+                if file_path and file_path != "GENERAL":
+                    body = f"**File:** `{file_path}`\n{body}"
+                summary += f"{body}\n\n"
         if not all_comments:
             summary += "\nNo issues found. Code looks good!"
 
