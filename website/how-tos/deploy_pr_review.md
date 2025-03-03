@@ -80,7 +80,7 @@ The PR Review Tool is designed to be extensible, allowing you to create custom c
 
 Create a new Python file in `.github/scripts/checks/` following this structure:
 
-$$$python  
+```python  
 from github import Github
 
 class YourCustomCheck:  
@@ -127,7 +127,7 @@ self.model_name = model_name
         })  
           
         return comments, analyzed  
-$$$
+```
 
 ### 2. Required Methods
 
@@ -147,21 +147,21 @@ Each check class must implement at least one of these methods:
 
 Comments must be returned as a list of dictionaries with these keys:
 
-$$$python  
+```python  
 {  
 "path": "filename.py",  # File path or "GENERAL" for PR-wide comments  
 "body": "Your review comment",  # Markdown-formatted text  
 "line": 1  # Line number (0 for general comments)  
 }  
-$$$
+```
 
 ### 4. Registering Your Check
 
 1. Add your check class to `.github/scripts/pr_review_checks.py`:
 
-$$$python  
+```python  
 from checks.your_check_file import YourCustomCheck  
-$$$
+```
 
 2. The tool will automatically detect and run any class whose name ends with "Check"
 
@@ -169,7 +169,7 @@ $$$
 
 Here's an example check that verifies Python files have docstrings:
 
-$$$python  
+```python  
 import ast
 
 class DocumentationCheck:  
@@ -199,7 +199,7 @@ self.model_name = model_name
                 pass  
                   
         return comments, analyzed  
-$$$
+```
 
 ### 6. Testing Your Check
 
