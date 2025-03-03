@@ -1,2 +1,2 @@
-from .checks.general_review import GeneralReviewCheck
-from .checks.schema_validation import SchemaValidationCheck
+from checks.general_review import GeneralReviewCheck
+from checks.schema_validation import SchemaValidationCheck
