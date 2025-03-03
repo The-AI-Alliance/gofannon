@@ -1,10 +1,12 @@
 name: Unit Tests
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
+    paths:
+      - 'gofannon/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - 'poetry.lock'
     branches:
       - main
 

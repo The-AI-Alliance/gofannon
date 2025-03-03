@@ -1,47 +1,45 @@
 # Project Gofannon  - Roadmap
-  
-This project contains tools that can be used in LLMs. Each tool is designed to perform specific functions and can be extended or customized based on your needs.  
-  
-## Tools Overview  
-  
-| API                | Documentation                              | Status                                |  
-|--------------------|--------------------------------------------|---------------------------------------|  
-| GitHub             | [Documentation](docs/github/index.md)      | :construction: Under Construction     |
-| Reasoning          | [Documentation](docs/reasoning/index.md)   | :construction: Under Construction        | 
-| HeadlessWebBrowser | [Documentation](docs/headless_browswer) | :construction: Under Construction | 
-| NHSTA              | [ComplaintsByVehicle](docs/nhsta/index.md) | :construction: Under Construction        |
-| Google Search      | [Documentation](docs/google_search/index.md) | :construction: Under Construction |
-| Open Notify Space | [Documentation](docs/open_notify_space/index.md) | :white_check_mark: Implemeted |
-| ArXiv              | [Documentation](docs/arxiv/index.md)       | :white_check_mark: Implemented        |
-| Basic Math         | [Documentation](docs/basic_math/index.md)  | :white_check_mark: Implemented        |
-| City of Chicago    | 311 API                                    | :triangular_flag_on_post: Roadmap     |
-| DeepInfra          | WriteCode                                  | :triangular_flag_on_post: Roadmap     |
- 
-## Status Icons  
-  
-- :white_check_mark: **Implemented**: This tool is fully implemented and ready for use.  
-- :construction: **In Progress**: This tool is currently under development.  
-- :triangular_flag_on_post: **Roadmap**: This tool is planned for future implementation.  
-- :hourglass_flowing_sand: **Low Priority**: This tool is considered low priority and may be implemented in the future.  
-- :x: **Won't Implement**: There are no plans to implement this tool.  
-  
-## Usage  
-  
-To use a tool, extend the `BaseTool` class in your implementation:  
-  
-```python  
-from base_tool import BaseTool  
-  
-class CustomTool(BaseTool):  
-    @property  
-    def definition(self):  
-        return {  
-            "name": "CustomTool",  
-            "description": "This is a custom tool example",  
-            "version": "1.0.0"  
-        }  
-  
-    def fn(self, *args, **kwargs):  
-        # Implement your functionality here  
-        pass  
-```
+
+This project contains tools that can be used in LLMs. Each tool is designed to 
+perform specific functions and can be extended or customized based on your needs.
+
+## Framework Integrations
+
+| Framework       | Documentation                              | Status                                |  
+|-----------------|--------------------------------------------|---------------------------------------|  
+| LangChain       | [Cross-Framework Compatibility](docs/cross-framework_compatibility.md) | :white_check_mark: Implemented |  
+| SmolAgents      | [Cross-Framework Compatibility](docs/cross-framework_compatibility.md) | :white_check_mark: Implemented | 
+| AWS-Bedrock     |                                            | :construction: Under Construction |
+| GCP-Vertex      |                                            | :triangle_flag_on_post: Roadmap |
+| Salesforce - Agentforce |                                     | :triangle_flag_on_post: Roadmap |
+
+## Documentation
+
+| Section                           | Documentation                              | Status                                |  
+|-----------------------------------|--------------------------------------------|---------------------------------------|
+| Contribution Guide                | [How to Contribute](docs/how_to_contribute.md) | :white_check_mark: Implemented |  
+| How-To: Contribute a Tool         |   | :construction: Under Construction     |
+| How-To: Import/Export |   | :construction: Under Construction     |
+
+## Tools Overview
+
+| API                | Documentation                              | Status                                |    
+|--------------------|--------------------------------------------|---------------------------------------|    
+| GitHub             | [Documentation](docs/github/index.md)      | :construction: Under Construction     |  
+| Reasoning          | [Documentation](docs/reasoning/index.md)   | :construction: Under Construction        |   
+| HeadlessWebBrowser | [Documentation](docs/headless_browswer) | :construction: Under Construction |   
+| NHSTA              | [ComplaintsByVehicle](docs/nhsta/index.md) | :construction: Under Construction        |  
+| Google Search      | [Documentation](docs/google_search/index.md) | :construction: Under Construction |  
+| Open Notify Space | [Documentation](docs/open_notify_space/index.md) | :white_check_mark: Implemented |  
+| ArXiv              | [Documentation](docs/arxiv/index.md)       | :white_check_mark: Implemented        |  
+| Basic Math         | [Documentation](docs/basic_math/index.md)  | :white_check_mark: Implemented        |  
+| City of Chicago    | 311 API                                    | :triangular_flag_on_post: Roadmap     |  
+| DeepInfra          | WriteCode                                  | :triangular_flag_on_post: Roadmap     |  
+
+## Status Icons
+
+- :white_check_mark: **Implemented**: This tool is fully implemented and ready for use.
+- :construction: **In Progress**: This tool is currently under development.
+- :triangular_flag_on_post: **Roadmap**: This tool is planned for future implementation.
+- :hourglass_flowing_sand: **Low Priority**: This tool is considered low priority and may be implemented in the future.
+- :x: **Won't Implement**: There are no plans to implement this tool.
