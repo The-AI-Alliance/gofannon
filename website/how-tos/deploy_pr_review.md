@@ -216,3 +216,10 @@ self.model_name = model_name
 - Handle errors gracefully and provide meaningful error messages
 - Use markdown formatting in comments for better readability
 - Consider performance when analyzing large files or repositories  
+
+### Further Examples
+
+More examples exist in the `gofannon` repository:
+- (`The-AI-Alliance/gofannon/.github/scripts/pr_review_checks.py`)[https://github.com/The-AI-Alliance/gofannon/blob/main/.github/scripts/pr_review_checks.py]
+- (`The-AI-Alliance/gofannon/.github/scripts/checks/general_review.py`)[https://github.com/The-AI-Alliance/gofannon/blob/main/.github/scripts/checks/general_review.py]
+- (`The-AI-Alliance/gofannon/.github/scripts/checks/schema_validation.py`)[https://github.com/The-AI-Alliance/gofannon/blob/main/.github/scripts/checks/schema_validation.py]
