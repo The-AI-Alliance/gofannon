@@ -12,9 +12,9 @@ python = "^3.10"
 openai = "^1.60.2"
 requests = "^2.32.3"
 GitPython = "^3.1.43"
-pygithub = "^2.6.1"
 python-dotenv = "^1.0.1"
 jsonschema = "^4.23.0"
+pygithub = "^2.6.1"
 
 pytest = { version = "^8.3.4", optional = true }
 langchain = { version = "^0.3.16", optional = true }
