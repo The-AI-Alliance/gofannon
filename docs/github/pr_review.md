@@ -32,3 +32,6 @@ Ensure these variables are set in your CI/CD pipeline or local environment:
 ## Integration in CI
 
 You can invoke the PR Review Tool from your CI pipeline (see the workflow file example below). The tool outputs a summary review that is then posted as a comment on the pull request.  
+
+## More Documentation
+For more information on deploying in your repo, see the website [deploy pr review page](https://the-ai-alliance.github.io/gofannon/how-tos/deploy_pr_review.html).
