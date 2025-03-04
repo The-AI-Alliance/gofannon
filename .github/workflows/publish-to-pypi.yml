@@ -40,6 +40,11 @@ jobs:
           git tag -a ${RELEASE_TAG} -m "Weekly release ${RELEASE_TAG}"
           git push origin ${RELEASE_TAG}
 
+      - name: Install poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3
+          poetry --version
+
       - name: Build package
         run: poetry build
 
