@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "gofannon"
-version = "0.25.10"
+version = "0.25.10.1"
 description = "A collection of tools for LLMs"
 authors = ["Trevor Grant <trevor.d.grant@gmail.com>"]
 license = "ASFv2"
