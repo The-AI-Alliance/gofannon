@@ -22,10 +22,7 @@ jobs:
           python-version: '3.10'
 
       - name: Generate version number
-        run: |
-          YEAR_WEEK=$(date +%y.%V)
-          echo "PYPI_VERSION=0.$YEAR_WEEK" >> $GITHUB_ENV
-          echo "RELEASE_TAG=v0.$YEAR_WEEK" >> $GITHUB_ENV
+        run: python .github/scripts/generate_version.py
 
       - name: Update pyproject.toml version
         run: |
