@@ -5,7 +5,6 @@ on:
 
 jobs:
   review:
-    # Only run the job if the newly added label is "run-tests"
     if: github.event.label.name == 'run-tests'
     runs-on: ubuntu-latest
     steps:
@@ -13,23 +12,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Fetch fork code
-        run: |
-          git fetch origin +refs/pull/${{ github.event.pull_request.number }}/head:pr-${{ github.event.pull_request.number }}
-          git checkout pr-${{ github.event.pull_request.number }}
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-
-      - name: Install dependencies
+      - name: Install poetry
         run: |
-          python -m pip install --upgrade pip
-          pip install openai pygithub python-dotenv
-
-      - name: Run Integration Tests
+          curl -sSL https://install.python-poetry.org | python3
+          poetry --version
+          poetry install --all-extras
+      - name: Run PR Review Tool
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -37,5 +29,7 @@ jobs:
           OPENAI_MODEL_NAME: ${{ vars.OPENAI_MODEL_NAME }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO_NAME: ${{ github.repository }}
+          # Optionally, specify a custom review checks file:
+          # PR_REVIEW_CHECKS_PATH: ".github/scripts/my_custom_checks.py"
         run: |
-          python .github/scripts/review_pr.py ${{ github.event.pull_request.number }}
+          poetry run python .github/scripts/review_pr.py
