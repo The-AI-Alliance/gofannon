@@ -25,4 +25,4 @@ jobs:
           curl -sSL https://install.python-poetry.org | python3
           poetry --version
           poetry install --all-extras
-          poetry run pytest tests/
+          poetry run pytest tests/unit/
