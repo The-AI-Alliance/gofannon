@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 
 /* Base website styles */
 body {
@@ -107,6 +106,7 @@ main {
     flex: 1 0 auto;
 }
 
+
 /* Ensure main content does not overflow on mobile screens */
 main.container {
     overflow-x: hidden;
@@ -117,16 +117,14 @@ main.container {
     padding-right: 15px;
 }
 
-
 .footer-wrapper {
     flex-shrink: 0;
 }
 
 footer {
     margin-top: auto;
+
 }
-<<<<<<< HEAD
-=======
 
 /* Footer text adjustments for mobile devices */
 footer p {
@@ -195,4 +193,4 @@ h1, h2, h3, h4, h5, h6 {
         margin-bottom: 1rem;
     }
 }
->>>>>>> 7b545a4 (rebase on main)
+
