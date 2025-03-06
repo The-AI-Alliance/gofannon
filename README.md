@@ -1,4 +1,9 @@
 ![gofannon logo](https://github.com/The-AI-Alliance/gofannon/blob/main/gofannon.jpg)  
+![CI](https://github.com/The-AI-Alliance/gofannon/actions/workflows/main.yml/badge.svg)
+![PyPI](https://img.shields.io/pypi/v/gofannon)
+![License](https://img.shields.io/github/license/The-AI-Alliance/gofannon)
+![Issues](https://img.shields.io/github/issues/The-AI-Alliance/gofannon)
+![GitHub stars](https://img.shields.io/github/stars/The-AI-Alliance/gofannon?style=social)
   
 # gofannon  
   
