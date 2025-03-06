@@ -11,7 +11,7 @@ Welcome to the Gofannon community! Here you'll find all the ways to connect with
 
 Join our vibrant community through these channels:
 
-- **Discord**: [Join our Discord server](https://discord.gg/cMFUaGBP) for real-time collaboration and support
+- **Discord**: [Join our Discord server]({{ site.discord_link }}) for real-time collaboration and support
 - **Community Calls**: [Join our bi-weekly video meetings](https://calendar.app.google/c4eKW4zrNiXaue926) 
 - **GitHub Discussions**: Explore our [GitHub organization](https://github.com/The-AI-Alliance/agents-wg/discussions/) for all related projects
 
