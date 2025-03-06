@@ -1,4 +1,4 @@
-![gofannon logo](./gofannon.jpg)  
+![gofannon logo](https://github.com/The-AI-Alliance/gofannon/blob/main/gofannon.jpg)  
   
 # gofannon  
   
@@ -7,6 +7,29 @@
 ## Why the name `gofanon` ?
 
 See [`why_the_name_gofannon.md`](./why_the_name_gofannon.md) for the rich story on why we chose to honor this Celtic Diety
+
+## Our Mission
+
+We aim to achieve:
+
+### Cross-Framework Compatibility
+We solve the "vendor lock-in" problem in AI tooling through:
+- Standardized interface definitions
+- Automatic schema translation
+- Bidirectional conversion tools
+
+### Open Source Education
+We make AI development accessible by:
+- Curated contribution pathways
+- Interactive documentation
+- Pair programming sessions
+- Weekly office hours
+
+### Encouraging First-Time Contributors
+We actively support new contributors through:
+- Beginner-friendly issues
+- Clear documentation and guides
+- Supportuve community engagement
 
 ## Features  
   
@@ -18,20 +41,12 @@ See [`why_the_name_gofannon.md`](./why_the_name_gofannon.md) for the rich story 
   
 ## Roadmap  
   
-For a detailed overview of planned features and their current status, please refer to the [ROADMAP](./ROADMAP.md).  
+For a detailed overview of planned features and their current status, please refer to the [ROADMAP](./ROADMAP.md).   
 
 ## Documentation
 
-Documentation can be found [here](./docs).
+Documentation can be found [here](./docs).Each tool comes with its own documentation, which can be found in the docs/ directory. The documentation provides detailed information on how to use each tool, including required parameters and example usage.
 
-## Contributing  
-  
-We welcome contributions from the community! If you'd like to add a new tool or improve an existing one, please check out our [CONTRIBUTING](./CONTRIBUTING.md) guide for detailed instructions on how to get started.  
-  
-## Documentation  
-  
-Each tool comes with its own documentation, which can be found in the `docs/` directory. The documentation provides detailed information on how to use each tool, including required parameters and example usage.  
-  
 ## Installation  
   
 To install gofannon, simply clone the repository and install the required dependencies:  
@@ -48,9 +63,25 @@ or
 pip install git+https://github.com/The-AI-Alliance/gofannon.git
 ```
 
+## Communication Channels
+- **Disccord**: Real-time collaboration and support
+- **Github Discussions**: Technical deep dives and asynchhronous collaboration
+- **Community Calls**: Bi-weekly video meetings
+
+## Usage Example
+```bash
+import gofannon
+agent = gofannon.Agent()
+agent.run()
+```
+
 ## License  
   
-This project is licensed under the ASFv2 License. See the [LICENSE](./LICENSE) file for more details.  
+This project is licensed under the ASFv2 License. See the [LICENSE](./LICENSE) file for more details.
+
+## Contributing  
+  
+We welcome contributions from the community! If you'd like to add a new tool or improve an existing one, please check out our [CONTRIBUTING](./CONTRIBUTING.md) guide for detailed instructions on how to get started.  
   
 ## Support  
   
