@@ -1,5 +1,5 @@
 ![gofannon logo](https://github.com/The-AI-Alliance/gofannon/blob/main/gofannon.jpg)  
-![CI](https://github.com/The-AI-Alliance/gofannon/actions/workflows/main.yml/badge.svg)
+<!-- ![CI](https://github.com/The-AI-Alliance/gofannon/actions/workflows/main.yml/badge.svg) -->
 ![PyPI](https://img.shields.io/pypi/v/gofannon)
 ![License](https://img.shields.io/github/license/The-AI-Alliance/gofannon)
 ![Issues](https://img.shields.io/github/issues/The-AI-Alliance/gofannon)
@@ -11,7 +11,7 @@
 
 ## Why the name `gofanon` ?
 
-See [`why_the_name_gofannon.md`](./why_the_name_gofannon.md) for the rich story on why we chose to honor this Celtic Diety
+See [`why_the_name_gofannon.md`](https://github.com/The-AI-Alliance/gofannon/blob/main/why_the_name_gofannon.md) for the rich story on why we chose to honor this Celtic Diety
 
 ## Our Mission
 
@@ -46,11 +46,11 @@ We actively support new contributors through:
   
 ## Roadmap  
   
-For a detailed overview of planned features and their current status, please refer to the [ROADMAP](./ROADMAP.md).   
+For a detailed overview of planned features and their current status, please refer to the [ROADMAP](https://github.com/The-AI-Alliance/gofannon/blob/main/ROADMAP.md).   
 
 ## Documentation
 
-Documentation can be found [here](./docs).Each tool comes with its own documentation, which can be found in the docs/ directory. The documentation provides detailed information on how to use each tool, including required parameters and example usage.
+Documentation can be found [here](https://github.com/The-AI-Alliance/gofannon/tree/main/docs).Each tool comes with its own documentation, which can be found in the docs/ directory. The documentation provides detailed information on how to use each tool, including required parameters and example usage.
 
 ## Installation  
   
@@ -66,27 +66,41 @@ or
 
 ```
 pip install git+https://github.com/The-AI-Alliance/gofannon.git
+# OR
+pip install gofannon
 ```
 
 ## Communication Channels
-- **Disccord**: Real-time collaboration and support
-- **Github Discussions**: Technical deep dives and asynchhronous collaboration
-- **Community Calls**: Bi-weekly video meetings
+- **Discord** [Join our Discord server](https://discord.gg/2MMCVs76Sr)for eal-time collaboration and support
+- **GitHub Discussions**: Explore our [GitHub organization](https://github.com/The-AI-Alliance/agents-wg/discussions/) for all related projects
+- **Community Calls**: [Join our bi-weekly video meetings](https://calendar.app.google/c4eKW4zrNiXaue926)
 
 ## Usage Example
 ```bash
-import gofannon
-agent = gofannon.Agent()
-agent.run()
+from gofannon.base import BaseTool  
+  
+class NewTool(BaseTool):  
+    def __init__(self):  
+        super().__init__()  
+  
+    @property  
+    def definition(self):  
+        return {  
+            # Define your tool metadata and configuration  
+        }  
+  
+    def fn(self, *args, **kwargs):  
+        # Define your tool functionality  
+        pass  
 ```
 
 ## License  
   
-This project is licensed under the ASFv2 License. See the [LICENSE](./LICENSE) file for more details.
+This project is licensed under the ASFv2 License. See the [LICENSE](https://github.com/The-AI-Alliance/gofannon/blob/main/LICENSE) file for more details.
 
 ## Contributing  
   
-We welcome contributions from the community! If you'd like to add a new tool or improve an existing one, please check out our [CONTRIBUTING](./CONTRIBUTING.md) guide for detailed instructions on how to get started.  
+We welcome contributions from the community! If you'd like to add a new tool or improve an existing one, please check out our [CONTRIBUTING](https://github.com/The-AI-Alliance/gofannon/blob/main/CONTRIBUTING.md) guide for detailed instructions on how to get started.  
   
 ## Support  
   
