@@ -7,6 +7,14 @@ title: About
  
 See the list of contributors [here](https://github.com/The-AI-Alliance/gofannon/graphs/contributors).
 
+## Community Leadership
+
+| Name            | GitHub Handle       | Affiliation |
+|----------------|-------------------|------------|
+| Andrew Musselman | @andrewmusselman  | Speedchain  |
+| Steve Blackmon  | @steveblackmon     | Meta       |
+| Trevor Grant    | @rawkintrevo       | IBM        |
+
 ## Our Mission
 
 ### Cross-Framework Compatibility
