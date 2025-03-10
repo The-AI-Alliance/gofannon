@@ -9,9 +9,10 @@ perform specific functions and can be extended or customized based on your needs
 |-----------------|--------------------------------------------|---------------------------------------|  
 | LangChain       | [Cross-Framework Compatibility](docs/cross-framework_compatibility.md) | :white_check_mark: Implemented |  
 | SmolAgents      | [Cross-Framework Compatibility](docs/cross-framework_compatibility.md) | :white_check_mark: Implemented | 
-| AWS-Bedrock     |                                            | :construction: Under Construction |
-| GCP-Vertex      |                                            | :triangle_flag_on_post: Roadmap |
+| AWS - Bedrock     |                                            | :construction: Under Construction |
+| GCP - Vertex      |                                            | :triangle_flag_on_post: Roadmap |
 | Salesforce - Agentforce |                                     | :triangle_flag_on_post: Roadmap |
+| ServiceNow - AI Agents | [AI Agents](https://www.servicenow.com/products/ai-agents.html) | :triangle_flag_on_post: Roadmap |
 
 ## Documentation
 
