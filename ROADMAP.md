@@ -5,14 +5,15 @@ perform specific functions and can be extended or customized based on your needs
 
 ## Framework Integrations
 
-| Framework       | Documentation                              | Status                                |  
-|-----------------|--------------------------------------------|---------------------------------------|  
-| LangChain       | [Cross-Framework Compatibility](docs/cross-framework_compatibility.md) | :white_check_mark: Implemented |  
-| SmolAgents      | [Cross-Framework Compatibility](docs/cross-framework_compatibility.md) | :white_check_mark: Implemented | 
-| AWS - Bedrock     |                                            | :construction: Under Construction |
-| GCP - Vertex      |                                            | :triangular_flag_on_post: Roadmap |
+| Framework               | Documentation                              | Status                            |  
+|-------------------------|--------------------------------------------|-----------------------------------|  
+| LangChain               | [Cross-Framework Compatibility](docs/cross-framework_compatibility.md) | :white_check_mark: Implemented    |  
+| SmolAgents              | [Cross-Framework Compatibility](docs/cross-framework_compatibility.md) | :white_check_mark: Implemented    | 
+| AWS - Bedrock (boto3)   |                                            | :white_check_mark: Implemented    |
+| AWS -Bedrock (cdk)      |                                            | :triangular_flag_on_post: Roadmap |
+| GCP - Vertex            |                                            | :triangular_flag_on_post: Roadmap |
 | Salesforce - Agentforce |                                     | :triangular_flag_on_post: Roadmap |
-| ServiceNow - AI Agents | [AI Agents](https://www.servicenow.com/products/ai-agents.html) | :triangular_flag_on_post: Roadmap |
+| ServiceNow - AI Agents  | [AI Agents](https://www.servicenow.com/products/ai-agents.html) | :triangular_flag_on_post: Roadmap |
 
 ## Documentation
 
@@ -21,6 +22,9 @@ perform specific functions and can be extended or customized based on your needs
 | Contribution Guide                | [How to Contribute](docs/how_to_contribute.md) | :white_check_mark: Implemented |  
 | How-To: Contribute a Tool         |   | :construction: Under Construction     |
 | How-To: Import/Export |   | :construction: Under Construction     |
+| SmolAgents - Hello World |   | :triangular_flag_on_post: Roadmap     |
+| LangChain -  Hello World |   | :triangular_flag_on_post: Roadmap    |
+| Bedrock - SQL Analytics Agent |   | :triangular_flag_on_post: Roadmap     |
 
 ## Tools Overview
 
