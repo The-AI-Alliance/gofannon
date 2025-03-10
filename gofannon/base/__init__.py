@@ -9,6 +9,8 @@ from ..config import ToolConfig
 
 from .smol_agents import SmolAgentsMixin
 from .langchain import LangchainMixin
+from .bedrock import BedrockMixin
+
 
 @dataclass
 class ToolResult:
@@ -16,6 +18,7 @@ class ToolResult:
     output: Any
     error: str = None
     retryable: bool = False
+
 
 class WorkflowContext:
     def __init__(self, firebase_config=None):
@@ -33,34 +36,37 @@ class WorkflowContext:
 
     def _save_local(self, name):
         path = self.local_storage / f"{name}.json"
-        with open(path, 'w') as f:
-            json.dump({
-                'data': self.data,
-                'execution_log': self.execution_log
-            }, f)
+        with open(path, "w") as f:
+            json.dump({"data": self.data, "execution_log": self.execution_log}, f)
 
     def _save_to_firebase(self, name):
         from firebase_admin import firestore
+
         db = firestore.client()
-        doc_ref = db.collection('checkpoints').document(name)
-        doc_ref.set({
-            'data': self.data,
-            'execution_log': self.execution_log,
-            'timestamp': firestore.SERVER_TIMESTAMP
-        })
+        doc_ref = db.collection("checkpoints").document(name)
+        doc_ref.set(
+            {
+                "data": self.data,
+                "execution_log": self.execution_log,
+                "timestamp": firestore.SERVER_TIMESTAMP,
+            }
+        )
 
     def log_execution(self, tool_name, duration, input_data, output_data):
         entry = {
-            'tool': tool_name,
-            'duration': duration,
-            'input': input_data,
-            'output': output_data
+            "tool": tool_name,
+            "duration": duration,
+            "input": input_data,
+            "output": output_data,
         }
         self.execution_log.append(entry)
 
-class BaseTool(SmolAgentsMixin, LangchainMixin, ABC):
+
+class BaseTool(SmolAgentsMixin, LangchainMixin, BedrockMixin, ABC):
     def __init__(self, **kwargs):
-        self.logger = logging.getLogger(f"{self.__class__.__module__}.{self.__class__.__name__}")
+        self.logger = logging.getLogger(
+            f"{self.__class__.__module__}.{self.__class__.__name__}"
+        )
         self._load_config()
         self._configure(**kwargs)
         self.logger.debug("Initialized %s tool", self.__class__.__name__)
@@ -73,7 +79,7 @@ class BaseTool(SmolAgentsMixin, LangchainMixin, ABC):
 
     def _load_config(self):
         """Auto-load config based on tool type"""
-        if hasattr(self, 'API_SERVICE'):
+        if hasattr(self, "API_SERVICE"):
             self.api_key = ToolConfig.get(f"{self.API_SERVICE}_api_key")
 
     @property
@@ -83,7 +89,7 @@ class BaseTool(SmolAgentsMixin, LangchainMixin, ABC):
 
     @property
     def output_schema(self):
-        return self.definition.get('function', {}).get('parameters', {})
+        return self.definition.get("function", {}).get("parameters", {})
 
     @abstractmethod
     def fn(self, *args, **kwargs):
@@ -99,14 +105,9 @@ class BaseTool(SmolAgentsMixin, LangchainMixin, ABC):
                 tool_name=self.__class__.__name__,
                 duration=duration,
                 input_data=kwargs,
-                output_data=result
+                output_data=result,
             )
 
             return ToolResult(success=True, output=result)
         except Exception as e:
-            return ToolResult(
-                success=False,
-                output=None,
-                error=str(e),
-                retryable=True
-            )
+            return ToolResult(success=False, output=None, error=str(e), retryable=True)

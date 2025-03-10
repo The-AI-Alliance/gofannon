@@ -1,9 +1,103 @@
 
+/* Base website styles */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    line-height: 1.6;
+}
+
+/* Container adjustments for padding */
+.container {
+    padding-left: 15px;
+    padding-right: 15px;
+}
+
+/* Responsive images: Scale down to fit container */
+img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Enhance text readability on small screens */
+h1, h2, h3, h4, h5, h6 {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+}
+
+/* Custom adjustments for the hero section on mobile */
+.hero {
+    padding: 3rem 1rem;
+    text-align: center;
+}
+
+/* Navbar adjustments for better mobile display */
+.navbar {
+    padding: 0.5rem 1rem;
+}
+
+/* Collapse navbar items to a vertical list on small screens */
+.navbar-nav {
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Use Bootstrap’s grid by default on medium+ screens */
+@media (min-width: 768px) {
+    .navbar-nav {
+        flex-direction: row;
+        align-items: center;
+    }
+}
+
+/* Reduce font sizes on very small screens for better fit */
+@media (max-width: 576px) {
+    h1 {
+        font-size: 1.75rem;
+    }
+    h2 {
+        font-size: 1.5rem;
+    }
+    h3 {
+        font-size: 1.25rem;
+    }
+    p, li, a {
+        font-size: 0.9rem;
+    }
+}
+
+/* Additional layout fixes for responsive behavior */
+
+/* Ensure main content does not overflow on mobile screens */
+main.container {
+    overflow-x: hidden;
+}
+
+/* Footer text adjustments for mobile devices */
+footer p {
+    font-size: 0.9rem;
+}
+
+@media (max-width: 576px) {
+    .row {
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    .card {
+        margin-bottom: 1rem;
+    }
+}
+
 html, body {
     height: 100%;
 }
 
 body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    line-height: 1.6;
     display: flex;
     flex-direction: column;
 }
@@ -12,10 +106,91 @@ main {
     flex: 1 0 auto;
 }
 
+
+/* Ensure main content does not overflow on mobile screens */
+main.container {
+    overflow-x: hidden;
+}
+
+.container {
+    padding-left: 15px;
+    padding-right: 15px;
+}
+
 .footer-wrapper {
     flex-shrink: 0;
 }
 
 footer {
     margin-top: auto;
+
 }
+
+/* Footer text adjustments for mobile devices */
+footer p {
+    font-size: 0.9rem;
+}
+
+img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Enhance text readability on small screens */
+h1, h2, h3, h4, h5, h6 {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+}
+
+/* Custom adjustments for the hero section on mobile */
+.hero {
+    padding: 3rem 1rem;
+    text-align: center;
+}
+
+/* Navbar adjustments for better mobile display */
+.navbar {
+    padding: 0.5rem 1rem;
+}
+
+/* Collapse navbar items to a vertical list on small screens */
+.navbar-nav {
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Use Bootstrap’s grid by default on medium+ screens */
+@media (min-width: 768px) {
+    .navbar-nav {
+        flex-direction: row;
+        align-items: center;
+    }
+}
+
+/* Reduce font sizes on very small screens for better fit */
+@media (max-width: 576px) {
+    h1 {
+        font-size: 1.75rem;
+    }
+    h2 {
+        font-size: 1.5rem;
+    }
+    h3 {
+        font-size: 1.25rem;
+    }
+    p, li, a {
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .row {
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    .card {
+        margin-bottom: 1rem;
+    }
+}
+

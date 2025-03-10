@@ -3,26 +3,17 @@ layout: default
 title: About
 ---  
 
-## Project Leadership
+## Contributors
+ 
+See the list of contributors [here](https://github.com/The-AI-Alliance/gofannon/graphs/contributors).
 
-<div class="row">  
-    <div class="col-md-4">  
-        <div class="card">  
-            <div class="card-body">  
-                <h5 class="card-title">Trevor Grant</h5>  
-                <p class="card-text">Founder & Core Maintainer<br>10+ years in AI infrastructure</p>  
-            </div>  
-        </div>  
-    </div>  
-    <div class="col-md-4">  
-        <div class="card">  
-            <div class="card-body">  
-                <h5 class="card-title">Community Team</h5>  
-                <p class="card-text">Open source contributors specializing in documentation and mentorship</p>  
-            </div>  
-        </div>  
-    </div>  
-</div>  
+## Community Leadership
+
+| Name            | GitHub Handle       | Affiliation |
+|----------------|-------------------|------------|
+| Andrew Musselman | @andrewmusselman  | Speedchain  |
+| Steve Blackmon  | @steveblackmon     | Meta       |
+| Trevor Grant    | @rawkintrevo       | IBM        |
 
 ## Our Mission
 
@@ -40,6 +31,6 @@ We make AI development accessible by:
 - Weekly office hours
 
 ## Communication Channels
-- **Discord**: Real-time collaboration and support
-- **GitHub Discussions**: Technical deep dives
-- **Community Calls**: Bi-weekly video meetings  
+- **[Discord](https://discord.gg/cMFUaGBP)**: Real-time collaboration and support
+- **[GitHub Discussions](https://github.com/The-AI-Alliance/agents-wg/discussions/)**: Technical deep dives, and asynchronous collaboration.
+- **[Community Calls](https://calendar.app.google/c4eKW4zrNiXaue926)**: Bi-weekly video meetings  

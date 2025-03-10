@@ -3,20 +3,30 @@ from typing import Type, Callable
 try:
     from langchain.tools import BaseTool as LangchainBaseTool
     from langchain.pydantic_v1 import BaseModel, Field
+
     _HAS_LANGCHAIN = True
 except ImportError:
     _HAS_LANGCHAIN = False
 
+
 class LangchainMixin:
-    def import_from_langchain(self, langchain_tool: LangchainBaseTool):
+    def import_from_langchain(self, langchain_tool):
         if not _HAS_LANGCHAIN:
-            raise RuntimeError("langchain is not installed. Install with `pip install langchain-core`")
+            raise RuntimeError(
+                "langchain is not installed. Install with `pip install langchain-core`"
+            )
 
         self.name = getattr(langchain_tool, "name", "exported_langchain_tool")
-        self.description = getattr(langchain_tool, "description", "No description provided.")
+        self.description = getattr(
+            langchain_tool, "description", "No description provided."
+        )
 
         maybe_args_schema = getattr(langchain_tool, "args_schema", None)
-        if maybe_args_schema and hasattr(maybe_args_schema, "schema") and callable(maybe_args_schema.schema):
+        if (
+            maybe_args_schema
+            and hasattr(maybe_args_schema, "schema")
+            and callable(maybe_args_schema.schema)
+        ):
             args_schema = maybe_args_schema.schema()
         else:
             args_schema = {}
@@ -29,7 +39,7 @@ class LangchainMixin:
 
         self.fn = adapted_fn
 
-    def export_to_langchain(self) -> LangchainBaseTool:
+    def export_to_langchain(self):
         if not _HAS_LANGCHAIN:
             raise RuntimeError(
                 "langchain is not installed. Install with `pip install langchain-core`"
@@ -43,7 +53,7 @@ class LangchainMixin:
             "integer": int,
             "boolean": bool,
             "object": dict,
-            "array": list
+            "array": list,
         }
 
         parameters = self.definition.get("function", {}).get("parameters", {})
@@ -55,14 +65,16 @@ class LangchainMixin:
             description = param_def.get("description", "")
             fields[param_name] = (
                 type_map.get(param_type, str),
-                Field(..., description=description)
+                Field(..., description=description),
             )
 
-        ArgsSchema = create_model('ArgsSchema', **fields)
+        ArgsSchema = create_model("ArgsSchema", **fields)
 
         class ExportedTool(LangchainBaseTool):
             name: str = self.definition.get("function", {}).get("name", "")
-            description: str = self.definition.get("function", {}).get("description", "")
+            description: str = self.definition.get("function", {}).get(
+                "description", ""
+            )
             args_schema: Type[BaseModel] = ArgsSchema
             fn: Callable = self.fn
 

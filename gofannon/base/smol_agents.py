@@ -1,12 +1,14 @@
 try:
     from smolagents.tools import Tool as SmolTool
     from smolagents.tools import tool as smol_tool_decorator
+
     _HAS_SMOLAGENTS = True
 except ImportError:
     _HAS_SMOLAGENTS = False
 
+
 class SmolAgentsMixin:
-    def import_from_smolagents(self, smol_tool: SmolTool):
+    def import_from_smolagents(self, smol_tool):
         if not _HAS_SMOLAGENTS:
             raise RuntimeError(
                 "smolagents is not installed or could not be imported. "
@@ -20,7 +22,7 @@ class SmolAgentsMixin:
 
         self.fn = adapted_fn
 
-    def export_to_smolagents(self) -> SmolTool:
+    def export_to_smolagents(self):
         if not _HAS_SMOLAGENTS:
             raise RuntimeError(
                 "smolagents is not installed or could not be imported. "
@@ -33,7 +35,7 @@ class SmolAgentsMixin:
         inputs_definition = {
             "example_arg": {
                 "type": "string",
-                "description": "Example argument recognized by this tool"
+                "description": "Example argument recognized by this tool",
             }
         }
         output_type = "string"
