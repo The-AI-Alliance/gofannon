@@ -2,6 +2,9 @@
 layout: default  
 title: About
 ---  
+## Why the name `gofanon` ?
+
+See [Why the Name Gofannon?](/about/the_name_gofannon/) for the rich story on why we chose to honor this Celtic Diety
 
 ## Contributors
  

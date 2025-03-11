@@ -1,3 +1,8 @@
+---
+title: "Why the Name Gofannon?"
+layout: default
+permalink: /about/the_name_gofannon/
+---
 # Origins of the name Gofannon
 
 They say Nuada was among the most formidable champions in all the Celtic lands—his deeds echoing from the green hills of Ireland to the misty mountains of Wales. Plenty of warriors claim descent from this mighty hero, as if his blood alone fuels their ambition. But if you step back from the songs of battle, you’ll find there was another presence at work behind Nuada’s legendary skill: Gofannon, the Welsh master of craft, whose divine hands fashioned the very tools that magnified Nuada’s strength. Here lies the real reason why Nuada was so fearsome: the tools he wielded weren’t simply items of iron and bronze, but products of Gofannon’s almost otherworldly talent.

@@ -11,7 +11,7 @@
 
 ## Why the name `gofanon` ?
 
-See [`why_the_name_gofannon.md`](https://github.com/The-AI-Alliance/gofannon/blob/main/why_the_name_gofannon.md) for the rich story on why we chose to honor this Celtic Diety
+See [`why_the_name_gofannon.md`](https://the-ai-alliance.github.io/gofannon/about/the_name_gofannon/) for the rich story on why we chose to honor this Celtic Diety
 
 ## Our Mission
 
