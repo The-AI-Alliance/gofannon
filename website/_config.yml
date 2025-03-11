@@ -4,7 +4,7 @@ description: >-
 baseurl: "/gofannon"
 url: "https://the-ai-alliance.github.io"
 
-google_tag_id:  G-RNHLN944B5
+google_tag_id:  G-S4YL0CG31S
 discord_link: https://discord.gg/2MMCVs76Sr
 plugins:
   - jekyll-sitemap
