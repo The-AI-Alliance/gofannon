@@ -46,7 +46,7 @@ We actively support new contributors through:
   
 ## Roadmap  
   
-For a detailed overview of planned features and their current status, please refer to the [ROADMAP]({{ "/ROADMAP" | relative_url }}).   
+For a detailed overview of planned features and their current status, please refer to the [ROADMAP](https://github.com/The-AI-Alliance/gofannon/blob/main/ROADMAP.md).   
 
 ## Documentation
 

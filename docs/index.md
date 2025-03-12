@@ -28,7 +28,7 @@ Gofannon also provides a range of tools for working with large language models. 
 * [Tree-of-Thought](reasoning/tree_of_thought.html): a tool for generating tree-like structures of thought with large language models  
   
 ## Contributing  
-We welcome contributions to Gofannon! Please see the [CONTRIBUTING]({{ "/CONTRIBUTING.md" | relative_url }}) guide for information on how to contribute to the project.  
+We welcome contributions to Gofannon! Please see the [CONTRIBUTING](../CONTRIBUTING.html) guide for information on how to contribute to the project.  
   
 ## Roadmap  
-Gofannon is an actively maintained project, and we have a range of features and improvements planned for the future. Please see the [ROADMAP]({{"/ROADMAP.html" | relative_url}}) for more information on our plans and priorities.  
+Gofannon is an actively maintained project, and we have a range of features and improvements planned for the future. Please see the [ROADMAP](../ROADMAP.html) for more information on our plans and priorities.  
