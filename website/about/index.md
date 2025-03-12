@@ -8,7 +8,7 @@ See [Why the Name Gofannon?](/about/the_name_gofannon/) for the rich story on wh
 
 ## Contributors
  
-See the list of contributors [here](https://github.com/The-AI-Alliance/gofannon/graphs/contributors).
+See the full list of contributors [here](https://github.com/The-AI-Alliance/gofannon/graphs/contributors).
 
 ### Core Contributors  
 
