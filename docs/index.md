@@ -5,7 +5,7 @@ Welcome to the Gofannon documentation! This project provides a collection of too
 Gofannon is designed to provide a flexible and extensible framework for building applications on top of large language models. The toolbox includes a range of tools and APIs for tasks such as text generation, question answering, and conversational dialogue.  
   
 ## Getting Started  
-To get started with Gofannon, please see the [CONTRIBUTING]({{ "/CONTRIBUTING.md" | relative_url }}) guide for information on how to contribute to the project.  
+To get started with Gofannon, please see the [CONTRIBUTING](../CONTRIBUTING.html) guide for information on how to contribute to the project.  
 
 ## Logging
 

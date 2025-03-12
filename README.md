@@ -100,7 +100,7 @@ This project is licensed under the ASFv2 License. See the [LICENSE](https://gith
 
 ## Contributing  
   
-We welcome contributions from the community! If you'd like to add a new tool or improve an existing one, please check out our [CONTRIBUTING]({{ "/CONTRIBUTING.md" | relative_url }})guide for detailed instructions on how to get started.  
+We welcome contributions from the community! If you'd like to add a new tool or improve an existing one, please check out our [CONTRIBUTING](https://github.com/The-AI-Alliance/gofannon/blob/main/CONTRIBUTING.md) guide for detailed instructions on how to get started.  
   
 ## Support  
   
