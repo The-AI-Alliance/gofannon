@@ -100,7 +100,7 @@ This project is licensed under the ASFv2 License. See the [LICENSE](https://gith
 
 ## Contributing  
   
-We welcome contributions from the community! If you'd like to add a new tool or improve an existing one, please check out our [CONTRIBUTING]({{ "/CONTRIBUTING.html" | relative_url }}) guide for detailed instructions on how to get started.  
+We welcome contributions from the community! If you'd like to add a new tool or improve an existing one, please check out our [CONTRIBUTING]({{ "/CONTRIBUTING" | relative_url }}) [CONTRIBUTING]({{ "/CONTRIBUTING.md" | relative_url }})guide for detailed instructions on how to get started.  
   
 ## Support  
   
