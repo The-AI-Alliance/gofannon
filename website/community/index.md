@@ -37,4 +37,4 @@ Stay tuned for upcoming community events:
 
 We're excited to have you as part of our community. Whether you're here to contribute, learn, or just connect with other AI enthusiasts, there's a place for you in the Gofannon community!  
 
-Check out how different projects are using this tool on the [Powered By]({{/website/powered_by.md | relative_url}}) page!
+Check out how different projects are using this tool on the [Powered By]({{/powered_by.md | relative_url}}) page!
