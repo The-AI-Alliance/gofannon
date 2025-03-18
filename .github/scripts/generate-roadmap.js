@@ -2,7 +2,7 @@ module.exports = async ({github, context}) => {
   // Configuration  
   const ignoreLabels = ['bug', 'docs']; // Labels to ignore  
   const roadmapLabel = 'roadmap'; // Special label that overrides ignoreLabels  
-  const fileName = "AUTO-ROADMAP.md"
+  const fileName = "ROADMAP.md"
 
   // Fetch both issues and pull requests  
   const { data: items } = await github.rest.issues.listForRepo({  
