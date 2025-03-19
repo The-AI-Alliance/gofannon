@@ -1,10 +1,10 @@
-![gofannon logo](https://github.com/The-AI-Alliance/gofannon/blob/main/gofannon.jpg)  
+![logo](https://the-ai-alliance.github.io/gofannon/assets/images/logo_1000x1260.png)
 <!-- ![CI](https://github.com/The-AI-Alliance/gofannon/actions/workflows/main.yml/badge.svg) -->
 ![PyPI](https://img.shields.io/pypi/v/gofannon)
 ![License](https://img.shields.io/github/license/The-AI-Alliance/gofannon)
 ![Issues](https://img.shields.io/github/issues/The-AI-Alliance/gofannon)
 ![GitHub stars](https://img.shields.io/github/stars/The-AI-Alliance/gofannon?style=social)
-  
+
 # gofannon  
   
 **gofannon** is a collection of tools designed to enhance the capabilities of function-calling-enabled language models. These tools provide additional functionality for various tasks, including mathematical operations, GitHub interactions, arXiv searches, and advanced reasoning techniques.  
