@@ -1,11 +1,15 @@
 ---  
 layout: default  
-title: Contributing A Function
+title: Contributing A Tool
 ---  
 
-# Tutorial: Contributing a New Function to Gofannon
+# Tutorial: Contributing a New Tool to Gofannon
 
-This guide will walk you through the process of contributing a new function to the Gofannon repository. We'll focus on creating a simple REST API function that doesn't require authentication, making it ideal for first-time contributors.
+This guide will walk you through the process of contributing a new tool to the 
+Gofannon repository. We'll focus on creating a simple REST API function that 
+doesn't require authentication, making it ideal for first-time contributors.
+
+For a comprehensive overview of what tools are, see the [functions and tools overview](https://the-ai-alliance.github.io/gofannon/docs/functions_and_tools_overview.html)
 
 ## Step 1: Find a Simple REST API
 
