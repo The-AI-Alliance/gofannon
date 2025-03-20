@@ -229,11 +229,11 @@ Update your function class to handle authentication:
 
 ```python  
 class AuthenticatedApiTool(BaseTool):  
-def __init__(self, api_key=None, name="authenticated_tool"):  
-super().__init__()  
-self.api_key = api_key or ToolConfig.get("new_api_key")  
-self.name = name  
-self.API_SERVICE = 'new_api'  # Add this for API-specific configuration
+    def __init__(self, api_key=None, name="authenticated_tool"):  
+        super().__init__()  
+        self.api_key = api_key or ToolConfig.get("new_api_key")  
+        self.name = name  
+        self.API_SERVICE = 'new_api'  # Add this for API-specific configuration
 
     @property  
     def definition(self):  
@@ -274,11 +274,11 @@ Add robust error handling for authentication failures:
 
 ```python  
 def fn(self, **kwargs):  
-try:  
-headers = {  
-'Authorization': f'Bearer {self.api_key}',  
-'Content-Type': 'application/json'  
-}
+    try:  
+        headers = {  
+        'Authorization': f'Bearer {self.api_key}',  
+        'Content-Type': 'application/json'  
+        }
 
         response = requests.get(  
             "https://api.example.com/endpoint",  
@@ -317,7 +317,7 @@ Add tests for authentication scenarios:
 
 ```python  
 def test_authentication_failure():  
-tool = AuthenticatedApiTool(api_key="invalid_key")
+    tool = AuthenticatedApiTool(api_key="invalid_key")
 
     with pytest.raises(ValueError) as exc_info:  
         tool.fn()  
