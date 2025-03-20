@@ -6,7 +6,7 @@ title: How-Tos
 ## Practical Guides
 - **[Making Your First Commit]({{ 'how-tos/first_contribution.html' | relative_url }})**: Making your first commit to open source can be intimidating. This guide can help.
 - **[Using Gofannon in Git Actions]({{ 'how-tos/deploy_pr_review.html' | relative_url }})**: Reviewing PRs is important, but can be tedious. Gofannon can help.
-- **[Tool Development Masterclass]({{ 'how-tos/contribute_function.html' | relative_url }})**: From idea to merged PR in 10 steps
+- **[Tool Development Masterclass]({{ 'how-tos/contribute_function.html' | relative_url }})**: From idea to merged PR in 6 steps
 
 
 ## Coming Soon...

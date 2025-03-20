@@ -130,21 +130,21 @@ class IssLocator(BaseTool):
 
 ## Step 5: Test Your Function
 
-1. Create a test file:
+#### 1. Create a test file:
 
 ```bash  
 tests/test_iss_locator.py  
 ```
 
-2. Add basic tests:
+#### 2. Add basic tests:
 
 ```python  
 import pytest  
 from gofannon.open_notify_space.iss_locator import IssLocator
 
 def test_iss_locator():  
-tool = IssLocator()  
-result = tool.fn()
+    tool = IssLocator()  
+    result = tool.fn()
 
     assert isinstance(result, dict)  
     assert 'iss_position' in result  
@@ -152,7 +152,7 @@ result = tool.fn()
     assert 'longitude' in result['iss_position']  
 ```
 
-3. Run the tests locally using Poetry:
+#### 3. Run the tests locally using Poetry:
 
 ```bash
 # Install dependencies (if you haven't already)
@@ -162,7 +162,7 @@ poetry install
 poetry run pytest tests/test_iss_locator.py -v  
 ```
 
-4. Check the test output to ensure your function works as expected.
+#### 4. Check the test output to ensure your function works as expected.
 
 ## Step 6: Submit Your Pull Request
 
@@ -172,7 +172,7 @@ poetry run pytest tests/test_iss_locator.py -v
 4. Push to your fork
 5. Open a pull request
 
-## Understanding the Decorators
+## Appendix A: Understanding the Decorators
 
 The `@FunctionRegistry.register` decorator does several important things:
 
@@ -191,19 +191,19 @@ Once you're comfortable with simple REST functions, you can explore:
 - Implementing error handling
 - Adding caching or rate limiting  
 
-## Appendix: Adding an API with Authentication
+## Appendix B: Adding an API with Authentication
 
 If you're working with an API that requires authentication, follow these additional steps:
 
 ### Step 1: Add API Key to Configuration
 
-1. Add your API key to the `.env` file:
+#### 1. Add your API key to the `.env` file:
 
 ```bash  
 NEW_API_KEY=your_api_key_here  
 ```
 
-2. Update the `ToolConfig` class in `gofannon/config.py`:
+#### 2. Update the `ToolConfig` class in `gofannon/config.py`:
 
 ```python  
 class ToolConfig:  
