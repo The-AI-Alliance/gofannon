@@ -24,6 +24,8 @@ below). Some good examples include:
 For this tutorial, we'll use the [OpenNotify ISS Location API](http://open-notify.org/Open-Notify-API/ISS-Location-Now/).
 **Note:** This has already been implemented.
 
+If you're having a difficult time choosing a REST API, see Appendix C below.
+
 ## Step 2: Create a New Python File
 
 Create a new Python file in the appropriate directory. For our ISS location function, we'll create:
@@ -329,4 +331,22 @@ tool = AuthenticatedApiTool(api_key="invalid_key")
 2. Use environment variables for configuration
 3. Handle authentication errors gracefully
 4. Consider adding rate limiting for API calls
-5. Document authentication requirements clearly  
+5. Document authentication requirements clearly
+
+# Appendix C: Choosing a REST API to Wrap a Tool: A Guide for New Contributors
+
+If you're new to contributing tools for large language models (LLMs) or agentic systems, one of the most impactful ways to get started is by wrapping a REST API into a tool. REST APIs are widely used, well-documented, and provide access to a wealth of data and functionality. Here's a quick guide to help you choose the right REST API for your tool:
+
+1. **Identify a Common Use Case**: Start by thinking about tasks that users frequently ask LLMs or agentic systems to perform. For example, retrieving weather data, fetching stock prices, or searching for information are common use cases. Choose an API that addresses one of these needs.
+
+2. **Look for Well-Documented APIs**: A good REST API should have clear and comprehensive documentation. This makes it easier to understand how to use the API, what parameters it requires, and what kind of output it provides.
+
+3. **Check for Accessibility**: Ensure the API is publicly accessible or provides an easy way to obtain an API key. Some APIs may require registration or have usage limits, so choose one that aligns with your project's goals.
+
+4. **Consider Data Relevance**: The API should provide data or functionality that is relevant and useful to the end user. For example, a weather API is more universally useful than a niche API for a specific industry.
+
+5. **Evaluate Performance and Reliability**: Choose an API that is reliable and has low latency. Users expect quick responses, so the API should be able to handle requests efficiently.
+
+6. **Start Simple**: If you're new to this, start with a simple API that has a straightforward interface. For example, wrapping a currency conversion API or a public transportation schedule API is a great way to get started.
+
+By following these guidelines, you can choose a REST API that will make a meaningful contribution to the ecosystem of tools for LLMs and agentic systems. Happy coding!  
