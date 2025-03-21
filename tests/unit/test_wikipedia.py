@@ -22,7 +22,7 @@ def test_wikipedia_lookup_with_mock():
     mock_response = {
         "title": "Test Article",
         "extract": "This is a test summary.",
-        "thumbnail": {"source": "https://example.con/image.jpg"},
+        "thumbnail": {"source": "https://example.com/image.jpg"},
         "content_urls": {"desktop": {"page": "https://en.wikipedia.org/wiki/Test"}}
     }
 
