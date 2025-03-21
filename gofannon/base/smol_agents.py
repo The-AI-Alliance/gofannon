@@ -33,7 +33,7 @@ class SmolAgentsMixin:
             return self.fn(*args, **kwargs)
 
         # Get the parameters from the Gofannon tool definition
-        parameters = self.definition().get("function", {}).get("parameters", {})
+        parameters = self.definition.get("function", {}).get("parameters", {})
         param_properties = parameters.get("properties", {})
         required_params = parameters.get("required", [])
 
@@ -47,7 +47,7 @@ class SmolAgentsMixin:
             }
 
             # Get the description from the Gofannon tool definition
-        description = self.definition().get("function", {}).get("description", "Exported from Gofannon tool")
+        description = self.definition.get("function", {}).get("description", "Exported from Gofannon tool")
 
         exported_tool = SmolTool()
         exported_tool.name = getattr(self, "name", "exported_base_tool")
