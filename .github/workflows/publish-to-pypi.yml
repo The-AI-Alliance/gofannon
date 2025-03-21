@@ -24,7 +24,7 @@ jobs:
       - name: Generate version number
         id: version
         run: python .github/scripts/generate_version.py
-        # Ensure the script sets an output like `echo "PYPI_VERSION={$version}" >> $GITHUB_ENV`
+
 
       - name: Update pyproject.toml version
         run: |
@@ -68,8 +68,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate Release Notes
-        uses: release-drafter/release-drafter@v5.x
+        uses: release-drafter/release-drafter@v6.1.0
         with:
           config-name: release-drafter.yml
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,35 @@
+# .github/release-drafter.yml
+
+name-template: 'v$NEXT_PATCH_VERSION 🎉'
+tag-template: 'v$NEXT_PATCH_VERSION'
+categories:
+  - title: '🛠 Frameworks and Tools'
+    labels:
+      - 'framework'
+      - 'enhancement'
+
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'bug'
+      - 'fix'
+
+  - title: '🤖 Maintenance and Automation'
+    labels:
+      - 'chore'
+      - 'infra'
+      - 'maintenance'
+
+  - title: '📚 Documentation and Website'
+    labels:
+      - 'documentation'
+      - 'docs'
+      - 'website'
+
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+
+template: |
+  ## What's Changed
+
+  $CHANGES
+
+  **Full Changelog**: https://github.com/$OWNER/$REPO/compare/$PREVIOUS_TAG...$NEW_TAG
