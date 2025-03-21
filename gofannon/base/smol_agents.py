@@ -32,19 +32,28 @@ class SmolAgentsMixin:
         def smol_forward(*args, **kwargs):
             return self.fn(*args, **kwargs)
 
-        inputs_definition = {
-            "example_arg": {
-                "type": "string",
-                "description": "Example argument recognized by this tool",
+        # Get the parameters from the Gofannon tool definition
+        parameters = self.definition().get("function", {}).get("parameters", {})
+        param_properties = parameters.get("properties", {})
+        required_params = parameters.get("required", [])
+
+        # Create inputs_definition from the Gofannon tool definition
+        inputs_definition = {}
+        for param_name, param_def in param_properties.items():
+            inputs_definition[param_name] = {
+                "type": param_def.get("type", "string"),
+                "description": param_def.get("description", ""),
+                "required": param_name in required_params
             }
-        }
-        output_type = "string"
+
+            # Get the description from the Gofannon tool definition
+        description = self.definition().get("function", {}).get("description", "Exported from Gofannon tool")
 
         exported_tool = SmolTool()
         exported_tool.name = getattr(self, "name", "exported_base_tool")
-        exported_tool.description = getattr(self, "description", "Exported from Tool")
+        exported_tool.description = description
         exported_tool.inputs = inputs_definition
-        exported_tool.output_type = output_type
+        exported_tool.output_type = "string"
         exported_tool.forward = smol_forward
         exported_tool.is_initialized = True
 
