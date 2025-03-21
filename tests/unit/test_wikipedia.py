@@ -16,7 +16,7 @@ def test_wikipedia_lookup_successful_response():
     assert "url" in result
 
 @responses.activate
-def test_wikipedi_lookup_with_mock():
+def test_wikipedia_lookup_with_mock():
     """Test WikipediaLookup with mocked API response."""
 
     mock_response = {
