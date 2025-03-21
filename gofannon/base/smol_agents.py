@@ -43,7 +43,7 @@ class SmolAgentsMixin:
             inputs_definition[param_name] = {
                 "type": param_def.get("type", "string"),
                 "description": param_def.get("description", ""),
-                "required": param_name in required_params
+                #"required": param_name in required_params
             }
 
             # Get the description from the Gofannon tool definition
