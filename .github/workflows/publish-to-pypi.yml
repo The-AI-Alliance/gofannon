@@ -22,7 +22,9 @@ jobs:
           python-version: '3.10'
 
       - name: Generate version number
+        id: version
         run: python .github/scripts/generate_version.py
+        # Ensure the script sets an output like `echo "PYPI_VERSION={$version}" >> $GITHUB_ENV`
 
       - name: Update pyproject.toml version
         run: |
@@ -33,7 +35,9 @@ jobs:
           git push
 
       - name: Create Git tag
+        id: tag
         run: |
+          RELEASE_TAG=v${{ steps.version.outputs.PYPI_VERSION }}
           git tag -a ${RELEASE_TAG} -m "Weekly release ${RELEASE_TAG}"
           git push origin ${RELEASE_TAG}
 
@@ -51,3 +55,21 @@ jobs:
           packages-dir: dist/
           verbose: true
 
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.RELEASE_TAG }}
+          release_name: Weekly Release ${{ steps.version.outputs.PYPI_VERSION }}
+          draft: false
+          prerelease: false
+          body: "Automated release notes for this version."
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Release Notes
+        uses: release-drafter/release-drafter@v5.x
+        with:
+          config-name: release-drafter.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  
