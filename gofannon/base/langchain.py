@@ -2,7 +2,7 @@ from typing import Type, Callable
 
 try:
     from langchain.tools import BaseTool as LangchainBaseTool
-    from langchain.pydantic_v1 import BaseModel, Field
+    from pydantic.v1 import BaseModel, Field
 
     _HAS_LANGCHAIN = True
 except ImportError:
