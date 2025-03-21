@@ -14,8 +14,8 @@ class DummyTool(BaseTool):
                 "name": self.name,
                 "description": self.description,
                 "parameters": {
-                    "properties": self._parameters,
-                    "required": self._required
+                    "properties": {},
+                    "required": []
                 }
             }
         }
