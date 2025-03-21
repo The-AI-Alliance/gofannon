@@ -20,7 +20,7 @@ def test_wikipedia_lookup_with_mock():
     """Test WikipediaLookup with mocked API response."""
 
     mock_response = {
-        "title": "TEst Article",
+        "title": "Test Article",
         "extract": "This is a test article",
         "thumbnail": {"source": "https://example.con/image.jpg"},
         "content_urls": {"desktop": {"page": "https://en.wikipedia.org/wiki/Test"}}
@@ -48,7 +48,7 @@ def test_wikipedia_lookup_error_response():
 
     responses.add(
         responses.GET,
-         "https://en.wikipedia.org/api/rest_v1/page/summary/Nonexistent_Page",
+         "https://en.wikipedia.org/api/rest_v1/page/summary/Test_Query",
         status=404
     )
 
