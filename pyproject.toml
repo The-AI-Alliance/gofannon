@@ -33,6 +33,10 @@ headless_browser = ["selenium"]
 google = ["google-api-python-client"]
 aws = ["boto3"]
 
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.5"
+responses = "^0.25.7"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
