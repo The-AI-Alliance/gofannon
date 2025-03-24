@@ -3,15 +3,15 @@
 name-template: 'v$NEXT_PATCH_VERSION 🎉'
 tag-template: 'v$NEXT_PATCH_VERSION'
 categories:
-  - title: '🛠 Frameworks and Tools'
-    labels:
-      - 'framework'
-      - 'enhancement'
-
   - title: '🐛 Bug Fixes'
     labels:
       - 'bug'
       - 'fix'
+
+  - title: '🛠 Frameworks and Tools'
+    labels:
+      - 'framework'
+      - 'enhancement'
 
   - title: '🤖 Maintenance and Automation'
     labels:
@@ -32,4 +32,4 @@ template: |
 
   $CHANGES
 
-  **Full Changelog**: https://github.com/$OWNER/$REPO/compare/$PREVIOUS_TAG...$NEW_TAG
+  **Full Changelog**: https://github.com/$OWNER/$REPO/compare/$PREVIOUS_TAG...$NEW_TAG  
