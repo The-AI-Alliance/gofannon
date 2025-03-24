@@ -88,13 +88,12 @@ class CommitFiles(BaseTool):
         if branch in repo.heads:
             # If it does, checkout the branch and pull the latest changes
             repo.git.checkout(branch)
-            repo.git.pull()
+            # Explicit pull from origin/branch to avoid tracking dependency
+            repo.git.pull('origin', branch)
         else:
             # If it does not exist, checkout the base branch and create a new branch
             try:
                 repo.git.checkout(base_branch)
-                # Explicit pull from origin/branch to avoid tracking dependency
-                repo.git.pull('origin', branch)
             except git.exc.GitCommandError:
                 # If the base branch does not exist, raise an error
                 raise ValueError(f"Base branch '{base_branch}' does not exist.")
