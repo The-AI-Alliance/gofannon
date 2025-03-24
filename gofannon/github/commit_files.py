@@ -93,6 +93,8 @@ class CommitFiles(BaseTool):
             # If it does not exist, checkout the base branch and create a new branch
             try:
                 repo.git.checkout(base_branch)
+                # Explicit pull from origin/branch to avoid tracking dependency
+                repo.git.pull('origin', branch)
             except git.exc.GitCommandError:
                 # If the base branch does not exist, raise an error
                 raise ValueError(f"Base branch '{base_branch}' does not exist.")
@@ -112,5 +114,6 @@ class CommitFiles(BaseTool):
         repo.index.commit(commit_msg)
 
         origin = repo.remotes.origin
-        origin.push(branch)
+        # Push with tracking (still recommended)
+        repo.git.push('-u', 'origin', branch)
         return "Files committed and pushed successfully"
