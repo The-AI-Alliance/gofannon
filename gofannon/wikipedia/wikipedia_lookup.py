@@ -5,6 +5,33 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+"""Wikipedia Lookup Tool for retrieving article summaries from Wikipedia.
+This class provides functionality to fetch summaries of Wikipedia articles using the Wikipedia REST API.
+Attributes:
+    name (str): The name identifier for the tool, defaults to 'wikipedia_lookup'
+Methods:
+    definition: Returns the OpenAI function definition schema for the tool
+    fn(query): Executes the Wikipedia lookup and returns article data
+The tool performs the following:
+1. Accepts a search query string
+2. Makes a GET request to Wikipedia's REST API
+3. Returns a dictionary containing:
+   - title: The article title
+   - summary: The article extract/summary
+   - image: URL to the article's thumbnail image (if available)
+   - url: URL to the full Wikipedia article page
+If the API request fails, it returns an error dictionary.
+Example:
+    tool = WikipediaLookup()
+    result = tool.fn("Python programming")
+    # Returns dictionary with article data or error message
+Raises:
+    Handles HTTP errors internally by returning error dictionary
+Returns:
+    dict: Article data including title, summary, image URL, and article URL,
+          or error message if lookup fails
+"""
+
 @FunctionRegistry.register
 class WikipediaLookup(BaseTool):
     def __init__(self, name='wikipedia_lookup'):
@@ -49,30 +76,3 @@ class WikipediaLookup(BaseTool):
                 "error": f"Failed to fetch Wikipedia summary for {query}"
             }
 
-
-"""Wikipedia Lookup Tool for retrieving article summaries from Wikipedia.
-This class provides functionality to fetch summaries of Wikipedia articles using the Wikipedia REST API.
-Attributes:
-    name (str): The name identifier for the tool, defaults to 'wikipedia_lookup'
-Methods:
-    definition: Returns the OpenAI function definition schema for the tool
-    fn(query): Executes the Wikipedia lookup and returns article data
-The tool performs the following:
-1. Accepts a search query string
-2. Makes a GET request to Wikipedia's REST API
-3. Returns a dictionary containing:
-   - title: The article title
-   - summary: The article extract/summary
-   - image: URL to the article's thumbnail image (if available)
-   - url: URL to the full Wikipedia article page
-If the API request fails, it returns an error dictionary.
-Example:
-    tool = WikipediaLookup()
-    result = tool.fn("Python programming")
-    # Returns dictionary with article data or error message
-Raises:
-    Handles HTTP errors internally by returning error dictionary
-Returns:
-    dict: Article data including title, summary, image URL, and article URL,
-          or error message if lookup fails
-"""
