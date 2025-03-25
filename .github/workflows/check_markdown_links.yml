@@ -16,7 +16,8 @@ jobs:
         uses: gaurav-nelson/github-action-markdown-link-check@v1
         with:
           use-quiet-mode: 'yes'
+          base-branch: 'main'
           # Only check modified files for PRs
           check-modified-files-only: ${{ github.event_name == 'pull_request' && 'yes' || 'no' }}
           # For scheduled runs, check all files with verbose output
-          use-verbose-mode: ${{ github.event_name == 'schedule' && 'yes' || 'no' }}  
+          use-verbose-mode: ${{ github.event_name == 'schedule' && 'yes' || 'no' }}
