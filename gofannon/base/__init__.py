@@ -6,12 +6,13 @@ import json
 import logging
 from pathlib import Path
 
-from .langflow import LangflowMixin
+
 from ..config import ToolConfig
 
 from .smol_agents import SmolAgentsMixin
 from .langchain import LangchainMixin
 from .bedrock import BedrockMixin
+from .langflow import LangflowMixin
 
 
 @dataclass
