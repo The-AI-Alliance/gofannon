@@ -43,3 +43,7 @@ responses = "^0.25.7"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.dependency-overrides]
+# Explicitly exclude langchain-pinecone
+langchain-pinecone = "*"  
