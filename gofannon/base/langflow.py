@@ -1,111 +1,294 @@
+import pytest
+from unittest.mock import MagicMock, patch
+from pydantic import BaseModel
+from gofannon.base import BaseTool
+from gofannon.base.langflow import LangflowMixin
+
+# Mock Langflow imports for testing  
 try:
     from langflow.custom import Component
     from langflow.io import MessageTextInput, IntInput, BoolInput, FloatInput, Output
     from langflow.schema import Data
 
+    class MockMessageTextInput:
+        def __init__(self, name, display_name, info, required):
+            self.name = name
+            self.display_name = display_name
+            self.info = info
+            self.required = required
+
+    class MockIntInput:
+        def __init__(self, name, display_name, info, required):
+            self.name = name
+            self.display_name = display_name
+            self.info = info
+            self.required = required
+
+    class MockBoolInput:
+        def __init__(self, name, display_name, info, required):
+            self.name = name
+            self.display_name = display_name
+            self.info = info
+            self.required = required
+
+            # Patch the actual imports with our mocks
+    with patch.dict('sys.modules', {
+        'langflow.custom': MagicMock(),
+        'langflow.io': MagicMock(),
+        'langflow.schema': MagicMock()
+    }):
+        from langflow.custom import Component
+        from langflow.io import MessageTextInput, IntInput, BoolInput, FloatInput, Output
+        from langflow.schema import Data
+
+        MessageTextInput = MockMessageTextInput
+        IntInput = MockIntInput
+        BoolInput = MockBoolInput
+
     _HAS_LANGFLOW = True
 except ImportError:
     _HAS_LANGFLOW = False
 
+# Test fixtures  
+@pytest.fixture
+def mock_langflow_component():
+    class MockComponent:
+        display_name = "Test Component"
+        description = "Test Description"
 
-class LangflowMixin:
-    def import_from_langflow(self, langflow_component):
-        """Adapt a Langflow component to a Gofannon tool"""
-        if not _HAS_LANGFLOW:
-            raise RuntimeError(
-                "langflow is not installed. Install with `pip install langflow`"
-            )
+        # Create mock inputs  
+        text_input = MessageTextInput(
+            name="text_param",
+            display_name="Text Param",
+            info="Text parameter",
+            required=True
+        )
+        int_input = IntInput(
+            name="num_param",
+            display_name="Number Param",
+            info="Number parameter",
+            required=False
+        )
+        bool_input = BoolInput(
+            name="flag_param",
+            display_name="Flag Param",
+            info="Boolean parameter",
+            required=True
+        )
 
-        self.name = langflow_component.display_name.replace(" ", "_").lower()
-        self.description = langflow_component.description
+        inputs = [text_input, int_input, bool_input]
 
-        # Extract parameters from component inputs
-        parameters = {
-            "type": "object",
-            "properties": {},
-            "required": []
-        }
+        def build(self):
+            return lambda **kwargs: kwargs
 
-        for component_input in langflow_component.inputs:
-            if component_input.name in ["self", "context"]:
-                continue
+    return MockComponent()
 
-            param_type = "string"
-            if isinstance(component_input, (IntInput, FloatInput)):
-                param_type = "number"
-            elif isinstance(component_input, BoolInput):
-                param_type = "boolean"
-
-            parameters["properties"][component_input.name] = {
-                "type": param_type,
-                "description": component_input.info or ""
+@pytest.fixture
+def sample_gofannon_tool():
+    class SampleTool(BaseTool):
+        @property
+        def definition(self):
+            return {
+                "function": {
+                    "name": "sample_tool",
+                    "description": "Sample tool description",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "a": {"type": "number", "description": "First number"},
+                            "b": {"type": "number", "description": "Second number"}
+                        },
+                        "required": ["a", "b"]
+                    }
+                }
             }
 
-            if component_input.required:
-                parameters["required"].append(component_input.name)
+        def fn(self, a: float, b: float) -> float:
+            return a + b
 
-        self.definition = {
-            "function": {
-                "name": self.name,
-                "description": self.description,
-                "parameters": parameters
+    return SampleTool()
+
+# Tests  
+@pytest.mark.skipif(not _HAS_LANGFLOW, reason="Langflow not installed")
+def test_import_from_langflow_success(mock_langflow_component):
+    # Test successful import from Langflow component  
+    tool = BaseTool()
+    tool.import_from_langflow(mock_langflow_component)
+
+    assert tool.name == "test_component"
+    assert tool.description == "Test Description"
+
+    params = tool.definition["function"]["parameters"]
+    assert params["properties"]["text_param"]["type"] == "string"
+    assert params["properties"]["num_param"]["type"] == "number"
+    assert params["properties"]["flag_param"]["type"] == "boolean"
+
+    assert "text_param" in params["required"]
+    assert "flag_param" in params["required"]
+    assert "num_param" not in params["required"]
+
+@pytest.mark.skipif(not _HAS_LANGFLOW, reason="Langflow not installed")
+def test_export_to_langflow_success(sample_gofannon_tool):
+    # Test successful export to Langflow component  
+    component_class = sample_gofannon_tool.export_to_langflow()
+    component = component_class()
+
+    assert component.display_name == "Sample Tool"
+    assert component.description == "Sample tool description"
+
+    input_names = [input.name for input in component.inputs]
+    assert "a" in input_names
+    assert "b" in input_names
+
+    # Test component execution  
+    result = component.run_tool(a=2, b=3)
+    assert result.data == 5
+
+@pytest.mark.skipif(not _HAS_LANGFLOW, reason="Langflow not installed")
+def test_type_mapping():
+    # Test JSON schema to Langflow input type mapping  
+    tool = BaseTool()
+    tool.definition = {
+        "function": {
+            "parameters": {
+                "properties": {
+                    "str_param": {"type": "string"},
+                    "num_param": {"type": "number"},
+                    "int_param": {"type": "integer"},
+                    "bool_param": {"type": "boolean"}
+                }
             }
         }
+    }
 
-        # Create execution wrapper
-        def adapted_fn(**kwargs):
-            result = langflow_component.build()(**kwargs)
-            return result.data if isinstance(result, Data) else result
+    component_class = tool.export_to_langflow()
+    input_types = {
+        input.name: type(input).__name__
+        for input in component_class.inputs
+    }
 
-        self.fn = adapted_fn
+    assert input_types["str_param"] == "MessageTextInput"
+    assert input_types["num_param"] == "FloatInput"
+    assert input_types["int_param"] == "IntInput"
+    assert input_types["bool_param"] == "BoolInput"
 
-    def export_to_langflow(self):
-        """Convert Gofannon tool to Langflow component"""
-        if not _HAS_LANGFLOW:
-            raise RuntimeError(
-                "langflow is not installed. Install with `pip install langflow`"
-            )
+def test_missing_langflow_import():
+    # Test error when Langflow is not installed  
+    original_has_langflow = LangflowMixin._HAS_LANGFLOW
+    LangflowMixin._HAS_LANGFLOW = False
 
-        parameters = self.definition.get("function", {}).get("parameters", {})
-        param_properties = parameters.get("properties", {})
-        required_params = parameters.get("required", [])
+    tool = BaseTool()
 
-        # Create input fields
-        component_inputs = []
-        type_map = {
-            "string": MessageTextInput,
-            "number": FloatInput,
-            "integer": IntInput,
-            "boolean": BoolInput
-        }
+    with pytest.raises(RuntimeError) as excinfo:
+        tool.import_from_langflow(MagicMock())
+    assert "langflow is not installed" in str(excinfo.value)
 
-        for param_name, param_def in param_properties.items():
-            input_type = param_def.get("type", "string")
-            InputClass = type_map.get(input_type, MessageTextInput)
+    with pytest.raises(RuntimeError) as excinfo:
+        tool.export_to_langflow()
+    assert "langflow is not installed" in str(excinfo.value)
 
-            component_inputs.append(
-                InputClass(
-                    name=param_name,
-                    display_name=param_name.replace("_", " ").title(),
-                    info=param_def.get("description", ""),
-                    required=param_name in required_params,
-                    tool_mode=True
-                )
-            )
+    LangflowMixin._HAS_LANGFLOW = original_has_langflow
 
-            # Define component class
-        class ExportedComponent(Component):
-            display_name = self.definition["function"]["name"].title()
-            description = self.definition["function"]["description"]
-            icon = "tool"
+@pytest.mark.skipif(not _HAS_LANGFLOW, reason="Langflow not installed")
+def test_complex_parameter_handling():
+    # Test component with complex parameter configuration  
+    class ComplexComponent:
+        display_name = "Complex Component"
+        description = "Component with complex parameters"
 
-            inputs = component_inputs
-            outputs = [Output(display_name="Result", name="result", method="run_tool")]
+        # Create mock inputs  
+        required_input = MessageTextInput(
+            name="required",
+            display_name="Required Param",
+            info="Required parameter",
+            required=True
+        )
+        optional_input = IntInput(
+            name="optional",
+            display_name="Optional Param",
+            info="Optional parameter",
+            required=False
+        )
 
-            def run_tool(self, **kwargs):
-                result = self.tool.execute(context=None, **kwargs)
-                return Data(data=result.output)
+        inputs = [required_input, optional_input]
 
-                # Attach tool instance to component class
-        ExportedComponent.tool = self
-        return ExportedComponent
+        def build(self):
+            return lambda **kwargs: kwargs
+
+    tool = BaseTool()
+    tool.import_from_langflow(ComplexComponent())
+
+    params = tool.definition["function"]["parameters"]
+    assert "required" in params["required"]
+    assert "optional" not in params["required"]
+    assert params["properties"]["required"]["type"] == "string"
+    assert params["properties"]["optional"]["type"] == "integer"
+
+@pytest.mark.skipif(not _HAS_LANGFLOW, reason="Langflow not installed")
+def test_component_execution_flow():
+    # Test full round-trip execution flow  
+    class TestTool(BaseTool):
+        @property
+        def definition(self):
+            return {
+                "function": {
+                    "name": "test_tool",
+                    "description": "Test execution flow",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "input": {"type": "string"}
+                        },
+                        "required": ["input"]
+                    }
+                }
+            }
+
+        def fn(self, input: str) -> str:
+            return f"Processed: {input}"
+
+            # Export to Langflow component
+    tool = TestTool()
+    component_class = tool.export_to_langflow()
+    component = component_class()
+
+    # Execute through Langflow interface  
+    result = component.run_tool(input="test")
+    assert result.data == "Processed: test"
+
+@pytest.mark.skipif(not _HAS_LANGFLOW, reason="Langflow not installed")
+def test_error_handling_in_execution():
+    # Test error handling in exported component  
+    class ErrorTool(BaseTool):
+        @property
+        def definition(self):
+            return {
+                "function": {
+                    "name": "error_tool",
+                    "description": "Tool that raises errors",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "value": {"type": "number"}
+                        }
+                    }
+                }
+            }
+
+        def fn(self, value: float):
+            if value < 0:
+                raise ValueError("Negative value")
+            return value ** 0.5
+
+            # Export and test
+    component_class = ErrorTool().export_to_langflow()
+    component = component_class()
+
+    # Test valid input  
+    valid_result = component.run_tool(value=4)
+    assert valid_result.data == 2.0
+
+    # Test invalid input  
+    error_result = component.run_tool(value=-4)
+    assert "error" in error_result.data
+    assert "Negative value" in error_result.data["error"]  

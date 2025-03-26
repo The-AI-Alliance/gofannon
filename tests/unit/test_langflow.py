@@ -1,6 +1,5 @@
 import pytest
 from unittest.mock import MagicMock
-from pydantic import BaseModel
 from gofannon.base import BaseTool
 
 # Test fixtures
