@@ -5,6 +5,8 @@ from typing import Any, Callable
 import json
 import logging
 from pathlib import Path
+
+from .langflow import LangflowMixin
 from ..config import ToolConfig
 
 from .smol_agents import SmolAgentsMixin
@@ -62,7 +64,11 @@ class WorkflowContext:
         self.execution_log.append(entry)
 
 
-class BaseTool(SmolAgentsMixin, LangchainMixin, BedrockMixin, ABC):
+class BaseTool(SmolAgentsMixin,
+               LangchainMixin,
+               BedrockMixin,
+               LangflowMixin,
+               ABC):
     def __init__(self, **kwargs):
         self.logger = logging.getLogger(
             f"{self.__class__.__module__}.{self.__class__.__name__}"
