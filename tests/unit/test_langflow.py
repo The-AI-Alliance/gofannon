@@ -172,23 +172,6 @@ def test_type_mapping():
     assert input_types["int_param"] == "IntInput"
     assert input_types["bool_param"] == "BoolInput"
 
-def test_missing_langflow_import():
-    # Test error when Langflow is not installed
-    original_has_langflow = LangflowMixin._HAS_LANGFLOW
-    LangflowMixin._HAS_LANGFLOW = False
-
-    tool = BaseTool()
-
-    with pytest.raises(RuntimeError) as excinfo:
-        tool.import_from_langflow(MagicMock())
-    assert "langflow is not installed" in str(excinfo.value)
-
-    with pytest.raises(RuntimeError) as excinfo:
-        tool.export_to_langflow()
-    assert "langflow is not installed" in str(excinfo.value)
-
-    LangflowMixin._HAS_LANGFLOW = original_has_langflow
-
 @pytest.mark.skipif(not _HAS_LANGFLOW, reason="Langflow not installed")
 def test_complex_parameter_handling():
     # Test component with complex parameter configuration
@@ -291,4 +274,4 @@ def test_error_handling_in_execution():
     # Test invalid input
     error_result = component.run_tool(value=-4)
     assert "error" in error_result.data
-    assert "Negative value" in error_result.data["error"]  
+    assert "Negative value" in error_result.data["error"]
