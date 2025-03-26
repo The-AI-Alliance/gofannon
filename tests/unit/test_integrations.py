@@ -27,7 +27,7 @@ class DummyTool(BaseTool):
 def test_langchain_import_export():
     try:
         from langchain.tools import BaseTool as LangchainBaseTool
-        from langchain.tools import WikipediaQueryRun
+        from langchain_community.tools.wikipedia.tool import WikipediaQueryRun
     except ImportError:
         pytest.skip("langchain-core not installed")
 
