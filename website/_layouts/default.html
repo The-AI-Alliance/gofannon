@@ -7,9 +7,13 @@
 
 {% include navbar.html %}
 
+{% if page.layout == "leaderboard" %}
+{{ content }}
+{% else %}
 <main class="container mt-4 flex-grow-1">
     {{ content }}
 </main>
+{% endif %}
 
 {% include footer.html %}
 

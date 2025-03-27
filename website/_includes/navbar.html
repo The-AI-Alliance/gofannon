@@ -6,10 +6,30 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><a class="nav-link" href="{{ '/docs' | relative_url }}">Docs</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ '/how-tos' | relative_url }}">How-Tos</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ '/about' | relative_url }}">About</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ '/community' | relative_url }}">Community</a></li>
+                <li class="nav-item dropdown me-3">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        Developers
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ '/developers' | relative_url }}" target="_blank">General</a></li>
+                        <li><a class="dropdown-item" href="{{ '/docs' | relative_url }}" target="_blank">Docs</a></li>
+                        <li><a class="dropdown-item" href="{{ '/docs/quickstart.html' | relative_url }}" target="_blank">Quickstart</a></li>
+                        <li><a class="dropdown-item" href="{{ '/developers/first_contribution.html' | relative_url }}" target="_blank">First Contribution</a></li>
+                        <li><a class="dropdown-item" href="{{ '/developers/contribute_tool.html' | relative_url }}" target="_blank">Contribute Tool</a></li>
+                        <li><a class="dropdown-item" href="{{ '/developers/contribute_agentic_framework.html' | relative_url }}" target="_blank">Contribute Framework Integration</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item dropdown me-3">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        Community
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ '/about' | relative_url }}" target="_blank">About Us</a></li>
+                        <li><a class="dropdown-item" href="{{ '/community' | relative_url }}" target="_blank">General</a></li>
+                        <li><a class="dropdown-item" href="{{ '/community/contact.html' | relative_url }}" target="_blank">Join Us</a></li>
+
+                    </ul>
+                </li>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         The AI Alliance

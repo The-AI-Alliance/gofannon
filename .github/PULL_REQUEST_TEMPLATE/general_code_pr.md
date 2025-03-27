@@ -37,7 +37,6 @@ Include an example of how to use the new function or feature:
 Confirm that the following have been completed:
 
 * [ ] All new functions have been documented in the `docs/` directory
-* [ ] New functions have been added to the `ROADMAP.md` file
 * [ ] Unit tests have been added for new functions
 * [ ] Code follows the existing style and convention
 * [ ] API keys or sensitive information have been removed

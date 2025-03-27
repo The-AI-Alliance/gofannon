@@ -5,107 +5,77 @@
 ![Issues](https://img.shields.io/github/issues/The-AI-Alliance/gofannon)
 ![GitHub stars](https://img.shields.io/github/stars/The-AI-Alliance/gofannon?style=social)
 
-# gofannon  
+# `gofannon`  
   
-**gofannon** is a collection of tools designed to enhance the capabilities of function-calling-enabled language models. These tools provide additional functionality for various tasks, including mathematical operations, GitHub interactions, arXiv searches, and advanced reasoning techniques.  
+**[gofannon](https://the-ai-alliance.github.io/gofannon/)** is a collection of tools designed to enhance the capabilities of 
+function-calling-enabled language models/agents. These tools provide additional
+functionality for various tasks.  
 
-## Why the name `gofanon` ?
 
-See [`why_the_name_gofannon.md`](https://the-ai-alliance.github.io/gofannon/about/the_name_gofannon/) for the rich story on why we chose to honor this Celtic Diety
+## 🌟🌟 Features 🌟🌟 
 
-## Our Mission
+1. Cross-Framework Compatibility (Import From/Export To Multiple Frameworks)
+   - **Current:** `smolagents`, LangChain, AWS Bedrock
+   - **Currently Being Developed:** [Up To Date List](https://github.com/The-AI-Alliance/gofannon/issues?q=is%3Aissue%20state%3Aopen%20label%3Aframework%20assignee:*)
+   - **In The Roadmap:** [Up To Date List](https://github.com/The-AI-Alliance/gofannon/issues?q=is%3Aissue%20state%3Aopen%20label%3Aframework%20no%3Aassignee)
+2. A Robust Collection of Tools
+   - List [Here](https://github.com/The-AI-Alliance/gofannon/pulls?q=is%3Apr+is%3Aclosed+label%3Atool)
+   - New Tools being added daily
+3. New Contributor Friendly
+   - [Curated contribution pathways](https://the-ai-alliance.github.io/gofannon/developers/) 
+   - [Gamified Contributor Process](https://the-ai-alliance.github.io/gofannon/leaderboard.html)
+## 🎓🎓 Why the name `gofanon`? 🎓🎓
 
-We aim to achieve:
+See [`why_the_name_gofannon`](https://the-ai-alliance.github.io/gofannon/about/the_name_gofannon/) for the rich story on why we chose to honor this Celtic Diety
 
-### Cross-Framework Compatibility
-We solve the "vendor lock-in" problem in AI tooling through:
-- Standardized interface definitions
-- Automatic schema translation
-- Bidirectional conversion tools
+## ⚡️⚡️Quickstart ⚡️⚡️
 
-### Open Source Education
-We make AI development accessible by:
-- Curated contribution pathways
-- Interactive documentation
-- Pair programming sessions
-- Weekly office hours
+```bash  
+pip install gofannon  
+```
 
-### Encouraging First-Time Contributors
-We actively support new contributors through:
-- Beginner-friendly issues
-- Clear documentation and guides
-- Supportuve community engagement
+gofannon is an ambitious upstart, things are happening fast. We have a git
+action that deploys to PyPi every Monday morning, so `pip install gofannon`
+will get you pretty close to the tip of the spear. But if you absolutely _must_
+have the latest and greatest, this will work too:
 
-## Features  
-  
-- **Basic Math Operations**: Perform addition, subtraction, multiplication, division, and exponentiation.  
-- **GitHub Integration**: Interact with GitHub repositories, including creating issues, committing files, and retrieving repository contents.  
-- **arXiv Search**: Search for and retrieve articles from arXiv.  
-- **Advanced Reasoning**: Utilize Chain-of-Thought (CoT) and Tree-of-Thought (ToT) reasoning techniques for complex problem-solving.  
-- **NHTSA Complaints**: Retrieve vehicle complaint data from the National Highway Traffic Safety Administration (NHTSA).  
-  
-## Roadmap  
+```bash
+git+https://github.com/The-AI-Alliance/gofannon.git@main
+```
+
+For more information, see out [quickstart guide](https://github.com/The-AI-Alliance/gofannon/blob/main/docs/quickstart.md).
+
+## 🏆🏆 Acknowledgments 🏆🏆
+
+We would like to thank the open-source community for their contributions and support in making this project possible.
+
+<a href="https://github.com/The-AI-Alliance/gofannon/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=The-AI-Alliance/gofannon" />
+</a>
+
+Made with [contrib.rocks](https://contrib.rocks).
+
+## 🗞️🗞️ Stay Up To Date 🗞️🗞️
+
+Star `gofannon` for good karma (and to recieve updates in your github feed).
+
+![gif showng how to star](https://the-ai-alliance.github.io/gofannon/assets/images/github-star.gif)
+
+## 🚲🚲 Roadmap  🚲🚲
   
 For a detailed overview of planned features and their current status, please refer to the [ROADMAP](https://github.com/The-AI-Alliance/gofannon/blob/main/ROADMAP.md).   
 
-## Documentation
+## 📘📘 Documentation 📘📘
 
-Documentation can be found [here](https://github.com/The-AI-Alliance/gofannon/tree/main/docs).Each tool comes with its own documentation, which can be found in the docs/ directory. The documentation provides detailed information on how to use each tool, including required parameters and example usage.
+Documentation can be found [here](https://github.com/The-AI-Alliance/gofannon/tree/main/docs). Each tool comes with its own documentation, which can be found in the docs/ directory. The documentation provides detailed information on how to use each tool, including required parameters and example usage.
 
-## Installation  
-  
-To install gofannon, simply clone the repository and install the required dependencies:  
-  
-```bash  
-git clone https://github.com/The-AI-Alliance/gofannon.git  
-cd gofannon  
-pip install -r requirements.txt
-```
+## ☎️☎️ Contact Us ☎️☎️
 
-or 
+[Contact Information](https://the-ai-alliance.github.io/gofannon/community/contact.html)
 
-```
-pip install git+https://github.com/The-AI-Alliance/gofannon.git
-# OR
-pip install gofannon
-```
-
-## Communication Channels
-- **Discord** [Join our Discord server](https://discord.gg/2MMCVs76Sr)for eal-time collaboration and support
-- **GitHub Discussions**: Explore our [GitHub organization](https://github.com/The-AI-Alliance/agents-wg/discussions/) for all related projects
-- **Community Calls**: [Join our bi-weekly video meetings](https://calendar.app.google/c4eKW4zrNiXaue926)
-
-## Usage Example
-```bash
-from gofannon.base import BaseTool  
-  
-class NewTool(BaseTool):  
-    def __init__(self):  
-        super().__init__()  
-  
-    @property  
-    def definition(self):  
-        return {  
-            # Define your tool metadata and configuration  
-        }  
-  
-    def fn(self, *args, **kwargs):  
-        # Define your tool functionality  
-        pass  
-```
-
-## License  
+## 🧑‍⚖️🧑‍⚖️ License 🧑‍⚖️🧑‍⚖️
   
 This project is licensed under the ASFv2 License. See the [LICENSE](https://github.com/The-AI-Alliance/gofannon/blob/main/LICENSE) file for more details.
 
-## Contributing  
   
-We welcome contributions from the community! If you'd like to add a new tool or improve an existing one, please check out our [CONTRIBUTING](https://github.com/The-AI-Alliance/gofannon/blob/main/CONTRIBUTING.md) guide for detailed instructions on how to get started.  
   
-## Support  
-  
-If you encounter any issues or have questions, please open an issue on our [GitHub repository](https://github.com/your-repo/gofannon/issues).  
-  
-## Acknowledgments  
-  
-We would like to thank the open-source community for their contributions and support in making this project possible.  

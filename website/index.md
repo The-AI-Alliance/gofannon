@@ -23,7 +23,7 @@ title: Home
         <div class="col-md-6">  
             <h2>Open Source Education</h2>  
             <p>Learn AI development through practical contributions. We provide mentorship and guided pathways for new contributors.</p>  
-            <a href="{{ '/how-tos' | relative_url }}" class="btn btn-outline-primary">Contribution Guide</a>  
+            <a href="{{ '/developers' | relative_url }}" class="btn btn-outline-primary">Contribution Guide</a>  
         </div>  
     </div>  
 </div>  
