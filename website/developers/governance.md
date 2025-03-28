@@ -3,7 +3,6 @@ layout: default
 title: Governance
 ---  
 
-
 # `gofannon` Governance Overview
 
 `gofannon` is an AI Alliance Project. The governance model of the AI Alliance (AIA) is a work in progress. As the project 
