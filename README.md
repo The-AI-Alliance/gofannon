@@ -57,7 +57,7 @@ Made with [contrib.rocks](https://contrib.rocks).
 
 ## 🗞️🗞️ Stay Up To Date 🗞️🗞️
 
-Star `gofannon` for good karma (and to recieve updates in your github feed).
+Star `gofannon` for good karma (and to receive updates in your github feed).
 
 ![gif showng how to star](https://the-ai-alliance.github.io/gofannon/assets/images/github-star.gif)
 
