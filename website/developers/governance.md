@@ -5,10 +5,12 @@ title: Governance
 
 # `gofannon` Governance Overview
 
-`gofannon` is an AI Alliance Project. The governance model of the AI Alliance (AIA) is a work in progress. As the project 
-matures, we expect changes and refinements in process and structure. The current
-governance model is inspired by the [Apache Software Foundation (ASF) Governance](https://www.apache.org/foundation/governance/), 
-as all code leads of this project are ASF members.
+`gofannon` is an AI Alliance Project. The governance model of the AI Alliance 
+(AIA) is a work in progress. As the AI Alliance matures, we expect changes and 
+refinements in process and structure. The current `gofannon` governance model is
+inspired by the [Apache Software Foundation (ASF) Governance](https://www.apache.org/foundation/governance/), 
+because 1) it is a feature complete governance model and 2) all co-leads of 
+`gofannon` are ASF members.
 
 We operate under a mutual handshake agreement to follow ASF rules **except** in the cases where:
 1. They conflict with the practices outlined in the [AI Alliance Governance](https://thealliance.ai/governance), or
