@@ -9,7 +9,7 @@ Welcome to the Gofannon community! Here you'll find all the ways to connect with
 
 ## Communication Channels
 
-[See our contact page](({{/community/contact/ | relative_url}}))
+[See our contact page]({{ '/community/contact/' | relative_url}})
 ## Events
 
 Stay tuned for upcoming community events:

@@ -4,7 +4,7 @@ title: About
 ---  
 ## Why the name `gofanon` ?
 
-See [Why the Name Gofannon?]({{/about/the_name_gofannon/ | relative_url}}) for the rich story on why we chose to honor this Celtic Diety
+See [Why the Name Gofannon?]({{ '/about/the_name_gofannon/' | relative_url}}) for the rich story on why we chose to honor this Celtic Diety
 
 ## Contributors
  
