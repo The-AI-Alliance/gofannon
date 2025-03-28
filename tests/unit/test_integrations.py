@@ -27,12 +27,13 @@ class DummyTool(BaseTool):
 def test_langchain_import_export():
     try:
         from langchain.tools import BaseTool as LangchainBaseTool
-        from langchain.tools import WikipediaQueryRun
+        from langchain_community.tools.wikipedia.tool import WikipediaQueryRun
+        from langchain_community.utilities import WikipediaAPIWrapper
     except ImportError:
         pytest.skip("langchain-core not installed")
 
         # Use DummyTool instead of BaseTool
-    lc_tool = WikipediaQueryRun()
+    lc_tool = WikipediaQueryRun(api_wrapper=WikipediaAPIWrapper())
     base_tool = DummyTool()
     base_tool.import_from_langchain(lc_tool)
 
