@@ -1,3 +1,7 @@
+---  
+layout: default  
+title: Governance
+---  
 
 
 # `gofannon` Governance Overview
