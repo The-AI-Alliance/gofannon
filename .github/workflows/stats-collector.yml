@@ -30,7 +30,7 @@ jobs:
           GA_PROPERTY_ID: ${{ secrets.GA_PROPERTY_ID }}
           GA_CREDENTIALS: ${{ secrets.GA_CREDENTIALS }}
         run: |
-          python scripts/stats_collector.py
+          python .github/scripts/stats_collector.py
 
       - name: Commit and push changes
         if: success()
@@ -39,4 +39,4 @@ jobs:
           git config --global user.email "actions@github.com"
           git add website/community/stats.csv
           git diff --quiet && git diff --staged --quiet || git commit -m "Update community stats [skip ci]"
-          git push  
+          git push
