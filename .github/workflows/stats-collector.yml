@@ -1,0 +1,42 @@
+name: Daily Stats Collector
+on:
+  schedule:
+    - cron: '1 0 * * *'  # Runs at 00:01 UTC every day
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  collect-stats:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas google-analytics-data PyGithub
+
+      - name: Run stats collection script
+        id: stats
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GA_PROPERTY_ID: ${{ secrets.GA_PROPERTY_ID }}
+          GA_CREDENTIALS: ${{ secrets.GA_CREDENTIALS }}
+        run: |
+          python scripts/stats_collector.py
+
+      - name: Commit and push changes
+        if: success()
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add website/community/stats.csv
+          git diff --quiet && git diff --staged --quiet || git commit -m "Update community stats [skip ci]"
+          git push  
