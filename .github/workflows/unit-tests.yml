@@ -35,17 +35,11 @@ jobs:
           pipx install poetry==1.8.2
           poetry --version
 
-      - name: Install ONLY required dependencies
+      - name: Install Gofannon
         run: |
           poetry install \
             --extras "${{ matrix.extra }}" --with dev
-
-      - name: Install test dependencies
-        run: poetry install --only dev --no-root
-
-      - name: Install package without dependencies
-        run: poetry install --only-root
-
+          
       - name: Run ${{ matrix.extra }} tests
         run: |
           test_path="tests/unit/${{ matrix.extra }}"
