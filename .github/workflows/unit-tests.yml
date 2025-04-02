@@ -39,7 +39,7 @@ jobs:
         run: |
           poetry install \
             --extras "${{ matrix.extra }}" --with dev
-          
+
       - name: Run ${{ matrix.extra }} tests
         run: |
           test_path="tests/unit/${{ matrix.extra }}"
