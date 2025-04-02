@@ -33,7 +33,7 @@ jobs:
 
       - name: Install dependencies with ${{ matrix.extra }}
         run: |
-          poetry install --extras "testing,${{ matrix.extra }}" --with dev
+          poetry install --extras "${{ matrix.extra }}" --with dev
 
       - name: Run ${{ matrix.extra }} tests
         run: |
