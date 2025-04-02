@@ -24,7 +24,7 @@ functionality for various tasks.
 3. New Contributor Friendly
    - [Curated contribution pathways](https://the-ai-alliance.github.io/gofannon/developers/) 
    - [Gamified Contributor Process](https://the-ai-alliance.github.io/gofannon/leaderboard.html)
-## 🎓🎓 Why the name `gofanon`? 🎓🎓
+## 🎓🎓 Why the name `gofannon`? 🎓🎓
 
 See [`why_the_name_gofannon`](https://the-ai-alliance.github.io/gofannon/about/the_name_gofannon/) for the rich story on why we chose to honor this Celtic Diety
 
