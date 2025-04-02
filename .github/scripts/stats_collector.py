@@ -33,17 +33,17 @@ def get_github_historical_stats(github_token, repo_name):
             date = (datetime.utcnow() - timedelta(days=day)).date()
             date_str = date.strftime('%Y-%m-%d')
 
-            # Views
-            day_views = sum(view.count for view in traffic['views']
-                            if view.timestamp.date() == date)
-            day_uniques = sum(view.uniques for view in traffic['views']
-                              if view.timestamp.date() == date)
-
-            # Clones
-            day_clones = sum(clone.count for clone in clones['clones']
-                             if clone.timestamp.date() == date)
-            day_cloners = sum(clone.uniques for clone in clones['clones']
-                              if clone.timestamp.date() == date)
+            # Views - theres a bug where its only pulling aggregate, not daily 
+            day_views = traffic.count # sum(view.count for view in traffic['views']   
+                          #if view.timestamp.date() == date)  
+            day_uniques = traffic.uniques #sum(view.uniques for view in traffic['views']   
+                           # if view.timestamp.date() == date)  
+              
+            # Clones - same bug
+            day_clones = clones.count #sum(clone.count for clone in clones['clones']   
+                          #if clone.timestamp.date() == date)  
+            day_cloners = clones.uniques #sum(clone.uniques for clone in clones['clones']   
+                          #if clone.timestamp.date() == date) 
 
             # Stars (count up to this date)
             day_stars = sum(1 for starred_at in stars_timeline
@@ -84,10 +84,10 @@ def get_github_daily_stats(github_token, repo_name):
         clones = repo.get_clones_traffic(per="day")
 
         return {
-            'github_views': sum(view.count for view in traffic['views']),
-            'github_unique_visitors': sum(view.uniques for view in traffic['views']),
-            'github_clones': sum(clone.count for clone in clones['clones']),
-            'github_unique_cloners': sum(clone.uniques for clone in clones['clones']),
+            'github_views': traffic.count,#sum(view.count for view in traffic['views']),
+            'github_unique_visitors': traffic.uniques, #sum(view.uniques for view in traffic['views']),
+            'github_clones': clones.count, #sum(clone.count for clone in clones['clones']),
+            'github_unique_cloners': clones.uniques, #sum(clone.uniques for clone in clones['clones']),
             'github_stars': repo.stargazers_count,
             'github_forks': repo.forks_count
         }
@@ -241,3 +241,4 @@ def main():
 
 if __name__ == "__main__":
     main()  
+
