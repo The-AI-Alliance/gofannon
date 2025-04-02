@@ -14,51 +14,33 @@ jobs:
   unit_tests:
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
         extra: ["testing", "langchain", "smolagents", "headless_browser", "google", "aws", "langflow"]
-        python-version: ["3.10"]
-
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        uses: actions/checkout@v2
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v2
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.10'
 
       - name: Install poetry
         run: |
-          pipx install poetry==1.8.2
+          curl -sSL https://install.python-poetry.org | python3
           poetry --version
 
-      - name: Configure Poetry
+      - name: Install base dependencies
+        run: poetry install --no-extras
+
+      - name: Handle extra dependencies
+        if: matrix.extra != 'langflow'
+        run: poetry install --extras "${{ matrix.extra }}"
+
+      - name: Special handling for langflow
+        if: matrix.extra == 'langflow'
+        run: pip install "langflow>=1.2.0,<2.0.0"
+
+      - name: Run Tests
         run: |
-          poetry config virtualenvs.create true
-          poetry config virtualenvs.in-project false
-
-      - name: Install ONLY required dependencies
-        run: |
-          poetry install \
-            --no-dev \
-            --no-root \
-            --extras "${{ matrix.extra }}" \
-            --sync
-
-      - name: Install test dependencies
-        run: poetry install --only dev --no-root
-
-      - name: Install package without dependencies
-        run: poetry install --only-root
-
-      - name: Run ${{ matrix.extra }} tests
-        run: |
-          test_path="tests/unit/${{ matrix.extra }}"
-          if [ -d "$test_path" ]; then
-            poetry run pytest $test_path/ -v
-          else
-            echo "::warning::No tests found for ${{ matrix.extra }} at $test_path"
-          fi  
+          poetry run pytest tests/unit/${{ matrix.extra }}/  
