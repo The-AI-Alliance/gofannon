@@ -13,18 +13,33 @@ on:
 jobs:
   unit_tests:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        extra: ["langchain", "smolagents", "headless_browser", "google", "aws", "langflow", "mcp"]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+
       - name: Install poetry
         run: |
-          curl -sSL https://install.python-poetry.org | python3
-          poetry --version
-      - name: Run Tests
+          curl -sSL https://install.python-poetry.org | python3 -  
+          poetry --version  
+
+      - name: Install dependencies with ${{ matrix.extra }}
         run: |
-          poetry install --all-extras
-          poetry run pytest tests/unit/
+          poetry install --extras "testing,${{ matrix.extra }}" --with dev
+
+      - name: Run ${{ matrix.extra }} tests
+        run: |
+          test_path="tests/unit/${{ matrix.extra }}"
+          if [ -d "$test_path" ]; then  
+            poetry run pytest $test_path/ -v  
+          else  
+            echo "Warning: No tests found for ${{ matrix.extra }} at $test_path"  
+          fi  
