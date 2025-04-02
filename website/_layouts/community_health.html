@@ -1,0 +1,233 @@
+---
+layout: default
+---
+
+<div class="chart-container">
+    <div id="series-selector">
+        <h3>Select Series:</h3>
+        <div id="series-checkboxes"></div>
+    </div>
+    <!-- Chart will be drawn inside this div -->
+    <div id="chart"></div>
+</div>
+
+<!-- Include d3.js -->
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+
+<style>
+    .chart-container {
+        max-width: 1000px;
+        margin: 2rem auto;
+        padding: 1rem;
+    }
+
+    #chart {
+        background: #fafafa;
+        border: 1px solid #ddd;
+    }
+
+    #series-selector {
+        margin-bottom: 1rem;
+        padding: 1rem;
+        background: #f5f5f5;
+        border-radius: 8px;
+    }
+
+    #series-checkboxes {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+    }
+</style>
+
+<script>
+    (async function() {
+        // CSV file path (using Jekyll’s relative_url filter)
+        const csvUrl = `{{ '/community/stats.csv' | relative_url }}`;
+
+        // Load CSV data via d3.csv()
+        const data = await d3.csv(csvUrl, d => {
+            // parse the date and convert numeric fields
+            const parsed = { date: new Date(d.date) };
+            // for any other key (series), turn it into a number
+            Object.keys(d).forEach(k => {
+                if(k !== 'date'){
+                    parsed[k] = +d[k];
+                }
+            });
+            return parsed;
+        });
+
+        if (!data || data.length === 0) {
+            console.error('CSV data did not load or is empty.');
+            return;
+        }
+
+        // Determine available series (columns except date)
+        const allKeys = Object.keys(data[0]);
+        const seriesKeys = allKeys.filter(k => k !== 'date');
+
+        if (seriesKeys.length === 0) {
+            document.getElementById('series-checkboxes').innerHTML =
+                '<p>No data series found in CSV file.</p>';
+            return;
+        }
+
+        // Create checkboxes for each series.
+        // Only "github_stars" is checked by default.
+        const checkboxesContainer = document.getElementById('series-checkboxes');
+        seriesKeys.forEach(series => {
+            const isChecked = (series === 'github_stars') ? 'checked' : '';
+            const div = document.createElement('div');
+            div.innerHTML = `
+      <label>
+        <input type="checkbox" value="${series}" ${isChecked}>
+        ${series.replace(/_/g, ' ').toUpperCase()}
+      </label>
+    `;
+            checkboxesContainer.appendChild(div);
+        });
+
+        // Set up the SVG drawing area.
+        // Define margins and dimensions.
+        const margin = { top: 40, right: 40, bottom: 60, left: 60 };
+        const containerWidth = document.querySelector('.chart-container').clientWidth;
+        const width = containerWidth - margin.left - margin.right;
+        const height = 400 - margin.top - margin.bottom;
+
+        // Append SVG object to the #chart div.
+        const svg = d3.select("#chart")
+            .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+        // Create groups for axes and lines.
+        const xAxisG = svg.append("g").attr("class", "x-axis")
+            .attr("transform", `translate(0, ${height})`);
+        const yAxisG = svg.append("g").attr("class", "y-axis");
+        const linesG = svg.append("g").attr("class", "lines");
+
+        // Function to update the chart when checkbox values change.
+        function updateChart() {
+            // Determine which series are checked.
+            const selectedSeries = Array.from(document.querySelectorAll('input:checked')).map(input => input.value);
+            if (selectedSeries.length === 0) {
+                // If no series is selected, clear the chart.
+                linesG.selectAll("*").remove();
+                xAxisG.selectAll("*").remove();
+                yAxisG.selectAll("*").remove();
+                return;
+            }
+
+            // Set the domains for x and y scales.
+            // x scale: time scale based on all dates.
+            const xScale = d3.scaleTime()
+                .domain(d3.extent(data, d => d.date))
+                .range([0, width]);
+
+            // y scale: maximum among currently selected series.
+            const yMax = d3.max(data, d => d3.max(selectedSeries, key => d[key]));
+            const yScale = d3.scaleLinear()
+                .domain([0, yMax])
+                .range([height, 0])
+                .nice();
+
+            // Create axes.
+            const xAxis = d3.axisBottom(xScale).ticks(6);
+            const yAxis = d3.axisLeft(yScale).ticks(5);
+
+            xAxisG.transition().duration(500).call(xAxis);
+            yAxisG.transition().duration(500).call(yAxis);
+
+            // Bind data: one line per selected series.
+            const lineGenerator = d3.line()
+                .x(d => xScale(d.date))
+                .y((d, i, nodes) => {
+                    // 'key' is passed via closure when drawing each line.
+                    return yScale(d.value);
+                });
+
+            // For every selected series, transform the data into an array of {date, value}
+            const seriesData = selectedSeries.map(key => ({
+                key,
+                values: data.map(d => ({ date: d.date, value: d[key] }))
+            }));
+
+            // Color scale for the lines.
+            const colorScale = d3.scaleOrdinal()
+                .domain(seriesKeys)
+                .range(['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeead', '#a29bfe', '#fd79a8']);
+
+            // Data join.
+            const lines = linesG.selectAll(".line")
+                .data(seriesData, d => d.key);
+
+            // Remove unneeded lines.
+            lines.exit()
+                .transition().duration(500)
+                .style("opacity", 0)
+                .remove();
+
+            // Update existing lines.
+            lines.transition().duration(500)
+                .attr("d", d => lineGenerator(d.values))
+                .style("stroke", d => colorScale(d.key));
+
+            // Add new lines.
+            lines.enter()
+                .append("path")
+                .attr("class", "line")
+                .attr("d", d => lineGenerator(d.values))
+                .style("fill", "none")
+                .style("stroke-width", 2)
+                .style("stroke", d => colorScale(d.key))
+                .style("opacity", 0)
+                .transition().duration(500)
+                .style("opacity", 1);
+        }
+
+        // Initial chart draw.
+        updateChart();
+
+        // Listen for checkbox changes.
+        document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', updateChart);
+        });
+
+        // Optionally, redraw chart on window resize.
+        window.addEventListener('resize', () => {
+            // If resizing, update the width and redraw the axes and lines.
+            const newWidth = document.querySelector('.chart-container').clientWidth - margin.left - margin.right;
+            svg.attr("width", newWidth + margin.left + margin.right);
+
+            const xScale = d3.scaleTime()
+                .domain(d3.extent(data, d => d.date))
+                .range([0, newWidth]);
+
+            const xAxis = d3.axisBottom(xScale).ticks(6);
+            xAxisG.attr("transform", `translate(0, ${height})`)
+                .call(xAxis);
+
+            // Update the lines
+            // Get the current selected series.
+            const selectedSeries = Array.from(document.querySelectorAll('input:checked')).map(input => input.value);
+            const lineGenerator = d3.line()
+                .x(d => xScale(d.date))
+                .y(d => {
+                    // Use the same yScale as before.
+                    const yMax = d3.max(data, d => d3.max(selectedSeries, key => d[key]));
+                    const yScale = d3.scaleLinear()
+                        .domain([0, yMax])
+                        .range([height, 0])
+                        .nice();
+                    return yScale(d.value);
+                });
+
+            linesG.selectAll(".line")
+                .attr("d", d => lineGenerator(d.values));
+        });
+    })();
+</script>
