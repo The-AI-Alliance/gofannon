@@ -33,7 +33,6 @@ smolagents = ["smolagents"]
 headless_browser = ["selenium"]
 google = ["google-api-python-client"]
 aws = ["boto3"]
-langflow = ["langflow"]
 mcp = ["mcp", "anyio"]
 
 [tool.poetry.group.dev.dependencies]

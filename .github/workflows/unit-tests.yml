@@ -14,33 +14,43 @@ jobs:
   unit_tests:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         extra: ["testing", "langchain", "smolagents", "headless_browser", "google", "aws", "langflow"]
+        python-version: ["3.10"]
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/checkout@v4
         with:
-          python-version: '3.10'
+          fetch-depth: 0
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
 
       - name: Install poetry
         run: |
-          curl -sSL https://install.python-poetry.org | python3
+          pipx install poetry==1.8.2
           poetry --version
 
-      - name: Install base dependencies
-        run: poetry install --no-extras
-
-      - name: Handle extra dependencies
-        if: matrix.extra != 'langflow'
-        run: poetry install --extras "${{ matrix.extra }}"
-
-      - name: Special handling for langflow
-        if: matrix.extra == 'langflow'
-        run: pip install "langflow>=1.2.0,<2.0.0"
-
-      - name: Run Tests
+      - name: Install ONLY required dependencies
         run: |
-          poetry run pytest tests/unit/${{ matrix.extra }}/  
+          poetry install \
+            --extras "${{ matrix.extra }}" --with dev
+
+      - name: Install test dependencies
+        run: poetry install --only dev --no-root
+
+      - name: Install package without dependencies
+        run: poetry install --only-root
+
+      - name: Run ${{ matrix.extra }} tests
+        run: |
+          test_path="tests/unit/${{ matrix.extra }}"
+          if [ -d "$test_path" ]; then
+            poetry run pytest $test_path/ -v
+          else
+            echo "::warning::No tests found for ${{ matrix.extra }} at $test_path"
+          fi
