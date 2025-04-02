@@ -37,8 +37,6 @@ jobs:
 
       - name: Configure dependency isolation
         run: |
-          # Disable experimental features
-          poetry config experimental.new-installer false
           poetry config virtualenvs.create true
           poetry config virtualenvs.in-project false
 
