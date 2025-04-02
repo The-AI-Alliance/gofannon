@@ -63,27 +63,29 @@ async def mcp_server():
 
 @pytest.mark.anyio
 async def test_mcp_tool_execution(mcp_server):
+    print('cp1')
     client_receive, client_send = mcp_server
-
+    print('cp2')
     async with ClientSession(client_receive, client_send) as session:
+        print('cp3')
         with fail_after(1):
             await session.initialize()
-
+        print('cp4')
             # Test tool listing
         with fail_after(1):
             tools = await session.list_tools()
             tool_names = [t.name for t in tools]
             assert "test_tool" in tool_names
-
+        print('cp5')
             # Test valid execution
         with fail_after(1):
             results = await session.call_tool("test_tool", {"number": 5})
             assert len(results) == 1
             assert isinstance(results[0], TextContent)
             assert float(results[0].text) == 10.0
-
+        print('cp6')
             # Test invalid tool
         with fail_after(1), pytest.raises(ValueError) as exc_info:
             await session.call_tool("invalid_tool", {})
 
-        assert "Unknown tool: invalid_tool" in str(exc_info.value)  
+        assert "Unknown tool: invalid_tool" in str(exc_info.value)

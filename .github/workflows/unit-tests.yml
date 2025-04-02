@@ -51,7 +51,7 @@ jobs:
         run: |
           test_path="tests/unit/${{ matrix.extra }}"
           if [ -d "$test_path" ]; then
-            poetry run pytest $test_path/ -v
+            poetry run pytest $test_path/ -vs
           else
             echo "::warning::No tests found for ${{ matrix.extra }} at $test_path"
           fi
