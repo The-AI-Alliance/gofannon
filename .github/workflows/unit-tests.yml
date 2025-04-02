@@ -35,19 +35,23 @@ jobs:
           pipx install poetry==1.8.2
           poetry --version
 
-      - name: Configure dependency isolation
+      - name: Configure Poetry
         run: |
           poetry config virtualenvs.create true
           poetry config virtualenvs.in-project false
 
-      - name: Install core dependencies
-        run: poetry install --no-dev --no-root
-
-      - name: Install extra and dev dependencies
+      - name: Install ONLY required dependencies
         run: |
-          poetry install --extras "${{ matrix.extra }}" --with dev --no-root
+          poetry install \
+            --no-dev \
+            --no-root \
+            --extras "${{ matrix.extra }}" \
+            --sync
 
-      - name: Install package
+      - name: Install test dependencies
+        run: poetry install --only dev --no-root
+
+      - name: Install package without dependencies
         run: poetry install --only-root
 
       - name: Run ${{ matrix.extra }} tests
