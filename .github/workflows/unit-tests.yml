@@ -16,7 +16,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        extra: ["testing", "langchain", "smolagents", "headless_browser", "google", "aws", "langflow"]
+        extra: ["testing",
+                "langchain",
+                "smolagents",
+                "headless_browser",
+                "google",
+                "aws",
+                "langflow",
+                "mcp"]
         python-version: ["3.10"]
 
     steps:

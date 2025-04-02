@@ -1,9 +1,19 @@
-from mcp.types import Tool
-from mcp.server.lowlevel import Server
+
+try:
+    from mcp.types import Tool
+    from mcp.server.lowlevel import Server
+
+    _HAS_MCP = True
+except ImportError:
+    _HAS_MCP = False
 
 class MCPMixin:
     def export_to_mcp(self) -> Tool:
         """Convert Gofannon tool definition to MCP Tool schema"""
+        if not _HAS_MCP:
+            raise RuntimeError(
+                "mcp is not installed. Install with `pip install mcp[cli`"
+            )
         definition = self.definition['function']
         return Tool(
             name=definition['name'],
