@@ -8,7 +8,7 @@ except ImportError:
     _HAS_MCP = False
 
 class MCPMixin:
-    def export_to_mcp(self) -> Tool:
+    def export_to_mcp(self):
         """Convert Gofannon tool definition to MCP Tool schema"""
         if not _HAS_MCP:
             raise RuntimeError(
