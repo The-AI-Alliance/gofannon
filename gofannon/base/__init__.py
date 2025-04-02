@@ -6,6 +6,7 @@ import json
 import logging
 from pathlib import Path
 
+import anyio
 
 from ..config import ToolConfig
 
@@ -13,6 +14,7 @@ from .smol_agents import SmolAgentsMixin
 from .langchain import LangchainMixin
 from .bedrock import BedrockMixin
 from .langflow import LangflowMixin
+from .mcp import MCPMixin
 
 
 @dataclass
@@ -69,6 +71,7 @@ class BaseTool(SmolAgentsMixin,
                LangchainMixin,
                BedrockMixin,
                LangflowMixin,
+               MCPMixin,
                ABC):
     def __init__(self, **kwargs):
         self.logger = logging.getLogger(
@@ -118,3 +121,6 @@ class BaseTool(SmolAgentsMixin,
             return ToolResult(success=True, output=result)
         except Exception as e:
             return ToolResult(success=False, output=None, error=str(e), retryable=True)
+
+    async def execute_async(self, arguments: dict):
+        return await anyio.to_thread.run_sync(self.fn, **arguments)
