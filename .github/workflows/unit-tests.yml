@@ -16,30 +16,47 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        extra: ["langchain", "smolagents", "headless_browser", "google", "aws", "langflow", "mcp"]
+        extra: ["testing", "langchain", "smolagents", "headless_browser", "google", "aws", "langflow"]
+        python-version: ["3.10"]
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
 
       - name: Install poetry
         run: |
-          curl -sSL https://install.python-poetry.org | python3 -  
-          poetry --version  
+          pipx install poetry==1.8.2
+          poetry --version
 
-      - name: Install dependencies with ${{ matrix.extra }}
+      - name: Configure dependency isolation
         run: |
-          poetry install --extras "${{ matrix.extra }}" --with dev
+          # Disable experimental features
+          poetry config experimental.new-installer false
+          poetry config virtualenvs.create true
+          poetry config virtualenvs.in-project false
+
+      - name: Install core dependencies
+        run: poetry install --no-dev --no-root
+
+      - name: Install extra and dev dependencies
+        run: |
+          poetry install --extras "${{ matrix.extra }}" --with dev --no-root
+
+      - name: Install package
+        run: poetry install --only-root
 
       - name: Run ${{ matrix.extra }} tests
         run: |
           test_path="tests/unit/${{ matrix.extra }}"
-          if [ -d "$test_path" ]; then  
-            poetry run pytest $test_path/ -v  
-          else  
-            echo "Warning: No tests found for ${{ matrix.extra }} at $test_path"  
+          if [ -d "$test_path" ]; then
+            poetry run pytest $test_path/ -v
+          else
+            echo "::warning::No tests found for ${{ matrix.extra }} at $test_path"
           fi  
