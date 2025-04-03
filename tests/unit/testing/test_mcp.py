@@ -91,4 +91,4 @@ async def test_mcp_tool_execution(mcp_server):
         # Test invalid tool; expect ValueError
         with fail_after(1), pytest.raises(ValueError) as exc_info:
             await session.call_tool("invalid_tool", {})
-        assert "Unknown tool" in str(exc_info.value)  
+        assert "Unknown tool" in str(exc_info.value)
