@@ -1,94 +1,58 @@
-# tests/test_mcp_integration.py
 import pytest
-import anyio
-from anyio import fail_after
-from mcp.client.session import ClientSession
-from mcp.types import Tool, TextContent
-from gofannon.base import BaseTool
-from gofannon.config import FunctionRegistry
-from mcp.server.lowlevel import Server
+import json
+import asyncio
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 
-# Simple test tool implementation
-@FunctionRegistry.register
-class TestTool(BaseTool):
-    @property
-    def definition(self):
-        return {
-            "type": "function",
-            "function": {
-                "name": "test_tool",
-                "description": "Test tool that doubles numbers",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "number": {
-                            "type": "number",
-                            "description": "Number to double"
-                        }
-                    },
-                    "required": ["number"]
-                }
-            }
-        }
+async def invoke(cmd_or_url: str, method: str, data: dict) -> dict:
+    # STDIO transport
+    command, args = cmd_or_url.split(" ", 1)
+    server_params = StdioServerParameters(
+        command=command,
+        args=args.split(" "),
+    )
+    client = stdio_client(server_params)
 
-    def fn(self, number: float) -> float:
-        return number * 2
+    params = data if data else {}
 
-@pytest.fixture
-async def mcp_server():
-    # Create in-memory communication channels with a nonzero buffer capacity (e.g., 10)
-    client_send, server_receive = anyio.create_memory_object_stream(10)
-    server_send, client_receive = anyio.create_memory_object_stream(10)
-
-    # Configure MCP server
-    server = Server("test-server")
-    test_tool = TestTool()
-
-    @server.list_tools()
-    async def list_tools() -> list[Tool]:
-        return [test_tool.export_to_mcp()]
-
-    @server.call_tool()
-    async def call_tool(name: str, arguments: dict) -> float:
-        if name != "test_tool":
-            raise ValueError("Unknown tool: " + name)
-        return await test_tool.execute_async(arguments)
-
-    async def run_server():
-        await server.run(server_receive, server_send)
-
-    async with anyio.create_task_group() as tg:
-        tg.start_soon(run_server)
-        yield (client_receive, client_send)
-        tg.cancel_scope.cancel()
-
-@pytest.mark.anyio
-async def test_mcp_tool_execution(mcp_server):
-    print("cp1")
-    client_receive, client_send = mcp_server
-    print("cp2")
-    async with ClientSession(client_receive, client_send) as session:
-        print("cp3")
-        # Use timeout to avoid hanging forever during initialization
-        with fail_after(1):
+    async with client as (read, write):
+        async with ClientSession(read, write) as session:
             await session.initialize()
-        print("cp4")
-        # Test tool listing
-        with fail_after(1):
-            tools = await session.list_tools()
-            tool_names = [t.name for t in tools]
-            assert "test_tool" in tool_names
-        print("cp5")
-        # Test valid execution
-        with fail_after(1):
-            results = await session.call_tool("test_tool", {"number": 5})
-            # Expecting a list containing a single TextContent object
-            assert len(results) == 1
-            content = results[0]
-            assert isinstance(content, TextContent)
-            assert float(content.text) == 10.0
-        print("cp6")
-        # Test invalid tool; expect ValueError
-        with fail_after(1), pytest.raises(ValueError) as exc_info:
-            await session.call_tool("invalid_tool", {})
-        assert "Unknown tool" in str(exc_info.value)
+
+            match method:
+                case "prompts/list":
+                    result = await session.list_prompts()
+
+                case "prompts/get":
+                    result = await session.get_prompt(**params)
+
+                case "resources/list":
+                    result = await session.list_resources()
+
+                case "resources/read":
+                    result = await session.read_resource(**params)
+
+                case "tools/list":
+                    result = await session.list_tools()
+
+                case "tools/call":
+                    result = await session.call_tool(**params)
+
+                case _:
+                    raise ValueError(f"Unknown method: {method}")
+
+            return result
+
+def test_tool_list():
+    cmd = "mcp run gofannon_server.py"
+    method = "tools/list"
+    data = {}
+    result = asyncio.run(invoke(cmd, method, data))
+    assert any(t.name == "addition" for t in result['tools'])
+
+def test_fn():
+    cmd = "mcp run gofannon_server.py"
+    method = "tools/call"
+    data = {"name": "addition", "arguments": {"num1": 1, "num2": 2}}
+    result = asyncio.run(invoke(cmd, method, data))
+    assert result['content']['text'] == "3"
