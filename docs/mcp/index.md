@@ -10,7 +10,7 @@ integrate it anyway, as it is the flavor-of-the-week in the AI hype cycle. If
 you're using Anthropic Desktop, odds on you will need lots of help for local 
 usage, if you reach out to us on Discord, we can try to help you.
 
-[Anthropic's Documentation](https://www.anthropic.com/news/model-context-protocol)
+[Anthropic's Documentation](https://github.com/modelcontextprotocol/python-sdk#quickstart)
 may also help. 
 
 The following is an example server.py. You can update it to use any gofannon 
