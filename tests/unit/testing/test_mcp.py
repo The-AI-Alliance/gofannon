@@ -43,15 +43,16 @@ async def invoke(cmd_or_url: str, method: str, data: dict) -> dict:
                     raise ValueError(f"Unknown method: {method}")
 
             return result
-
-def test_tool_list():
+@pytest.mark.asyncio
+async def test_tool_list():
     cmd = "mcp run gofannon_server.py"
     method = "tools/list"
     data = {}
     result = asyncio.run(invoke(cmd, method, data))
     assert any(t.name == "addition" for t in result['tools'])
 
-def test_fn():
+@pytest.mark.asyncio
+async def test_fn():
     cmd = "mcp run gofannon_server.py"
     method = "tools/call"
     data = {"name": "addition", "arguments": {"num1": 1, "num2": 2}}
