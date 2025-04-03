@@ -39,7 +39,7 @@ langflow = []
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"
 responses = "^0.25.7"
-pytest-trio = "^0.8.0"
+pytest-asyncio = "0.26.0"
 mcp = "1.5.0"
 
 [build-system]

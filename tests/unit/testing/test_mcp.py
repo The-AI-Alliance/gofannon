@@ -4,6 +4,7 @@ import asyncio
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+@pytest.mark.asyncio
 async def invoke(cmd_or_url: str, method: str, data: dict) -> dict:
     # STDIO transport
     command, args = cmd_or_url.split(" ", 1)
