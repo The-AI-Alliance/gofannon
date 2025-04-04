@@ -1,0 +1,31 @@
+name: Manual Python Black Check
+on:
+  workflow_dispatch:
+
+jobs:
+  python-black:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+    - name: Install Black
+      run: pip install black
+    - name: Run Black and create issues
+      run: |
+        black . || true
+        echo 'Create issues for style guide violations'
+        REPO='${{ github.repository }}'
+        TITLE='Style guide violation detected'
+        BODY='Python Black detected style violations in the code.'
+        LABELS='good first issue, python black'
+        # This placeholder script should be replaced with a proper implementation
+        echo 'Issue creation would occur here with:'
+        echo 'Repo: $REPO'
+        echo 'Title: $TITLE'
+        echo 'Body: $BODY'
+        echo 'Labels: $LABELS'
