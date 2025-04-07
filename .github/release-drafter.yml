@@ -36,7 +36,7 @@ categories:
       - 'docs'
       - 'website'
 
-hange-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
 change-title-escapes: '\<*_&' # Escape markdown special characters
 
 template: |
