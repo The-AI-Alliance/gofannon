@@ -14,7 +14,10 @@ jobs:
       id-token: write  # Needed for trusted publishing
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -32,6 +35,16 @@ jobs:
           git config --global user.email "actions@github.com"
           git commit -am "Weekly version bump: ${PYPI_VERSION}"
           git push
+
+      - name: Generate Release Notes (Draft)
+        uses: release-drafter/release-drafter@v6.1.0
+        with:
+          config-name: release-drafter.yml
+          name: v${{ steps.version.outputs.PYPI_VERSION }}
+          tag: v${{ steps.version.outputs.PYPI_VERSION }}
+          version: ${{ steps.version.outputs.PYPI_VERSION }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Git tag
         id: tag
@@ -54,21 +67,17 @@ jobs:
           packages-dir: dist/
           verbose: true
 
-      - name: Create GitHub Release
-        uses: actions/create-release@v1
+      - name: Publish Release
+        uses: actions/github-script@v6
         with:
-          tag_name: ${{ steps.version.outputs.RELEASE_TAG }}
-          release_name: Weekly Release ${{ steps.version.outputs.PYPI_VERSION }}
-          draft: false
-          prerelease: false
-          body: "Automated release notes for this version."
+          script: |
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: ${{ steps.draft-release.outputs.id }},
+              draft: false,
+              name: 'v${{ steps.version.outputs.PYPI_VERSION }}',
+              tag_name: 'v${{ steps.version.outputs.PYPI_VERSION }}'
+            })
 
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate Release Notes
-        uses: release-drafter/release-drafter@v6.1.0
-        with:
-          config-name: release-drafter.yml
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

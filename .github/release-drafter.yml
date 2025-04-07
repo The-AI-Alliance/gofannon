@@ -1,7 +1,17 @@
-# .github/release-drafter.yml
+name-template: 'v$RESOLVED_VERSION 🎉'
+tag-template: 'v$RESOLVED_VERSION'
+version-resolver:
+  major:
+    labels:
+      - 'major'
+  minor:
+    labels:
+      - 'minor'
+  patch:
+    labels:
+      - 'patch'
+  default: patch
 
-name-template: 'v$NEXT_PATCH_VERSION 🎉'
-tag-template: 'v$NEXT_PATCH_VERSION'
 categories:
   - title: '🐛 Bug Fixes'
     labels:
@@ -12,6 +22,7 @@ categories:
     labels:
       - 'framework'
       - 'enhancement'
+      - 'tool'
 
   - title: '🤖 Maintenance and Automation'
     labels:
@@ -25,11 +36,16 @@ categories:
       - 'docs'
       - 'website'
 
-change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+hange-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+change-title-escapes: '\<*_&' # Escape markdown special characters
 
 template: |
   ## What's Changed
 
   $CHANGES
 
-  **Full Changelog**: https://github.com/$OWNER/$REPO/compare/$PREVIOUS_TAG...$NEW_TAG  
+  ### Contributors
+
+  $CONTRIBUTORS
+
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
