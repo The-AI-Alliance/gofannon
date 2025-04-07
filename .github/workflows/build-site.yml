@@ -1,43 +1,72 @@
 name: Build and Deploy Site
 
 on:
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:
   push:
-    paths:
-      - 'website/**'
-      - 'docs/**'
-  pull_request_target:
-    paths:
-      - 'docs/**'
-      - 'website/**'
-    types:
-      - closed
+    branches:
+      - main
 
 concurrency:
   group: "pages"
   cancel-in-progress: false
-  
+
 jobs:
   build:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true || github.event_name == 'push'  
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for leaderboard calculations
+
+      - name: Add upstream remote (for forks)
+        run: |
+          git remote add upstream https://github.com/The-AI-Alliance/gofannon.git
+          git fetch upstream
+          echo "UPSTREAM_OWNER=The-AI-Alliance" >> $GITHUB_ENV
+          echo "UPSTREAM_REPO=gofannon" >> $GITHUB_ENV
+        if: ${{ github.event.repository.fork }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: '.github/scripts/package-lock.json'
+
+      - name: Install npm dependencies
+        working-directory: .github/scripts
+        run: npm ci
+
+      - name: Generate scoring explanation
+        run: node .github/scripts/generate_scoring_html.js
+        env:
+          POINTS_CONFIG: .github/points_config.json
+          OUTPUT_FILE: website/_includes/scoring.html
+
+      - name: Update leaderboard
+        run: node .github/scripts/calculate_leaderboard.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_OWNER: ${{ env.UPSTREAM_OWNER || github.repository_owner }}
+          REPO_NAME: ${{ env.UPSTREAM_REPO || github.event.repository.name }}
+
+      - name: Sync documentation
+        run: python website/scripts/sync_docs.py
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "Update leaderboard and documentation"
+          # Default branch handling (works in push/pull_request_target contexts)
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: 3.1.0
 
-      - name: Sync Documentation
-        run: |
-          python website/scripts/sync_docs.py
-          git config --global user.name "Docs Bot"
-          git config --global user.email "docs@example.com"
-          git add -f website/docs/
-          git commit -m "Update documentation" || echo "No docs changes"
-
-      - name: Build site
+      - name: Build Jekyll site
         working-directory: ./website
         env:
           JEKYLL_ENV: production
@@ -46,14 +75,12 @@ jobs:
           bundle install
           bundle exec jekyll build
 
-      - name: Upload artifact
-        # Automatically uploads an artifact from the './_site' directory by default
+      - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: website/_site/
 
   deploy:
-    # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
     permissions:
       contents: read
       pages: write
