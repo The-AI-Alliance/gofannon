@@ -1,0 +1,23 @@
+name: First Time Contributor Comment
+on:
+  pull_request:
+    types: [labeled]
+
+jobs:
+  add-comment:
+    if: github.event.label.name == 'first time contributor'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Add welcome comment
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: comment } = await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `Thanks for the contribution @${context.payload.pull_request.user.login}!!  \n\nWe'll review your PR soon, in the mean time- make sure to  \n1. [Join our Discord](https://discord.gg/2MMCVs76Sr)  \n2. [Introduce yourself to the community](https://github.com/The-AI-Alliance/gofannon/discussions/categories/introductions)  \n3. [Star Our Repository](https://github.com/The-AI-Alliance/gofannon) for updates`
+            });  
