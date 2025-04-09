@@ -43,7 +43,7 @@ have the latest and greatest, this will work too:
 git+https://github.com/The-AI-Alliance/gofannon.git@main
 ```
 
-For more information, see out [quickstart guide](https://github.com/The-AI-Alliance/gofannon/blob/main/docs/quickstart.md).
+For more information, see our [quickstart guide](https://github.com/The-AI-Alliance/gofannon/blob/main/docs/quickstart.md).
 
 ## 🏆🏆 Acknowledgments 🏆🏆
 
