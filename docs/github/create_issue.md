@@ -9,7 +9,7 @@ The `CreateIssue` function creates a new issue in a GitHub repository.
 * `repo_url`: The URL of the repository, e.g. https://github.com/The-AI-Alliance/gofannon
 * `title`: The title of the issue
 * `body`: The body of the issue
-* `labels`: An array of labels for the issue (optional)
+* `labels`: An comma seperated string of labels for the issue (optional)
 
 ## Example Usage
 
