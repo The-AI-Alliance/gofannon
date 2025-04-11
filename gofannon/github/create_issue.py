@@ -39,11 +39,8 @@ class CreateIssue(BaseTool):
                             "description": "The body of the issue"
                         },
                         "labels": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            },
-                            "description": "An array of labels for the issue"
+                            "type": "string",
+                            "description": "A comma seperated list of labels to apply to the issue"
                         }
                     },
                     "required": ["repo_url", "title", "body"]
@@ -70,7 +67,7 @@ class CreateIssue(BaseTool):
         }
 
         if labels:
-            payload["labels"] = labels
+            payload["labels"] = labels.split(',')
 
         response = post(api_url, headers=headers, json=payload)
         response.raise_for_status()
