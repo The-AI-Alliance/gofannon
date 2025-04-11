@@ -20,7 +20,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo cwd
+          pwd
           chmod +x .github/scripts/first-time-contributor.sh
           ./.github/scripts/first-time-contributor.sh \
             "${{ github.event.pull_request.user.login }}" \
