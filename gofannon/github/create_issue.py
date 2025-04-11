@@ -40,7 +40,7 @@ class CreateIssue(BaseTool):
                         },
                         "labels": {
                             "type": "string",
-                            "description": "A comma seperated list of labels to apply to the issue"
+                            "description": "A comma separated list of labels to apply to the issue"
                         }
                     },
                     "required": ["repo_url", "title", "body"]
