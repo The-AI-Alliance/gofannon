@@ -38,8 +38,7 @@ is an open issue to create one [here](https://github.com/The-AI-Alliance/gofanno
 which might have some helpful pointers. 
 
 Mainly note that we use Google Colab as the defacto runtime for our examples 
-because it removes issues revolving around different people's local environements
-and because it is free to use (CPU runtimes are, which almost all of our examples
+because it removes issues revolving around different people's local environments
 are).
 
 ## Bugs, Infra improvements, other
