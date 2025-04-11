@@ -49,7 +49,7 @@ and we appreciate your help.
 
 ## Flow Chart
 
-This is an example- you're a volenteer you can do whatever you want in any order
+This is an example- you're a volunteer you can do whatever you want in any order
 you want, but this guide may help. 
 
 ```mermaid  
