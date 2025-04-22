@@ -15,6 +15,7 @@ from .langchain import LangchainMixin
 from .bedrock import BedrockMixin
 from .langflow import LangflowMixin
 from .mcp import MCPMixin
+from .llamastack import LlamaStackMixin
 
 
 @dataclass
@@ -72,6 +73,7 @@ class BaseTool(SmolAgentsMixin,
                BedrockMixin,
                LangflowMixin,
                MCPMixin,
+               LlamaStackMixin,
                ABC):
     def __init__(self, **kwargs):
         self.logger = logging.getLogger(
