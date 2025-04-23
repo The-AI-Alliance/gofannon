@@ -9,6 +9,8 @@ title: Home
         <p class="lead">Forging next-generation AI capabilities</p>  
         <a href="{{ '/docs' | relative_url }}" class="btn btn-light btn-lg">Get Started</a>  
     </div>  
+    <p></p>
+    <iframe width="560" height="315" src="https://www.youtube.com/embed/q0c3CcDdPaU?si=Xwyt8-MP0VtjCu23" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 </div>  
 
 <div class="container my-5">  
