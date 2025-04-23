@@ -18,9 +18,10 @@ title: Home
             <p>Seamlessly use tools across multiple frameworks. Write once, deploy anywhere.</p>  
             <div class="badge bg-secondary">LangChain</div>  
             <div class="badge bg-secondary">SmolAgents</div>  
-            <div class="badge bg-secondary">AWS CDK</div>  
+            <div class="badge bg-secondary">AWS boto3</div>  
             <div class="badge bg-secondary">Langflow</div>  
-            <div class="badge bg-secondary">Anthropic MCP</div>  
+            <div class="badge bg-secondary">Anthropic MCP</div>
+            <div class="badge bg-secondary">Llama Stack by Meta</div>
         </div>  
         <div class="col-md-6">  
             <h2>Open Source Education</h2>  
