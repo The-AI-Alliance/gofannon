@@ -18,7 +18,13 @@ Stay tuned for upcoming community events:
 - **Community Calls**: Bi-weekly video meetings (Time To Be Announced Soon)
 - **Contribution Workshops**: Monthly hands-on sessions for new contributors (Also To Be Announced Soon)
 
+### Meetup-Talk-in-a-Box
+
+Are you interested in speaking about `gofannnon`? This [slide deck](https://docs.google.com/presentation/d/1BDboR_ni1Rh6BV-VTAhIls8meqO27yC5-htrWieMgmg/edit?usp=sharing)
+is designed to be a starting point (feel free to modify it however you need).
+
 ### Upcoming Special Events
+
 
 
 ### Past Events
