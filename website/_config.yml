@@ -8,6 +8,8 @@ google_tag_id:  G-S4YL0CG31S
 discord_link: https://discord.gg/2MMCVs76Sr
 plugins:
   - jekyll-sitemap
+  - jekyll-redirect-from
+
 
 collections:
   docs:

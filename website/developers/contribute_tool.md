@@ -1,6 +1,8 @@
 ---  
 layout: default  
 title: Contributing A Tool
+redirect_from:
+  - /how-tos/contribute_tool.html
 ---  
 
 # Tutorial: Contributing a New Tool to Gofannon
