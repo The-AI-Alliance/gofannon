@@ -64,4 +64,3 @@ class GetOpportunity(SimplerGrantsGovBase):
             self.logger.error(f"Get opportunity failed for ID {opportunity_id}: {e}", exc_info=True)
             # Return a JSON error string
             return json.dumps({"error": f"Get opportunity failed: {str(e)}", "success": False})
-  

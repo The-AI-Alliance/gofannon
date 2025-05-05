@@ -1,4 +1,5 @@
 import logging
+import json
 from typing import Optional, Dict, Any
 
 from .base import SimplerGrantsGovBase
@@ -106,4 +107,4 @@ class SearchOpportunities(SimplerGrantsGovBase):
         except Exception as e:
             self.logger.error(f"Opportunity search failed: {e}", exc_info=True)
             # Return a JSON error string consistent with other potential returns
-            return json.dumps({"error": f"Opportunity search failed: {str(e)}", "success": False})  
+            return json.dumps({"error": f"Opportunity search failed: {str(e)}", "success": False})
