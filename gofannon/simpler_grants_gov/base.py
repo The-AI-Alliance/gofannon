@@ -70,7 +70,7 @@ class SimplerGrantsGovBase(BaseTool):
         }
 
         self.logger.debug(f"Making {method} request to {full_url}")
-        self.logger.debug(f"Headers: {{'X-API-KEY': '***', 'Content-Type': 'application/json', 'accept': 'application/json'}}") # Don't log key
+        self.logger.debug(f"Headers: {{'X-Auth': '***', 'Content-Type': 'application/json', 'accept': 'application/json'}}") # Don't log key
         if params:
             self.logger.debug(f"Params: {params}")
         if json_payload:
