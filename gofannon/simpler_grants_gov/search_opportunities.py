@@ -7,7 +7,7 @@ from ..config import FunctionRegistry
 
 logger = logging.getLogger(__name__)
 
-# Enum values extracted from API source for definition
+# --- Enums and Allowed Values ---
 FUNDING_INSTRUMENT_ENUM = ["grant", "cooperative_agreement", "other"]
 FUNDING_CATEGORY_ENUM = [
     "recovery_act", "agriculture", "arts", "business_and_commerce",
@@ -36,16 +36,30 @@ APPLICANT_TYPE_ENUM = [
     "non_domestic_non_us_entities", "other"
 ]
 OPPORTUNITY_STATUS_ENUM = ["forecasted", "posted", "closed", "archived"]
+IS_COST_SHARING_ENUM = [True, False] # Explicitly list boolean possibilities
+
 ALLOWED_SORT_ORDERS = [
     "relevancy", "opportunity_id", "opportunity_number", "opportunity_title",
     "post_date", "close_date", "agency_code", "agency_name", "top_level_agency_name"
 ]
+
+# Map filter keys to their corresponding enum lists for validation
+ENUM_FILTER_VALIDATION_MAP = {
+    "funding_instrument": FUNDING_INSTRUMENT_ENUM,
+    "funding_category": FUNDING_CATEGORY_ENUM,
+    "applicant_type": APPLICANT_TYPE_ENUM,
+    "opportunity_status": OPPORTUNITY_STATUS_ENUM,
+    "is_cost_sharing": IS_COST_SHARING_ENUM # Add boolean filter here
+}
+# --- End Enums ---
+
 
 @FunctionRegistry.register
 class SearchOpportunities(SimplerGrantsGovBase):
     """
     Tool to search for grant opportunities using the Simpler Grants Gov API.
     Corresponds to the POST /v1/opportunities/search endpoint.
+    Includes input validation for pagination and filter enum values.
     """
     def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, name: str = "search_opportunities"):
         super().__init__(api_key=api_key, base_url=base_url)
@@ -53,12 +67,12 @@ class SearchOpportunities(SimplerGrantsGovBase):
 
     @property
     def definition(self):
-        # Based on OpportunitySearchRequestV1Schema with enums added
+        # Definition remains the same as the previous version with enums included
         return {
             "type": "function",
             "function": {
                 "name": self.name,
-                "description": "Search for grant opportunities based on various criteria like query text, filters, and pagination.",
+                "description": "Search for grant opportunities based on various criteria like query text, filters, and pagination. Validates filter enum values.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -120,7 +134,7 @@ class SearchOpportunities(SimplerGrantsGovBase):
                                 },
                                 "is_cost_sharing": {
                                     "type": "object",
-                                    "description": "Filter by cost sharing requirement.",
+                                    "description": "Filter by cost sharing requirement (true or false).",
                                     "properties": {
                                         "one_of": {"type": "array", "items": {"type": "boolean"}}
                                     }
@@ -163,7 +177,6 @@ class SearchOpportunities(SimplerGrantsGovBase):
                                     "properties": {
                                         "start_date": {"type": "string", "format": "date"},
                                         "end_date": {"type": "string", "format": "date"}
-                                        # Note: Relative dates are excluded for simplicity in the tool definition
                                     }
                                 },
                                 "close_date": {
@@ -172,11 +185,10 @@ class SearchOpportunities(SimplerGrantsGovBase):
                                     "properties": {
                                         "start_date": {"type": "string", "format": "date"},
                                         "end_date": {"type": "string", "format": "date"}
-                                        # Note: Relative dates are excluded for simplicity
                                     }
                                 }
                             },
-                            "additionalProperties": False # Discourage undefined filters
+                            "additionalProperties": False
                         },
                         "pagination": {
                             "type": "object",
@@ -207,7 +219,7 @@ class SearchOpportunities(SimplerGrantsGovBase):
 
     def fn(self, pagination: Dict[str, Any], query: Optional[str] = None, filters: Optional[Dict[str, Any]] = None, query_operator: str = "AND") -> str:
         """
-        Executes the opportunity search with validation and correction.
+        Executes the opportunity search with validation and correction for pagination and filter enums.
 
         Args:
             pagination: Pagination settings object.
@@ -216,12 +228,12 @@ class SearchOpportunities(SimplerGrantsGovBase):
             query_operator: Optional query operator ('AND' or 'OR').
 
         Returns:
-            A JSON string representing the search results or an error.
+            A JSON string representing the search results or an error message listing allowed values if validation fails.
         """
         self.logger.info(f"Executing Simpler Grants Gov opportunity search tool with query='{query}'")
 
         try:
-            # --- Validation and Correction ---
+            # --- Pagination Validation and Correction ---
             if not isinstance(pagination, dict):
                 raise ValueError("'pagination' must be a dictionary object.")
 
@@ -239,15 +251,14 @@ class SearchOpportunities(SimplerGrantsGovBase):
             if not isinstance(sort_order, list):
                 raise ValueError("'sort_order' must be a list of objects.")
 
-                # Correct asc/desc in sort_order
             corrected_sort_order = []
             for item in sort_order:
                 if not isinstance(item, dict) or "order_by" not in item or "sort_direction" not in item:
                     self.logger.warning(f"Invalid item in sort_order list: {item}. Skipping.")
-                    continue # Skip invalid items or raise error? Logging for now.
+                    continue
 
                 direction = str(item.get("sort_direction", "")).lower().strip()
-                corrected_item = item.copy() # Avoid modifying original input dict directly if passed by reference
+                corrected_item = item.copy()
 
                 if direction == "asc":
                     corrected_item["sort_direction"] = "ascending"
@@ -256,27 +267,55 @@ class SearchOpportunities(SimplerGrantsGovBase):
                     corrected_item["sort_direction"] = "descending"
                     self.logger.debug("Corrected sort_direction 'desc' to 'descending'.")
                 elif direction not in ["ascending", "descending"]:
-                    # Keep original if it's already correct or something unexpected
                     self.logger.warning(f"Unexpected sort_direction value: '{item.get('sort_direction')}'. Using as is.")
 
-                    # Validate order_by field
                 if corrected_item.get("order_by") not in ALLOWED_SORT_ORDERS:
                     self.logger.warning(f"Invalid 'order_by' value: '{corrected_item.get('order_by')}'. API may reject this.")
-                    # Decide: raise error, skip item, or let API handle? Letting API handle for now.
 
                 corrected_sort_order.append(corrected_item)
-
-                # Use the corrected sort order
             pagination["sort_order"] = corrected_sort_order
 
-            # Basic check for filters type
-            if filters is not None and not isinstance(filters, dict):
-                raise ValueError("'filters' must be a dictionary object if provided.")
-                # Deeper filter validation could be added here if needed, but relies on API schema knowledge
+            # --- Filter Enum Validation ---
+            if filters is not None:
+                if not isinstance(filters, dict):
+                    raise ValueError("'filters' must be a dictionary object if provided.")
 
-            # --- Payload Construction ---
+                for filter_key, filter_value in filters.items():
+                    # Check if this filter key has enums to validate
+                    if filter_key in ENUM_FILTER_VALIDATION_MAP:
+                        allowed_values = ENUM_FILTER_VALIDATION_MAP[filter_key]
+                        allowed_values_set = set(allowed_values) # Use set for efficient lookup
+
+                        # Expecting structure like {"one_of": [val1, val2]}
+                        if not isinstance(filter_value, dict) or "one_of" not in filter_value:
+                            logger.warning(f"Filter '{filter_key}' has unexpected structure: {filter_value}. Skipping enum validation for it.")
+                            continue # Skip validation if structure is wrong
+
+                        provided_values = filter_value.get("one_of")
+                        if not isinstance(provided_values, list):
+                            logger.warning(f"Filter '{filter_key}' 'one_of' value is not a list: {provided_values}. Skipping enum validation.")
+                            continue # Skip validation if 'one_of' isn't a list
+
+                        # Check each provided value against the allowed set
+                        for provided in provided_values:
+                            # Handle boolean filter separately for type check
+                            if filter_key == "is_cost_sharing":
+                                if not isinstance(provided, bool):
+                                    raise ValueError(f"Invalid value type '{type(provided).__name__}' ('{provided}') for filter '{filter_key}'. Must be boolean (True or False). Allowed values are: True, False")
+                                    # Booleans inherently match True/False in allowed_values_set
+                            # Handle string enums
+                            elif isinstance(provided, str):
+                                if provided not in allowed_values_set:
+                                    allowed_values_str = ", ".join(map(str, sorted(list(allowed_values_set))))
+                                    raise ValueError(f"Invalid value '{provided}' for filter '{filter_key}'. Allowed values are: {allowed_values_str}")
+                            else:
+                                # If not a string for string enums, or not a bool for bool enum
+                                allowed_values_str = ", ".join(map(str, sorted(list(allowed_values_set))))
+                                raise ValueError(f"Invalid value type '{type(provided).__name__}' ('{provided}') for filter '{filter_key}'. Allowed values are: {allowed_values_str}")
+
+                                # --- Payload Construction ---
             payload: Dict[str, Any] = {
-                "pagination": pagination, # Use potentially corrected pagination
+                "pagination": pagination,
                 "query_operator": query_operator
             }
             if query:
@@ -286,15 +325,18 @@ class SearchOpportunities(SimplerGrantsGovBase):
 
                 # --- API Call ---
             endpoint = "/v1/opportunities/search"
+            self.logger.debug(f"Making validated search request with payload: {json.dumps(payload)}")
             result = self._make_request("POST", endpoint, json_payload=payload)
             self.logger.debug(f"Search successful. Response length: {len(result)}")
             return result
 
         except ValueError as ve:
+            # Catch validation errors (including the ones we raised for enums)
             self.logger.error(f"Input validation failed for SearchOpportunities: {ve}")
+            # Return the specific error message about allowed values
             return json.dumps({"error": f"Invalid input: {str(ve)}", "success": False})
         except Exception as e:
-            self.logger.error(f"Opportunity search failed: {e}", exc_info=True)
-            # Return a JSON error string consistent with other potential returns
+            # Catch other errors (e.g., network, API issues)
+            self.logger.error(f"Opportunity search failed unexpectedly: {e}", exc_info=True)
             return json.dumps({"error": f"Opportunity search failed: {str(e)}", "success": False})
   
