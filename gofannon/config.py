@@ -15,6 +15,8 @@ class ToolConfig:
             'google_search_api_key': os.getenv('GOOGLE_SEARCH_API_KEY'),
             'google_search_engine_id': os.getenv('GOOGLE_SEARCH_ENGINE_ID'),
             'nasa_apod_api_key': os.getenv('NASA_APOD_API_KEY'),
+            'simpler_grants_api_key': os.getenv('SIMPLER_GRANTS_API_KEY'),
+            'simpler_grants_base_url': os.getenv('SIMPLER_GRANTS_BASE_URL', 'https://api.simpler.grants.gov'),
         }
 
     @classmethod
