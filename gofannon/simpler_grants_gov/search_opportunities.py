@@ -7,7 +7,7 @@ from ..config import FunctionRegistry
 
 logger = logging.getLogger(__name__)
 
-# Enum values extracted from API source for definition
+# Enum values extracted from API source for definition and validation
 FUNDING_INSTRUMENT_ENUM = ["grant", "cooperative_agreement", "other"]
 FUNDING_CATEGORY_ENUM = [
     "recovery_act", "agriculture", "arts", "business_and_commerce",
@@ -36,7 +36,6 @@ APPLICANT_TYPE_ENUM = [
     "non_domestic_non_us_entities", "other"
 ]
 OPPORTUNITY_STATUS_ENUM = ["forecasted", "posted", "closed", "archived"]
-# Allowed sort orders for internal default pagination
 ALLOWED_SORT_ORDERS = [
     "relevancy", "opportunity_id", "opportunity_number", "opportunity_title",
     "post_date", "close_date", "agency_code", "agency_name", "top_level_agency_name"
@@ -51,6 +50,7 @@ class SearchOpportunities(SimplerGrantsGovBase):
     """
     Tool to search for grant opportunities using the Simpler Grants Gov API.
     Corresponds to the POST /v1/opportunities/search endpoint. Pagination is handled internally.
+    Invalid enum values provided in list filters will be omitted with a warning.
     """
     def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, name: str = "search_opportunities"):
         super().__init__(api_key=api_key, base_url=base_url)
@@ -58,12 +58,12 @@ class SearchOpportunities(SimplerGrantsGovBase):
 
     @property
     def definition(self):
-        # Parameters are now top-level and optional. Pagination is removed.
+        # Definition remains largely the same, but descriptions can emphasize valid values
         return {
             "type": "function",
             "function": {
                 "name": self.name,
-                "description": "Search for grant opportunities based on optional criteria like query text and various filters. Returns the first page of results.",
+                "description": "Search for grant opportunities based on optional criteria like query text and various filters. Returns the first page of results. Invalid filter values may be omitted.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -81,28 +81,28 @@ class SearchOpportunities(SimplerGrantsGovBase):
                         # --- Elevated Filters ---
                         "funding_instrument": {
                             "type": "array",
-                            "items": {"type": "string", "enum": FUNDING_INSTRUMENT_ENUM},
-                            "description": "Optional. Filter by a list of funding instrument types."
+                            "items": {"type": "string"}, # Don't use enum here, validate in fn
+                            "description": f"Optional. Filter by a list of funding instrument types. Valid values: {', '.join(FUNDING_INSTRUMENT_ENUM)}"
                         },
                         "funding_category": {
                             "type": "array",
-                            "items": {"type": "string", "enum": FUNDING_CATEGORY_ENUM},
-                            "description": "Optional. Filter by a list of funding categories."
+                            "items": {"type": "string"},
+                            "description": f"Optional. Filter by a list of funding categories. Valid values: {', '.join(FUNDING_CATEGORY_ENUM)}"
                         },
                         "applicant_type": {
                             "type": "array",
-                            "items": {"type": "string", "enum": APPLICANT_TYPE_ENUM},
-                            "description": "Optional. Filter by a list of applicant types."
+                            "items": {"type": "string"},
+                            "description": f"Optional. Filter by a list of applicant types. Valid values: {', '.join(APPLICANT_TYPE_ENUM)}"
                         },
                         "opportunity_status": {
                             "type": "array",
-                            "items": {"type": "string", "enum": OPPORTUNITY_STATUS_ENUM},
-                            "description": "Optional. Filter by a list of opportunity statuses."
+                            "items": {"type": "string"},
+                            "description": f"Optional. Filter by a list of opportunity statuses. Valid values: {', '.join(OPPORTUNITY_STATUS_ENUM)}"
                         },
                         "agency": {
                             "type": "array",
                             "items": {"type": "string", "description": "Agency code, e.g., HHS, USAID"},
-                            "description": "Optional. Filter by a list of agency codes."
+                            "description": "Optional. Filter by a list of agency codes. No strict validation applied."
                         },
                         "assistance_listing_number": {
                             "type": "array",
@@ -167,6 +167,56 @@ class SearchOpportunities(SimplerGrantsGovBase):
             }
         }
 
+    def _validate_and_filter_list(self, input_list: Optional[List[str]], filter_name: str, valid_enums: List[str], warnings_list: List[Dict]) -> List[str]:
+        """Helper to validate items in a list against enums and collect warnings."""
+        if input_list is None:
+            return []
+
+        if not isinstance(input_list, list):
+            # If the input is not a list, treat it as an invalid attempt and warn
+            warning_msg = f"Invalid type for filter '{filter_name}': Expected a list, got {type(input_list).__name__}. Filter omitted."
+            logger.warning(warning_msg)
+            warnings_list.append({"filter": filter_name, "error": warning_msg})
+            return []
+
+        valid_items = []
+        for item in input_list:
+            if isinstance(item, str) and item in valid_enums:
+                valid_items.append(item)
+            else:
+                # Log and record warning for the invalid item
+                warning_msg = f"Invalid value '{item}' provided for filter '{filter_name}'. It was omitted. Valid values are: {', '.join(valid_enums)}."
+                logger.warning(warning_msg)
+                warnings_list.append({"filter": filter_name, "invalid_value": item, "valid_values": valid_enums, "message": warning_msg})
+
+        return valid_items
+
+    def _add_warnings_to_response(self, response_str: str, warnings_list: List[Dict]) -> str:
+        """Adds a 'warnings' field to a JSON response string if warnings exist."""
+        if not warnings_list:
+            return response_str
+
+        try:
+            response_data = json.loads(response_str)
+            # Ensure response_data is a dictionary before adding warnings
+            if isinstance(response_data, dict):
+                response_data['warnings'] = warnings_list
+            else:
+                # If the response wasn't a dict (e.g., just a string error message), wrap it
+                logger.warning(f"Original response was not a dict, wrapping to add warnings. Original: {response_str[:100]}")
+                response_data = {
+                    "original_response": response_data,
+                    "warnings": warnings_list
+                }
+            return json.dumps(response_data)
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse response JSON to add warnings. Original response: {response_str[:500]}...")
+            # Return original response string if parsing fails
+            return response_str
+        except Exception as e:
+            logger.error(f"Unexpected error adding warnings to response: {e}", exc_info=True)
+            return response_str # Fallback to original
+
     def fn(self,
            query: Optional[str] = None,
            query_operator: str = "AND",
@@ -186,98 +236,126 @@ class SearchOpportunities(SimplerGrantsGovBase):
            close_date: Optional[Dict[str, str]] = None
            ) -> str:
         """
-        Executes the opportunity search with internal pagination and reconstructed filters.
+        Executes the opportunity search with input validation, internal pagination,
+        and reconstructed filters. Adds warnings to the response for omitted invalid filter values.
 
         Args:
-            query: Optional search query string.
-            query_operator: Optional query operator ('AND' or 'OR').
-            funding_instrument: Optional list of funding instrument strings.
-            funding_category: Optional list of funding category strings.
-            applicant_type: Optional list of applicant type strings.
-            opportunity_status: Optional list of opportunity status strings.
-            agency: Optional list of agency code strings.
-            assistance_listing_number: Optional list of ALN strings.
-            is_cost_sharing: Optional boolean for cost sharing filter.
-            expected_number_of_awards: Optional dict with 'min'/'max' keys for number of awards.
-            award_floor: Optional dict with 'min'/'max' keys for award floor.
-            award_ceiling: Optional dict with 'min'/'max' keys for award ceiling.
-            estimated_total_program_funding: Optional dict with 'min'/'max' for total funding.
-            post_date: Optional dict with 'start_date'/'end_date' (YYYY-MM-DD).
-            close_date: Optional dict with 'start_date'/'end_date' (YYYY-MM-DD).
+            (Refer to definition for descriptions)
 
         Returns:
-            A JSON string representing the search results or an error.
+            A JSON string representing the search results (potentially with a 'warnings' field) or an error.
         """
         self.logger.info(f"Executing Simpler Grants Gov opportunity search tool with query='{query}'")
+        warnings_list: List[Dict] = [] # Store warnings here
 
         try:
             # --- Internal Pagination ---
-            # Use fixed defaults for the simplified tool interface
             internal_pagination = {
                 "page_offset": DEFAULT_PAGE_OFFSET,
                 "page_size": DEFAULT_PAGE_SIZE,
-                "sort_order": DEFAULT_SORT_ORDER # Using default sort
+                "sort_order": DEFAULT_SORT_ORDER
             }
             self.logger.debug(f"Using internal pagination: {internal_pagination}")
 
-
-            # --- Reconstruct Filters for API ---
+            # --- Reconstruct and Validate Filters for API ---
             api_filters: Dict[str, Any] = {}
 
-            if funding_instrument is not None:
-                api_filters["funding_instrument"] = {"one_of": funding_instrument}
-            if funding_category is not None:
-                api_filters["funding_category"] = {"one_of": funding_category}
-            if applicant_type is not None:
-                api_filters["applicant_type"] = {"one_of": applicant_type}
-            if opportunity_status is not None:
-                api_filters["opportunity_status"] = {"one_of": opportunity_status}
+            # Validate and filter list-based enums
+            valid_fi = self._validate_and_filter_list(funding_instrument, "funding_instrument", FUNDING_INSTRUMENT_ENUM, warnings_list)
+            if valid_fi: api_filters["funding_instrument"] = {"one_of": valid_fi}
+
+            valid_fc = self._validate_and_filter_list(funding_category, "funding_category", FUNDING_CATEGORY_ENUM, warnings_list)
+            if valid_fc: api_filters["funding_category"] = {"one_of": valid_fc}
+
+            valid_at = self._validate_and_filter_list(applicant_type, "applicant_type", APPLICANT_TYPE_ENUM, warnings_list)
+            if valid_at: api_filters["applicant_type"] = {"one_of": valid_at}
+
+            valid_os = self._validate_and_filter_list(opportunity_status, "opportunity_status", OPPORTUNITY_STATUS_ENUM, warnings_list)
+            if valid_os: api_filters["opportunity_status"] = {"one_of": valid_os}
+
+            # Filters without strict enum validation in this example (pass if list)
             if agency is not None:
-                api_filters["agency"] = {"one_of": agency}
+                if isinstance(agency, list):
+                    api_filters["agency"] = {"one_of": agency}
+                else:
+                    warnings_list.append({"filter": "agency", "error": f"Expected a list, got {type(agency).__name__}. Filter omitted."})
+                    logger.warning(f"Invalid type for filter 'agency'. Expected list, got {type(agency).__name__}. Filter omitted.")
+
             if assistance_listing_number is not None:
-                api_filters["assistance_listing_number"] = {"one_of": assistance_listing_number}
+                # Add pattern validation if needed, or rely on API
+                if isinstance(assistance_listing_number, list):
+                    api_filters["assistance_listing_number"] = {"one_of": assistance_listing_number}
+                else:
+                    warnings_list.append({"filter": "assistance_listing_number", "error": f"Expected a list, got {type(assistance_listing_number).__name__}. Filter omitted."})
+                    logger.warning(f"Invalid type for filter 'assistance_listing_number'. Expected list, got {type(assistance_listing_number).__name__}. Filter omitted.")
+
+
+                    # Boolean filter
             if is_cost_sharing is not None:
-                # Map boolean back to the API's expected structure
-                api_filters["is_cost_sharing"] = {"one_of": [is_cost_sharing]}
+                if isinstance(is_cost_sharing, bool):
+                    api_filters["is_cost_sharing"] = {"one_of": [is_cost_sharing]}
+                else:
+                    warnings_list.append({"filter": "is_cost_sharing", "error": f"Expected a boolean, got {type(is_cost_sharing).__name__}. Filter omitted."})
+                    logger.warning(f"Invalid type for filter 'is_cost_sharing'. Expected boolean, got {type(is_cost_sharing).__name__}. Filter omitted.")
 
-                # Range filters (pass dict directly if provided)
-            if expected_number_of_awards is not None:
-                api_filters["expected_number_of_awards"] = expected_number_of_awards
-            if award_floor is not None:
-                api_filters["award_floor"] = award_floor
-            if award_ceiling is not None:
-                api_filters["award_ceiling"] = award_ceiling
-            if estimated_total_program_funding is not None:
-                api_filters["estimated_total_program_funding"] = estimated_total_program_funding
 
-                # Date filters (pass dict directly if provided)
-            if post_date is not None:
-                api_filters["post_date"] = post_date
-            if close_date is not None:
-                api_filters["close_date"] = close_date
+                    # Range/Date filters (basic type check)
+            range_date_filters = {
+                "expected_number_of_awards": expected_number_of_awards,
+                "award_floor": award_floor,
+                "award_ceiling": award_ceiling,
+                "estimated_total_program_funding": estimated_total_program_funding,
+                "post_date": post_date,
+                "close_date": close_date
+            }
+            for name, value in range_date_filters.items():
+                if value is not None:
+                    if isinstance(value, dict):
+                        api_filters[name] = value
+                    else:
+                        warnings_list.append({"filter": name, "error": f"Expected a dictionary object, got {type(value).__name__}. Filter omitted."})
+                        logger.warning(f"Invalid type for filter '{name}'. Expected dict, got {type(value).__name__}. Filter omitted.")
 
-                # --- Payload Construction ---
+
+                        # --- Payload Construction ---
             payload: Dict[str, Any] = {
                 "pagination": internal_pagination,
                 "query_operator": query_operator
             }
             if query:
                 payload["query"] = query
-                # Only include the filters key if we actually have filters
             if api_filters:
                 payload["filters"] = api_filters
                 self.logger.debug(f"Constructed API filters: {api_filters}")
+            elif not query:
+                # If no query and no filters, API might require something? Or just return all?
+                # Assuming returning all is ok. If not, add a check/error here.
+                self.logger.info("No query or filters provided for opportunity search.")
 
 
                 # --- API Call ---
             endpoint = "/v1/opportunities/search"
-            result = self._make_request("POST", endpoint, json_payload=payload)
-            self.logger.debug(f"Search successful. Response length: {len(result)}")
-            return result
+            api_response_str = self._make_request("POST", endpoint, json_payload=payload)
+            self.logger.debug(f"Search successful. Response length: {len(api_response_str)}")
+
+            # Add warnings to the successful response if any occurred during validation
+            final_response_str = self._add_warnings_to_response(api_response_str, warnings_list)
+            return final_response_str
 
         except ValueError as ve: # Catch potential errors during filter reconstruction if needed
-            self.logger.error(f"Input processing failed for SearchOpportunities: {ve}")
-            return json.dumps({"error": f"Invalid input: {str(ve)}", "success": False})
+            error_msg = f"Input processing failed for SearchOpportunities: {ve}"
+            self.logger.error(error_msg)
+            error_response = {"error": error_msg, "success": False}
+            # Add warnings even to validation error responses
+            if warnings_list:
+                error_response["warnings"] = warnings_list
+            return json.dumps(error_response)
         except Exception as e:
+            error_msg = f"Opportunity search failed: {str(e)}"
             self.logger.error(f"Opportunity search failed: {e}", exc_info=True)
-            return json.dumps({"error": f"Opportunity search failed: {str(e)}", "success": False})
+            error_response = {"error": error_msg, "success": False}
+            # Add warnings even to general error responses
+            if warnings_list:
+                error_response["warnings"] = warnings_list
+            return json.dumps(error_response)
+  
