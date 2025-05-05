@@ -55,7 +55,17 @@ class SearchOpportunities(SimplerGrantsGovBase):
                                     "items": {
                                         "type": "object",
                                         "properties": {
-                                            "order_by": {"type": "string"},
+                                            "order_by": {"type": "string", "enum": [
+                                                "relevancy",
+                                                "opportunity_id",
+                                                "opportunity_number",
+                                                "opportunity_title",
+                                                "post_date",
+                                                "close_date",
+                                                "agency_code",
+                                                "agency_name",
+                                                "top_level_agency_name",
+                                            ]},
                                             "sort_direction": {"type": "string", "enum": ["ascending", "descending"]}
                                         },
                                         "required": ["order_by", "sort_direction"]

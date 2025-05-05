@@ -239,4 +239,4 @@ def test_search_agencies_api_error(mock_make_request):
     result_data = json.loads(result)
     assert not result_data.get("success")
     assert "error" in result_data
-    assert SAMPLE_ERROR_MESSAGE in result_data["error"]  
+    assert SAMPLE_ERROR_MESSAGE in result_data["error"]
