@@ -64,13 +64,13 @@ class SimplerGrantsGovBase(BaseTool):
         full_url = f"{self.base_url.rstrip('/')}/{endpoint.lstrip('/')}"
         headers = {
             # Based on api_key_auth.py, the API expects the key in this header
-            'X-API-KEY': self.api_key,
+            'X-Auth': self.api_key,
             'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'accept': 'application/json'
         }
 
         self.logger.debug(f"Making {method} request to {full_url}")
-        self.logger.debug(f"Headers: {{'X-API-KEY': '***', 'Content-Type': 'application/json', 'Accept': 'application/json'}}") # Don't log key
+        self.logger.debug(f"Headers: {{'X-API-KEY': '***', 'Content-Type': 'application/json', 'accept': 'application/json'}}") # Don't log key
         if params:
             self.logger.debug(f"Params: {params}")
         if json_payload:
