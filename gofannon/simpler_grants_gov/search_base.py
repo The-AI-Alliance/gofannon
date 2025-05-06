@@ -85,13 +85,13 @@ class SearchOpportunitiesBase(SimplerGrantsGovBase):
             # Pagination and status args from function call
             items_per_page: int = 5,
             page_number: int = 1,
-            order_by: str = "relevancy", # Defaulting to relevancy, API might have its own if not specified
+            order_by: str = "relevancy",
             sort_direction: str = "descending",
             show_posted: bool = True,
             show_forecasted: bool = False,
             show_closed: bool = False,
             show_archived: bool = False,
-            query_operator: str = "AND" # Default for query_operator for consistency
+            query_operator: str = "AND"
     ) -> Dict[str, Any]:
         """
         Constructs the full payload for the /v1/opportunities/search API endpoint.
@@ -100,20 +100,20 @@ class SearchOpportunitiesBase(SimplerGrantsGovBase):
 
         # 1. Pagination
         payload["pagination"] = {
-            "page_offset": page_number,  # API uses page_offset
+            "page_offset": page_number,
             "page_size": items_per_page,
             "sort_order": [{"order_by": order_by, "sort_direction": sort_direction}]
         }
 
-        # 2. Query and Specific Query Params (like 'query' text)
-        if specific_query_params:
+        # 2. Query and Specific Query Params
+        if specific_query_params and specific_query_params.get("query"): # Check if 'query' key actually has a value
             payload.update(specific_query_params)
-            # If a query text is provided, ensure query_operator is included
-            if "query" in specific_query_params and specific_query_params["query"]:
-                payload["query_operator"] = query_operator
+            payload["query_operator"] = query_operator
+        elif specific_query_params: # If other specific_query_params exist without 'query'
+            payload.update(specific_query_params)
 
 
-                # 3. Filters
+            # 3. Filters
         filters_dict: Dict[str, Any] = {}
 
         # 3a. Opportunity Status Filter
@@ -127,21 +127,19 @@ class SearchOpportunitiesBase(SimplerGrantsGovBase):
         if show_archived:
             active_statuses.append("archived")
 
-        if active_statuses: # Only add status filter if at least one is true
+        if active_statuses:
             filters_dict["opportunity_status"] = {"one_of": active_statuses}
         else:
-            # If all are false, what's the desired behavior?
-            # The API might return an error or no results.
-            # For now, we'll send an empty opportunity_status filter, or omit it.
-            # Omitting is probably safer, let API defaults apply if any.
-            self.logger.warning("No opportunity statuses selected for filtering. This might lead to unexpected results or API errors.")
+            self.logger.warning("No opportunity statuses selected for filtering.")
+            # Consider if an empty list should be sent or if the key should be omitted.
+            # For now, omitting if empty, as API might require at least one status if key is present.
+            # filters_dict["opportunity_status"] = {"one_of": []} # Alternative
 
-
-            # 3b. Specific Filters (e.g., agency, funding_category)
+        # 3b. Specific Filters
         if specific_filters:
             filters_dict.update(specific_filters)
 
-        if filters_dict: # Only add the 'filters' key if there's something in it
+        if filters_dict:
             payload["filters"] = filters_dict
 
         self.logger.debug(f"Constructed API payload: {json.dumps(payload, indent=2)}")
@@ -166,4 +164,4 @@ class SearchOpportunitiesBase(SimplerGrantsGovBase):
         raise NotImplementedError("Subclasses must implement the 'definition' property.")
 
     def fn(self, *args, **kwargs):
-        raise NotImplementedError("Subclasses must implement the 'fn' method.")  
+        raise NotImplementedError("Subclasses must implement the 'fn' method.")
