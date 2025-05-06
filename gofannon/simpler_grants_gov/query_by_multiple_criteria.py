@@ -132,4 +132,3 @@ class QueryByMultipleCriteria(SearchOpportunitiesBase):
             show_closed=show_closed, show_archived=show_archived, query_operator=query_operator
         )
         return self._execute_search(payload)
-  

@@ -1,30 +1,32 @@
 # Simpler Grants Gov API
 
-This section documents the Gofannon tools for interacting with the Simpler Grants Gov API (api.grants.gov).
+The Gofannon tools for the Simpler Grants Gov API allow you to search for and retrieve details about federal grant opportunities.
 
-## Obtaining an API Key
+## Obtaining an API Key and Configuration
 
-To use these tools, you need an API key from Grants.gov.
+To use these tools, you need to configure two main items, typically via environment variables:
 
-1.  **Request Access:** Follow the instructions on the [Grants.gov Web Services page](https://www.grants.gov/web-services) to request an API key.
-2.  **Configuration:** Once you have the key, set it as an environment variable named `SIMPLER_GRANTS_API_KEY`. You can also set the `SIMPLER_GRANTS_BASE_URL` environment variable if you need to point to a specific API endpoint (e.g., a non-production environment), otherwise it defaults to `https://api.grants.gov/grants`.
+1.  **API Key**:
+    *   Set the `SIMPLER_GRANTS_API_KEY` environment variable to your Simpler Grants Gov API key.
+    *   This key is required for all API interactions.
 
-Add these to your `.env` file or export them in your shell:
+2.  **Base URL**:
+    *   Set the `SIMPLER_GRANTS_BASE_URL` environment variable if you need to point to a specific API endpoint (e.g., a non-production environment).
+    *   If not set, it defaults to a production-like URL (e.g., `https://api.grants.gov/grants`, but verify the default in `gofannon/config.py` matches your needs).
 
-```bash  
-export SIMPLER_GRANTS_API_KEY="your_actual_api_key_here"
-# Optional: export SIMPLER_GRANTS_BASE_URL="https://your_custom_url/grants"
-```
+These configurations are loaded by the `ToolConfig` class within Gofannon.
 
-Gofannon tools will automatically pick up these variables.
+## Status
 
-## Implemented Tools Status
-
-| API Endpoint              | Gofannon Tool Function                      | Status                   |  
-| :------------------------ | :------------------------------------------ | :----------------------- |  
-| `POST /v1/agencies`       | [ListAgencies](list_agencies.md)            | :white_check_mark: Implemented |  
-| `POST /v1/agencies/search`| [SearchAgencies](search_agencies.md)        | :white_check_mark: Implemented |  
-| `GET /v1/opportunities/{id}`| [GetOpportunity](get_opportunity.md)        | :white_check_mark: Implemented |  
-| `POST /v1/opportunities/search`| [SearchOpportunities](search_opportunities.md)| :white_check_mark: Implemented |  
-
-*(Other endpoints like user management, extracts, alpha features are not yet implemented as Gofannon tools).*  
+| API                     | Function                                                                 | Status                        |  
+| ----------------------- | ------------------------------------------------------------------------ | ----------------------------- |  
+| Simpler Grants Gov API  | [GetOpportunity](get_opportunity.md)                                     | :white_check_mark: Implemented |  
+| Simpler Grants Gov API  | [QueryOpportunities](query_opportunities.md)                             | :white_check_mark: Implemented |  
+| Simpler Grants Gov API  | [QueryOpportunitiesByAgencyCode](query_opportunities_by_agency.md)         | :white_check_mark: Implemented |  
+| Simpler Grants Gov API  | [QueryByFundingDetails](query_by_funding_details.md)                     | :white_check_mark: Implemented |  
+| Simpler Grants Gov API  | [QueryByApplicantEligibility](query_by_applicant_eligibility.md)         | :white_check_mark: Implemented |  
+| Simpler Grants Gov API  | [QueryByAwardCriteria](query_by_award_criteria.md)                       | :white_check_mark: Implemented |  
+| Simpler Grants Gov API  | [QueryByDates](query_by_dates.md)                                         | :white_check_mark: Implemented |  
+| Simpler Grants Gov API  | [QueryByAssistanceListing](query_by_assistance_listing.md)               | :white_check_mark: Implemented |  
+| Simpler Grants Gov API  | [QueryByMultipleCriteria](query_by_multiple_criteria.md)                 | :white_check_mark: Implemented |  
+  
