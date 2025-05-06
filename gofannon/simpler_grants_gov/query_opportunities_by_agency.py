@@ -13,7 +13,8 @@ class QueryOpportunitiesByAgencyCode(SearchOpportunitiesBase):
     Optionally, a text query can also be provided.
     """
     def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, name: str = "query_opportunities_by_agency"):
-        super().__init__(api_key=api_key, base_url=base_url, name=name)
+        super().__init__(api_key=api_key, base_url=base_url)
+        self.name = name
 
     @property
     def definition(self):

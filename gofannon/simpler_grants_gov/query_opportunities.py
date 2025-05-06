@@ -14,7 +14,7 @@ class QueryOpportunities(SearchOpportunitiesBase):
     def __init__(self, api_key: Optional[str] = None,
                  base_url: Optional[str] = None,
                  name: str = "query_opportunities"):
-        super().__init__(api_key=api_key, base_url=base_url, name=name)
+        super().__init__(api_key=api_key, base_url=base_url)
         self.name = name
 
     @property
