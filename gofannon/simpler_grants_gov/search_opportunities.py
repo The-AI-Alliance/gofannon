@@ -358,4 +358,3 @@ class SearchOpportunities(SimplerGrantsGovBase):
             if warnings_list:
                 error_response["warnings"] = warnings_list
             return json.dumps(error_response)
-  
