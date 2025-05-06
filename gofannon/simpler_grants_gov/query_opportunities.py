@@ -11,8 +11,11 @@ class QueryOpportunities(SearchOpportunitiesBase):
     """
     Tool to search for grant opportunities using a general text query.
     """
-    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, name: str = "query_opportunities"):
+    def __init__(self, api_key: Optional[str] = None,
+                 base_url: Optional[str] = None,
+                 name: str = "query_opportunities"):
         super().__init__(api_key=api_key, base_url=base_url, name=name)
+        self.name = name
 
     @property
     def definition(self):
@@ -88,4 +91,3 @@ class QueryOpportunities(SearchOpportunitiesBase):
         )
 
         return self._execute_search(payload)
-  
