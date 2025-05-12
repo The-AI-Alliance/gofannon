@@ -1,0 +1,29 @@
+# website/_config_rtd.yml
+title: Gofannon Tools
+description: >-
+  Cross-framework AI tooling & open source education
+baseurl: "" # <-- KEY CHANGE: Set to empty string for Read the Docs root
+# Update this URL to your actual Read the Docs project URL
+# e.g., if your project is at gofannon.readthedocs.io
+url: "https://gofannon.readthedocs.io" # <-- UPDATE THIS
+
+# You might want to remove or use a different Google Tag ID for RTD builds
+# google_tag_id: G-S4YL0CG31S
+# Or keep it if you want to track RTD pages with the same ID
+
+discord_link: https://discord.gg/2MMCVs76Sr
+plugins:
+  - jekyll-sitemap
+  - jekyll-redirect-from
+
+collections:
+  docs:
+    output: true
+    permalink: /docs/:path/
+
+defaults:
+  - scope:
+      path: ""
+      type: docs
+    values:
+      layout: docs
