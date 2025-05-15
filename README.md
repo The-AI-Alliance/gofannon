@@ -15,7 +15,7 @@ functionality for various tasks.
 ## 🌟🌟 Features 🌟🌟 
 
 1. Cross-Framework Compatibility (Import From/Export To Multiple Frameworks)
-   - **Current:** `smolagents`, LangChain, AWS Bedrock
+   - **Current:** `smolagents`, LangChain, AWS Bedrock, Google ADK
    - **Currently Being Developed:** [Up To Date List](https://github.com/The-AI-Alliance/gofannon/issues?q=is%3Aissue%20state%3Aopen%20label%3Aframework%20assignee:*)
    - **In The Roadmap:** [Up To Date List](https://github.com/The-AI-Alliance/gofannon/issues?q=is%3Aissue%20state%3Aopen%20label%3Aframework%20no%3Aassignee)
 2. A Robust Collection of Tools
