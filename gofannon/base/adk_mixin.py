@@ -35,12 +35,23 @@ except ImportError:
             OBJECT = "OBJECT"
             TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED"
         class Schema: # type: ignore
-            def __init__(self, **kwargs): pass
+            def __init__(self, **kwargs):
+                self.type = kwargs.get('type', adk_gemini_types.Type.OBJECT)
+                self.description = kwargs.get('description')
+                self.properties = kwargs.get('properties', {})
+                self.items = kwargs.get('items')
+                self.required = kwargs.get('required', [])
+                self.enum = kwargs.get('enum')
+                self.nullable = kwargs.get('nullable')
+
         class FunctionDeclaration: # type: ignore
-            def __init__(self, name, description, parameters): pass
+            def __init__(self, name, description, parameters):
+                self.name = name
+                self.description = description
+                self.parameters = parameters
 
 
-        # Helper for ADK Schema to Gofannon JSON Schema
+            # Helper for ADK Schema to Gofannon JSON Schema
 ADK_GEMINI_TYPE_TO_JSON_TYPE = {
     adk_gemini_types.Type.STRING: "string",
     adk_gemini_types.Type.INTEGER: "integer",
@@ -61,8 +72,12 @@ def _adk_schema_to_gofannon_json_schema(adk_schema: Optional[adk_gemini_types.Sc
     json_type_str = ADK_GEMINI_TYPE_TO_JSON_TYPE.get(adk_type_enum, "object")
 
     if getattr(adk_schema, 'nullable', False):
-        json_schema["type"] = json_type_str
-        json_schema["nullable"] = True
+        # Represent nullable as a list of types including "null" if original type is singular
+        # or handle it based on how Gofannon expects nullable
+        json_schema["type"] = [json_type_str, "null"] if json_type_str != "object" else json_type_str # Pydantic v1 style for Optional[T]
+        if json_type_str == "object": # For objects, nullable flag is more common in JSON schema
+            json_schema["nullable"] = True
+            json_schema["type"] = "object" # Keep type as object if it was object
     else:
         json_schema["type"] = json_type_str
 
@@ -78,7 +93,7 @@ def _adk_schema_to_gofannon_json_schema(adk_schema: Optional[adk_gemini_types.Sc
                 for name, prop_schema in properties.items()
             }
         else:
-            json_schema["properties"] = {}
+            json_schema["properties"] = {} # Ensure properties exist for object type
 
     items = getattr(adk_schema, 'items', None)
     if adk_type_enum == adk_gemini_types.Type.ARRAY and items:
@@ -92,7 +107,8 @@ def _adk_schema_to_gofannon_json_schema(adk_schema: Optional[adk_gemini_types.Sc
     if enum_list:
         json_schema["enum"] = list(enum_list)
 
-    if adk_type_enum == adk_gemini_types.Type.OBJECT and "properties" not in json_schema:
+        # Ensure "properties" field exists if type is "object"
+    if json_schema.get("type") == "object" and "properties" not in json_schema:
         json_schema["properties"] = {}
 
     return json_schema
@@ -109,21 +125,21 @@ JSON_TYPE_TO_ADK_GEMINI_TYPE = {
 }
 
 def _gofannon_json_schema_to_adk_schema(json_schema: Dict[str, Any]) -> adk_gemini_types.Schema:
-    if not json_schema:
+    if not json_schema: # Handles empty dict {} case
         return adk_gemini_types.Schema(type=adk_gemini_types.Type.OBJECT, properties={})
 
     adk_schema_kwargs: Dict[str, Any] = {}
 
     json_type_val = json_schema.get("type", "object")
-    is_nullable = json_schema.get("nullable", False)
+    is_nullable = json_schema.get("nullable", False) # Check for explicit "nullable"
 
     actual_json_type_str = json_type_val
-    if isinstance(json_type_val, list):
+    if isinstance(json_type_val, list): # Handles type: ["string", "null"]
         if "null" in json_type_val:
             is_nullable = True
         actual_json_type_str = next((t for t in json_type_val if t != "null"), "object")
 
-    adk_type_enum = JSON_TYPE_TO_ADK_GEMINI_TYPE.get(actual_json_type_str, adk_gemini_types.Type.OBJECT)
+    adk_type_enum = JSON_TYPE_TO_ADK_GEMINI_TYPE.get(str(actual_json_type_str).lower(), adk_gemini_types.Type.OBJECT)
     adk_schema_kwargs["type"] = adk_type_enum
     if is_nullable:
         adk_schema_kwargs["nullable"] = True
@@ -136,7 +152,7 @@ def _gofannon_json_schema_to_adk_schema(json_schema: Dict[str, Any]) -> adk_gemi
             name: _gofannon_json_schema_to_adk_schema(prop_schema)
             for name, prop_schema in json_schema["properties"].items()
         }
-    elif adk_type_enum == adk_gemini_types.Type.OBJECT:
+    elif adk_type_enum == adk_gemini_types.Type.OBJECT: # Ensure properties for object type
         adk_schema_kwargs["properties"] = {}
 
     if adk_type_enum == adk_gemini_types.Type.ARRAY and "items" in json_schema:
@@ -170,14 +186,15 @@ class AdkMixin:
         self.description = adk_tool.description # type: ignore
 
         declaration = None
+        # Ensure _get_declaration is callable and attempt to call it
         if hasattr(adk_tool, "_get_declaration") and callable(adk_tool._get_declaration): # type: ignore
             try:
                 declaration = adk_tool._get_declaration() # type: ignore
             except Exception as e:
-                self.logger.warning(f"Could not get declaration from ADK tool {self.name}: {e}. Assuming no parameters.")
+                self.logger.warning(f"Could not get declaration from ADK tool {self.name}: {e}. Assuming no parameters.") # type: ignore
 
         gofannon_params_schema: Dict[str, Any] = {"type": "object", "properties": {}}
-        if declaration and declaration.parameters:
+        if declaration and hasattr(declaration, 'parameters') and declaration.parameters:
             gofannon_params_schema = _adk_schema_to_gofannon_json_schema(declaration.parameters)
 
         self.definition = { # type: ignore
@@ -191,27 +208,23 @@ class AdkMixin:
         # Adapt the execution logic
         if isinstance(adk_tool, AdkFunctionTool) and hasattr(adk_tool, 'func'): # type: ignore
             target_callable = adk_tool.func # type: ignore
-            # ADK FunctionTool's _get_declaration ignores 'tool_context', so kwargs match.
-            if inspect.iscoroutinefunction(target_callable):
-                self.fn = target_callable # Gofannon's execute_async will await this
-            else:
-                # Gofannon's execute will call this sync fn.
-                # Gofannon's execute_async will wrap this sync fn with anyio.to_thread.run_sync
-                self.fn = target_callable # type: ignore
+            self.fn = target_callable # type: ignore
         elif hasattr(adk_tool, 'run_async') and callable(adk_tool.run_async): # type: ignore
-            self.logger.warning(
+            self.logger.warning( # type: ignore
                 f"Importing ADK tool {self.name} that is not a FunctionTool. "
                 f"ADK ToolContext features will not be available or may require a dummy context. "
                 f"Ensure this tool can operate correctly with args only."
             )
+            # This wrapper will become self.fn. If self.fn is async, Gofannon's
+            # execute_async can await it directly. Gofannon's sync execute
+            # would need to handle running this async fn (e.g., using anyio.run).
             async def adk_run_async_wrapper(**kwargs):
                 # This simplified call assumes the tool can function with a None ToolContext
                 # or that its core logic doesn't strictly depend on it.
-                # This is a known limitation for complex ADK tools.
                 return await adk_tool.run_async(args=kwargs, tool_context=None) # type: ignore
             self.fn = adk_run_async_wrapper # type: ignore
         else:
-            self.logger.error(
+            self.logger.error( # type: ignore
                 f"ADK tool {self.name} does not have a suitable execution method ('func' or 'run_async')."
             )
             def placeholder_fn(**kwargs):
@@ -245,7 +258,7 @@ class AdkMixin:
         # Define a custom ADK Tool class
         class GofannonAdkTool(AdkBaseTool): # type: ignore
             def __init__(self, name, description, gofannon_json_schema, gofannon_exec_fn, is_fn_async):
-                super().__init__(name=name, description=description)
+                super().__init__(name=name, description=description) # type: ignore
                 self._gofannon_json_schema = gofannon_json_schema
                 self._gofannon_exec_fn = gofannon_exec_fn
                 self._is_fn_async = is_fn_async
@@ -275,4 +288,4 @@ class AdkMixin:
             gofannon_exec_fn=original_gofannon_fn,
             is_fn_async=is_gofannon_fn_async
         )
-        return exported_adk_tool
+        return exported_adk_tool  
