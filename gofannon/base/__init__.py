@@ -8,6 +8,7 @@ from pathlib import Path
 
 import anyio
 
+from .adk_mixin import AdkMixin
 from ..config import ToolConfig
 
 from .smol_agents import SmolAgentsMixin
@@ -74,6 +75,7 @@ class BaseTool(SmolAgentsMixin,
                LangflowMixin,
                MCPMixin,
                LlamaStackMixin,
+               AdkMixin,
                ABC):
     def __init__(self, **kwargs):
         self.logger = logging.getLogger(

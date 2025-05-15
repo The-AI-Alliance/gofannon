@@ -24,6 +24,7 @@ title: Home
             <div class="badge bg-secondary">Langflow</div>  
             <div class="badge bg-secondary">Anthropic MCP</div>
             <div class="badge bg-secondary">Llama Stack by Meta</div>
+            <div class="badge bg-secondary">Google Agent Development Kit (ADK)</div>
         </div>  
         <div class="col-md-6">  
             <h2>Open Source Education</h2>  
