@@ -3,6 +3,7 @@
 import inspect
 import json
 from typing import Any, Callable, Dict, List, Optional, Type as TypingType
+import functools # Add this import
 
 # Try to import ADK components
 try:
@@ -51,7 +52,7 @@ except ImportError:
                 self.parameters = parameters
 
 
-            # Helper for ADK Schema to Gofannon JSON Schema
+                # Helper for ADK Schema to Gofannon JSON Schema
 ADK_GEMINI_TYPE_TO_JSON_TYPE = {
     adk_gemini_types.Type.STRING: "string",
     adk_gemini_types.Type.INTEGER: "integer",
@@ -279,7 +280,9 @@ class AdkMixin:
                 else:
                     # Gofannon's synchronous fn needs to be run in a thread
                     # as ADK's run_async is an async method.
-                    return await anyio.to_thread.run_sync(self._gofannon_exec_fn, **args) # type: ignore
+                    # Use functools.partial to create a callable with arguments pre-bound.
+                    func_with_bound_args = functools.partial(self._gofannon_exec_fn, **args)
+                    return await anyio.to_thread.run_sync(func_with_bound_args)
 
         exported_adk_tool = GofannonAdkTool(
             name=tool_name,
