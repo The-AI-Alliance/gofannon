@@ -27,16 +27,17 @@ Before starting development, create an issue describing your proposed function:
     - Use cases
     - Proposed API interface
     - Any dependencies
+    - If the tool requires `setup_parameters` (like API keys), define them in the issue.
 
 **TODO: Add link to Issues tab**
 
 ## 4. Setting Up Your Development Environment
 Clone your forked repository and set up the development environment:
 
-```bash  
-git clone https://github.com/YOUR_USERNAME/gofannon.git  
-cd gofannon  
-pip install -r requirements.txt  
+```bash    
+git clone https://github.com/YOUR_USERNAME/gofannon.git    
+cd gofannon    
+pip install -r requirements.txt    
 ```
 
 ## 5. Creating a New Function
@@ -46,52 +47,95 @@ Add your function under the appropriate directory in `gofannon/`. If it's a new 
 ### Base Class Extension
 All functions must extend the `BaseTool` class. Here's the basic structure:
 
-```python  
-from gofannon.base import BaseTool
+```python    
+from gofannon.base import BaseTool  
 from gofannon.config import FunctionRegistry
 
 
-@FunctionRegistry.register
-class NewFunction(BaseTool):
-    def __init__(self, name="new_function"):
-        super().__init__()
-        self.name = name
+@FunctionRegistry.register  
+class NewFunction(BaseTool):  
+def __init__(self, name="new_function"): # Add API_SERVICE here if needed, and other config params  
+super().__init__()  
+self.name = name  
+# Example: self.API_SERVICE = 'new_api_service_name'
 
-    @property
-    def definition(self):
-        return {
-            "type": "function",
-            "function": {
-                "name": self.name,
-                "description": "Description of what the function does",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "param1": {
-                            "type": "string",
-                            "description": "Description of param1"
-                        }
-                    },
-                    "required": ["param1"]
-                }
-            }
-        }
-
-    def fn(self, param1):
-        # Implementation goes here  
-        try:
-            # Your code  
-            return result
-        except Exception as e:
-            self.log_error(f"Error in new_function: {str(e)}")
-            raise  
+    @property  
+    def definition(self):  
+        return {  
+            "type": "function",  
+            "function": {  
+                "name": self.name,  
+                "description": "Description of what the function does",  
+                "parameters": {  
+                    "type": "object",  
+                    "properties": {  
+                        "param1": {  
+                            "type": "string",  
+                            "description": "Description of param1"  
+                        }  
+                    },  
+                    "required": ["param1"]  
+                }  
+            }  
+        }  
+  
+    def fn(self, param1):  
+        # Implementation goes here    
+        try:  
+            # Your code    
+            result = "..."  
+            return result  
+        except Exception as e:  
+            self.logger.error(f"Error in new_function: {str(e)}") # Use self.logger  
+            raise    
 ```
 
 ### Required Components
-1. **Definition**: The JSON schema defining the function's interface
-2. **fn**: The main function implementation
-3. **Error Handling**: Proper error handling and logging
-4. **Documentation**: Add documentation in the `docs/` directory
+1. **Definition**: The JSON schema defining the function's interface.
+2. **fn**: The main function implementation.
+3. **Error Handling**: Proper error handling and logging (use `self.logger`).
+4. **Documentation**: Add documentation in the `docs/` directory for your tool.
+5. **Update `gofannon/manifest.json`**: Add an entry for your new tool in the manifest file.
+
+### Updating `gofannon/manifest.json`
+
+For your tool to be discoverable by external systems, you must add an entry to the `gofannon/manifest.json` file. This file is located at the root of the `gofannon` package directory.
+
+1.  **Open `gofannon/manifest.json`**.
+2.  **Add a new JSON object** for your tool to the `tools` array.
+3.  **Structure of the entry:**  
+    ```json  
+    {  
+    "id": "gofannon.new_api_name.your_function.NewFunction",  
+    "name": "new_function", // Should match definition.function.name  
+    "description": "Description of what the function does", // Should match definition.function.description  
+    "module_path": "gofannon.new_api_name.your_function",  
+    "class_name": "NewFunction",  
+    "setup_parameters": [ // Optional: only if your tool __init__ takes config like api_key  
+    {  
+    "name": "api_key", // Matches the __init__ parameter name  
+    "label": "New API Key",  
+    "type": "secret",  
+    "description": "API Key for the New API service.",  
+    "required": true  
+    }  
+    ]  
+    }  
+    ```
+4.  **Fill in the details**:
+    *   `id`: `your_module_path.YourClassName`
+    *   `name`: The functional name of your tool.
+    *   `description`: A user-friendly description.
+    *   `module_path`: The Python module path.
+    *   `class_name`: The class name of your tool.
+    *   `setup_parameters` (if applicable):
+        *   `name`: The parameter name from your tool's `__init__` (e.g., `api_key`, `base_url`).
+        *   `label`: A user-friendly label for UIs.
+        *   `type`: Input type (e.g., "secret", "text").
+        *   `description`: Help text.
+        *   `required`: `true` or `false`.
+5.  **Sort the `tools` array** alphabetically by `id` to maintain consistency.
+6.  Validate the JSON structure.
 
 ### Documentation
 Create a markdown file in the appropriate documentation directory:
@@ -106,81 +150,85 @@ Brief description of what the function does
 - `param1`: Description of param1
 
 ## Example Usage
-```python  
-new_func = NewFunction()  
-result = new_func.fn("example")  
--```
+```python    
+new_func = NewFunction()    
+result = new_func.fn("example")    
+```  
 ```
 
-Add a link to your documentation in the appropriate index.md file.
+Add a link to your documentation in the appropriate `index.md` file (e.g., `docs/new_api_name/index.md`).
 
 ## 6. Testing Your Function
 
 ### Running Tests Locally
 
-1. Clone the repository: `git clone https://github.com/your-repo/gofannon.git`
-2. Install dependencies: `pip install -r requirements.txt`
-3. Run tests: `pytest tests/`
+1. Install dependencies (if you haven't already):  
+   ```bash  
+   poetry install --all-extras  
+   ```
+2. Run tests:  
+   ```bash  
+   poetry run pytest tests/  
+   ```
 
 ### GitHub Action
 
 The GitHub Action will run automatically on pull requests to the main branch. You can view the test results in the GitHub Actions tab.
 
-Write unit tests for your function. Create a new test file in the tests/ directory:
+Write unit tests for your function. Create a new test file in the `tests/unit/your_api_name/` directory (e.g., `tests/unit/new_api_name/test_your_function.py`):
 
-```python
-import pytest
-from gofannon.new_api.new_function import NewFunction
-
-
-def test_new_function():
+```python  
+import pytest  
+from gofannon.new_api_name.your_function import NewFunction # Adjust import path
 
 
-    func = NewFunction()
-result = func.fn("test")
-assert result == expected_value
+def test_new_function():  
+func = NewFunction()  
+result = func.fn("test_param_value")  
+expected_value = "expected_result_for_test_param" # Define expected result  
+assert result == expected_value  
 ```
 
 ## 7. Committing Your Changes
 
-Create a new branch for your feature:  
-```bash  
-git checkout -b feature/new-function  
+Create a new branch for your feature:    
+```bash    
+git checkout -b feature/new-function    
 ```
 
-Add and commit your changes. It's essential to include a DCO (Developer 
-Certificate of Origin) sign off in your commit message. This sign off is a 
-simple way for contributors to certify that they have the right to submit their 
-work under the open-source license. By signing off on your commit, you're 
-confirming that you're the original author of the work or have the necessary 
+Add and commit your changes. It's essential to include a DCO (Developer   
+Certificate of Origin) sign off in your commit message. This sign off is a   
+simple way for contributors to certify that they have the right to submit their   
+work under the open-source license. By signing off on your commit, you're   
+confirming that you're the original author of the work or have the necessary   
 permissions to contribute it.
 
-```bash  
-git add --all  
-git commit --signoff  
+```bash    
+git add --all    
+git commit --signoff    
 ```
 
-The `--signoff` flag will automatically append a "Signed-off-by" line to your 
-commit message with your name and email address. You can learn more about DCO 
+The `--signoff` flag will automatically append a "Signed-off-by" line to your   
+commit message with your name and email address. You can learn more about DCO   
 sign off on the [GitHub documentation](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
 
-Push your branch:  
-```bash  
-git push origin feature/new-function  
+Push your branch:    
+```bash    
+git push origin feature/new-function    
 ```
 
-By including the DCO sign off, you're helping to ensure the long-term 
-sustainability of the project and making it easier for others to use and 
+By including the DCO sign off, you're helping to ensure the long-term   
+sustainability of the project and making it easier for others to use and   
 distribute the code.
 
 ## 8. Creating a Pull Request
 
-Go to your forked repository on GitHub
-Click "Compare & pull request"
-Fill out the PR template:
-    Description of changes
-    Related issues
-    Testing performed
+Go to your forked repository on GitHub  
+Click "Compare & pull request"  
+Fill out the PR template:  
+Description of changes  
+Related issues  
+Testing performed  
 Submit the PR
 
 **TODO: Add link to PR creation**
@@ -190,7 +238,7 @@ Submit the PR
 Be prepared to address feedback during code review. Common requests include:
 
 * Adding more test cases
-* Improving documentation
+* Improving documentation or `manifest.json` entry
 * Refactoring for better performance or readability
 
 Tips for Success
@@ -198,8 +246,8 @@ Tips for Success
 * Keep your PRs focused on a single feature
 * Write clear commit messages
 * Follow the existing code style
-* Add comprehensive documentation
+* Add comprehensive documentation and update `manifest.json`
 * Include meaningful test cases
 * Be responsive to code review feedback
 
-** TODO: Create and add link to coding style guide **
+** TODO: Create and add link to coding style guide **  
