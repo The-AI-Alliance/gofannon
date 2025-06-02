@@ -1,29 +1,29 @@
 # Quickstart Guide for `gofannon`
 
-`gofannon` is a Python library designed to simplify the creation and management 
-of tools for LLM (Large Language Model) and agents. This guide will walk you 
+`gofannon` is a Python library designed to simplify the creation and management   
+of tools for LLM (Large Language Model) and agents. This guide will walk you   
 through the basics of installing and using `gofannon`.
 
 ## Installation
 
 First, install the library using pip:
 
-```bash  
-pip install gofannon  
+```bash    
+pip install gofannon    
 ```
 
-gofannon is an ambitious upstart, things are happening fast. We have a git 
-action that deploys to PyPi every Monday morning, so `pip install gofannon`
-will get you pretty close to the tip of the spear. But if you absolutely _must_
+Gofannon is an ambitious upstart, things are happening fast. We have a git   
+action that deploys to PyPi every Monday morning, so `pip install gofannon`  
+will get you pretty close to the tip of the spear. But if you absolutely _must_  
 have the latest and greatest, this will work too:
 
-```bash
-git+https://github.com/The-AI-Alliance/gofannon.git@main
+```bash  
+pip install git+https://github.com/The-AI-Alliance/gofannon.git@main  
 ```
 
 ## Tool Calling with LLMs
 
-**NOTE:** This is a sidebar about what tool calling is and why its important for
+**NOTE:** This is a sidebar about what tool calling is and why its important for  
 agents, the reader can skip this section without loss of continuity.
 
 Modern LLMs support structured tool calling capabilities that allow them to interact with external functions. Here's what you need to know:
@@ -31,7 +31,7 @@ Modern LLMs support structured tool calling capabilities that allow them to inte
 ### How LLMs Call Tools
 
 1. **Tool Description**: The LLM receives JSON schema describing available tools
-    - Includes function names, parameter descriptions, and purposes
+   - Includes function names, parameter descriptions, and purposes
 2. **Parallel Tool Calling**: Some models can call multiple tools simultaneously
 3. **Structured Responses**: Tools return structured data the LLM can reason about
 
@@ -39,12 +39,12 @@ Modern LLMs support structured tool calling capabilities that allow them to inte
 
 ```python
 # Example of what an LLM might generate when deciding to use a tool
-tool_call = {  
-"name": "search_web",  
-"arguments": {  
-"query": "current weather in London"  
-}  
-}  
+tool_call = {    
+"name": "search_web",    
+"arguments": {    
+"query": "current weather in London"    
+}    
+}    
 ```
 
 ### Key Benefits
@@ -65,77 +65,83 @@ LLM agents can extend their capabilities by calling external tools. Here's how i
 
 ## Creating Your First Tool
 
-A `gofannon` tool is a class that extends `gofannon.base.BaseTool` and has at a
-minimum a `definition` method (marked with the `@property` decorator) which 
-explains the interface to the function, and a `fn` method that contains the code that will be called. 
+A `gofannon` tool is a class that extends `gofannon.base.BaseTool` and has at a  
+minimum a `definition` method (marked with the `@property` decorator) which   
+explains the interface to the function, and a `fn` method that contains the code that will be called.
 
+`gofannon` provides a decorator `@FunctionRegistry.register` to register the tool  
+in the function registry for internal use (e.g., by Gofannon's orchestrator).
 
-`gofannon` provides a decorator `@FunctionRegistry.register` to register the tool
-in the function registry. Here's a simple example:
-
-```python  
-from gofannon.base import BaseTool
-from gofannon.config import FunctionRegistry
-import logging
+```python    
+from gofannon.base import BaseTool  
+from gofannon.config import FunctionRegistry  
+import logging  
 import os
 
 logger = logging.getLogger(__name__)
 
-@FunctionRegistry.register
-class ReadFile(BaseTool):
-    def __init__(self, name="read_file"):
-        super().__init__()
-        self.name = name
+@FunctionRegistry.register  
+class ReadFile(BaseTool):  
+def __init__(self, name="read_file"):  
+super().__init__()  
+self.name = name
 
-    @property
-    def definition(self):
-        return {
-            "type": "function",
-            "function": {
-                "name": self.name,
-                "description": "Read the contents of a specified file.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "file_path": {
-                            "type": "string",
-                            "description": "The path to the file to be read."
-                        }
-                    },
-                    "required": ["file_path"]
-                }
-            }
-        }
+    @property  
+    def definition(self):  
+        return {  
+            "type": "function",  
+            "function": {  
+                "name": self.name,  
+                "description": "Read the contents of a specified file.",  
+                "parameters": {  
+                    "type": "object",  
+                    "properties": {  
+                        "file_path": {  
+                            "type": "string",  
+                            "description": "The path to the file to be read."  
+                        }  
+                    },  
+                    "required": ["file_path"]  
+                }  
+            }  
+        }  
+  
+    def fn(self, file_path):  
+        logger.debug(f"Reading file: {file_path}")  
+        try:  
+            if not os.path.exists(file_path):  
+                raise FileNotFoundError(f"The file '{file_path}' does not exist.")  
+  
+            with open(file_path, 'r') as file:  
+                content = file.read()  
+  
+            return content  
+        except Exception as e:  
+            logger.error(f"Error reading file: {e}")  
+            return f"Error reading file: {e}"  
+```  
+The tool is now registered for internal Gofannon use. For the tool to be discoverable by external systems (like Agent UIs) that consume Gofannon's manifest, you also need to add an entry for it in the `gofannon/manifest.json` file. See the [Tool Contribution Guide](https://the-ai-alliance.github.io/gofannon/developers/contribute_tool.html) for details on updating the manifest.
 
-    def fn(self, file_path):
-        logger.debug(f"Reading file: {file_path}")
-        try:
-            if not os.path.exists(file_path):
-                raise FileNotFoundError(f"The file '{file_path}' does not exist.")
+## Gofannon Tool Manifest (`gofannon/manifest.json`)
 
-            with open(file_path, 'r') as file:
-                content = file.read()
+Gofannon uses a static `manifest.json` file, located in the `gofannon/` directory, to provide a discoverable list of its tools and their configurations. This file is manually maintained and is the primary way external systems (like AgentLabUI) learn about available Gofannon tools and their setup parameters (e.g., API keys).
 
-            return content
-        except Exception as e:
-            logger.error(f"Error reading file: {e}")
-            return f"Error reading file: {e}"
-# The tool is now registered and ready for use by an LLM agent!
-```
+The `gofannon.base.create_manifest()` function reads this file and returns its content.
+
+When you contribute a new tool or modify an existing one (especially its setup requirements), you'll need to update `manifest.json`.
 
 ## Loading Tools into an Agent
 
-
 ### Installing `gofannon` for use with your specific framework.
 
-```bash
-pip install gofannon[smolagents]
+```bash  
+pip install gofannon[smolagents]  
 ```
 
 ### Example Notebook
 
-This example riffs om the `smolagents` quickstart by using OpenAI instead of a 
-locally hosted huggingface model, and uses the tool `gofannon.google_search.google_search.GoogleSearch`
+This example riffs om the `smolagents` quickstart by using OpenAI instead of a   
+locally hosted huggingface model, and uses the tool `gofannon.google_search.google_search.GoogleSearch`  
 instead of `smolagent`'s `DuckDuckGoSearchTool`.
 
 https://github.com/The-AI-Alliance/gofannon/blob/main/examples/smolagents%2Bgofannon_quickstart.ipynb
@@ -150,21 +156,21 @@ This modular approach lets you:
 * Minimize dependency bloat
 * Avoid version bumps from frameworks you’re not using
 
-Install extras like so:
-```bash 
-pip install mypackage[langchain]
-pip install mypackage[smolagents]
-pip install mypackage[aws]
+Install extras like so:  
+```bash   
+pip install gofannon[langchain]  
+pip install gofannon[smolagents]  
+pip install gofannon[aws]  
 ```
 
-This setup helps ensure smoother upgrades and cleaner environments when working 
+This setup helps ensure smoother upgrades and cleaner environments when working   
 across multiple agentic systems.
 
-### Modular by design 
+### Modular by design
 
-Each supported framework—**LangChain**, **smolagents**, and **AWS tools**—is 
-included as an *optional extra* to keep the core install minimal and reduce 
-dependency conflicts. But more importantly, this modular design supports a 
+Each supported framework—**LangChain**, **smolagents**, and **AWS tools**—is   
+included as an *optional extra* to keep the core install minimal and reduce   
+dependency conflicts. But more importantly, this modular design supports a   
 powerful interoperability pattern.
 
 The tools in this library are designed to be:
@@ -186,20 +192,20 @@ With this package, you can prototype tools in the fast-and-loose environment of 
 
 ### Currently Supported
 
-**Currently Supported:** `smolagents`, LangChain, AWS Bedrock
-**Currently Being Developed:** [Up To Date List](https://github.com/The-AI-Alliance/gofannon/issues?q=is%3Aissue%20state%3Aopen%20label%3Aframework%20assignee:*)
+**Currently Supported:** `smolagents`, LangChain, AWS Bedrock  
+**Currently Being Developed:** [Up To Date List](https://github.com/The-AI-Alliance/gofannon/issues?q=is%3Aissue%20state%3Aopen%20label%3Aframework%20assignee:*)  
 **In The Roadmap:** [Up To Date List](https://github.com/The-AI-Alliance/gofannon/issues?q=is%3Aissue%20state%3Aopen%20label%3Aframework%20no%3Aassignee)
 
 Don't see your desired Framework? [Open A Request](https://github.com/The-AI-Alliance/gofannon/issues/new?template=agentic_framework.md)
 
 ## Open for Contributions
 
-One of the primary goals of the `gofannon` project is to enable and support new 
-contributors making their first contributions in open source AI. 
+One of the primary goals of the `gofannon` project is to enable and support new   
+contributors making their first contributions in open source AI.
 
-We have documentation on [contributing your first tool](https://the-ai-alliance.github.io/gofannon/developers/contribute_tool.html),
-[contributing your first framework (advanced)](https://the-ai-alliance.github.io/gofannon/developers/contribute_agentic_framework.html), 
-and a fun [leaderboard](https://the-ai-alliance.github.io/gofannon/leaderboard.html)
+We have documentation on [contributing your first tool](https://the-ai-alliance.github.io/gofannon/developers/contribute_tool.html),  
+[contributing your first framework (advanced)](https://the-ai-alliance.github.io/gofannon/developers/contribute_agentic_framework.html),   
+and a fun [leaderboard](https://the-ai-alliance.github.io/gofannon/leaderboard.html)  
 to gamify the contribution process.
 
 ## Next Steps
@@ -208,4 +214,4 @@ to gamify the contribution process.
 - Check out our [examples](https://github.com/The-AI-Alliance/gofannon/tree/main/examples) for inspiration
 - [Introduce yourself to the Community](https://github.com/The-AI-Alliance/gofannon/discussions/categories/introductions)
 
-Happy building! 🚀  
+Happy building! 🚀    
