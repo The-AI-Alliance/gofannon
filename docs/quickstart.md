@@ -134,7 +134,7 @@ pip install gofannon[smolagents]
 
 ### Example Notebook
 
-This example riffs om the `smolagents` quickstart by using OpenAI instead of a 
+This example riffs on the `smolagents` quickstart by using OpenAI instead of a 
 locally hosted huggingface model, and uses the tool `gofannon.google_search.google_search.GoogleSearch`
 instead of `smolagent`'s `DuckDuckGoSearchTool`.
 
