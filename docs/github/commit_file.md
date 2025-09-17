@@ -4,10 +4,13 @@ The `CommitFile` API allows you to commit a file to a GitHub repository.
 
 ## Parameters
 
-* `repo_url`: The URL of the repository, e.g. https://github.com/The-AI-Alliance/gofannon
+* `owner`: The owner of the repository, e.g. 'The-AI-Alliance'
+* `repo`: The name of the repository, e.g. 'gofannon'
 * `file_path`: The path of the file in the repository, e.g. example.txt
-* `file_contents`: The contents of the file as a string
+* `file_content`: The contents of the file as a string
 * `commit_message`: The commit message, e.g. 'Added example.txt'
+* `branch`: The branch to commit to, e.g. 'feature-branch'
+* `default_branch`: The base branch to create the new branch from if it doesn't exist (default: 'main')
 
 ## Example Usage
 
