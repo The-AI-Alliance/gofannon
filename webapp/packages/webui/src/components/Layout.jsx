@@ -1,5 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
+import { useNavigate } from 'react-router-dom';
 import {
   AppBar,
   Toolbar,
@@ -7,16 +8,13 @@ import {
   Container,
   Box,
   CssBaseline,
+  Button,
 } from '@mui/material';
+import ChatIcon from '@mui/icons-material/Chat';
 
-/**
- * A responsive layout component that provides a consistent structure
- * with a top navigation bar and a main content area.
- * @param {object} props - The component props.
- * @param {React.ReactNode} props.children - The child elements to be rendered within the main content area.
- * @returns {React.ReactElement} The rendered Layout component.
- */
 const Layout = ({ children }) => {
+  const navigate = useNavigate();
+
   return (
     <Box sx={{ display: 'flex' }}>
       <CssBaseline />
@@ -25,10 +23,16 @@ const Layout = ({ children }) => {
         sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
       >
         <Toolbar>
-          <Typography variant="h6" noWrap component="div">
+          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             Gofannon WebApp
           </Typography>
-          {/* Add Navigation Links or User Menu here later */}
+          <Button 
+            color="inherit" 
+            startIcon={<ChatIcon />}
+            onClick={() => navigate('/chat')}
+          >
+            Chat
+          </Button>
         </Toolbar>
       </AppBar>
       <Box
@@ -39,7 +43,7 @@ const Layout = ({ children }) => {
           p: 3,
         }}
       >
-        <Toolbar /> {/* Spacer for the AppBar */}
+        <Toolbar />
         <Container maxWidth="lg">
           {children}
         </Container>
@@ -49,9 +53,6 @@ const Layout = ({ children }) => {
 };
 
 Layout.propTypes = {
-  /**
-   * The content of the page.
-   */
   children: PropTypes.node.isRequired,
 };
 
