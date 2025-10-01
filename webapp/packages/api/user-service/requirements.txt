@@ -1,0 +1,4 @@
+fastapi[all]
+uvicorn[standard]
+boto3  # For S3/MinIO
+python-dotenv
