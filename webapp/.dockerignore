@@ -1,0 +1,27 @@
+# Ignore Git history
+.git
+.gitignore
+
+# Ignore IDE and OS-specific files
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Ignore environment variables
+.env*
+
+# CRITICAL: Ignore all node_modules directories in the monorepo.
+# This prevents the host's node_modules from being copied into the image,
+# which is the cause of the error.
+**/node_modules
+
+# Ignore Python virtual environments
+**/venv
+**/.venv
+**/__pycache__
+
+# Ignore build artifacts that shouldn't be in the final image
+**/dist
+**/build
+*.log
