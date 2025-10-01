@@ -1,3 +1,4 @@
+import { ConstructionOutlined } from '@mui/icons-material';
 import config from '../config';
 
 const API_BASE_URL = config.api.baseUrl;
@@ -23,11 +24,15 @@ class ChatService {
   }
 
   async getProviders() {
-    const response = await fetch(`${API_BASE_URL}/providers`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch providers');
-    }
-    return response.json();
+    await fetch(`${API_BASE_URL}/providers`)
+       .then(response => {
+        if (!response.ok) {
+            throw new Error('Failed to fetch providers');
+        }
+        console.log("Fetched providers: ", response);
+        return response.json();
+    })
+    
   }
 
   async sendMessage(message, settings) {

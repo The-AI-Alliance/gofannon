@@ -1,7 +1,7 @@
 const localConfig = {
   env: 'local',
   api: {
-    baseUrl: 'http://localhost:8000/api',
+    baseUrl: '/api',
   },
   auth: {
     provider: 'mock', // 'mock' for local, no real login

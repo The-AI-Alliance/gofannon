@@ -64,6 +64,7 @@ const ChatPage = () => {
       setSessionId(session.session_id);
       
       const providersData = await chatService.getProviders();
+      console.log("Providers data: ", providersData);
       setProviders(providersData);
       
       const providerKeys = Object.keys(providersData);
