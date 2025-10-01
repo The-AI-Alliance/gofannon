@@ -16,8 +16,14 @@ class ChatService {
     return sessionId;
   }
 
+  async createSession() {
+    // The component expects an object with a session_id key.
+    this.sessionId = this.getOrCreateSessionId();
+    return { session_id: this.sessionId };
+  }
+
   async getProviders() {
-    const response = await fetch(`${API_BASE_URL}/chat/providers`);
+    const response = await fetch(`${API_BASE_URL}/providers`);
     if (!response.ok) {
       throw new Error('Failed to fetch providers');
     }
@@ -40,7 +46,8 @@ class ChatService {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to send message');
+      const errorData = await response.json().catch(() => ({ detail: 'Failed to send message' }));
+      throw new Error(errorData.detail || 'Failed to send message');
     }
 
     const data = await response.json();
@@ -55,22 +62,22 @@ class ChatService {
 
   async pollForResult(ticketId, maxAttempts = 60, delay = 1000) {
     for (let i = 0; i < maxAttempts; i++) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
       const response = await fetch(`${API_BASE_URL}/chat/status/${ticketId}`);
       
       if (!response.ok) {
-        throw new Error('Failed to check status');
+        const errorData = await response.json().catch(() => ({ detail: 'Failed to check status' }));
+        throw new Error(errorData.detail || 'Failed to check status');
       }
 
       const data = await response.json();
       
       if (data.status === 'completed') {
-        return data;
-      } else if (data.status === 'error') {
-        throw new Error(data.error || 'Chat request failed');
+        return data.result;
+      } else if (data.status === 'failed') {
+        throw new Error(data.result.error || 'Chat request failed');
       }
-      
-      // Wait before next poll
-      await new Promise(resolve => setTimeout(resolve, delay));
     }
     
     throw new Error('Request timeout');

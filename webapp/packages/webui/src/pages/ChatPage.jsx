@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Container,
@@ -105,11 +105,12 @@ const ChatPage = () => {
 
     try {
       const response = await chatService.sendMessage(
-        sessionId,
         input,
-        selectedProvider,
-        selectedModel,
-        currentModelParams
+        {
+          provider: selectedProvider,
+          model: selectedModel,
+          config: currentModelParams,
+        }
       );
 
       const assistantMessage = {
@@ -182,7 +183,7 @@ const ChatPage = () => {
             {paramName}: {value}
           </Typography>
           <Slider
-            value={value}
+            value={value === undefined ? paramConfig.default : value}
             onChange={(e, newValue) => handleParamChange(paramName, newValue)}
             min={paramConfig.min}
             max={paramConfig.max}
@@ -199,7 +200,7 @@ const ChatPage = () => {
         <FormControl key={paramName} fullWidth sx={{ mb: 2 }}>
           <InputLabel>{paramName}</InputLabel>
           <Select
-            value={value}
+            value={value === undefined ? paramConfig.default : value}
             onChange={(e) => handleParamChange(paramName, e.target.value)}
             label={paramName}
           >
@@ -216,7 +217,7 @@ const ChatPage = () => {
         key={paramName}
         fullWidth
         label={paramName}
-        value={value}
+        value={value === undefined ? paramConfig.default : value}
         onChange={(e) => handleParamChange(paramName, e.target.value)}
         sx={{ mb: 2 }}
       />
@@ -266,11 +267,13 @@ const ChatPage = () => {
                   maxWidth: '70%',
                   bgcolor: message.role === 'user' ? 'primary.light' : 'grey.100',
                   color: message.role === 'user' ? 'primary.contrastText' : 'text.primary',
+                  overflowWrap: 'break-word',
                 }}
               >
                 <ListItemText
-                  primary={message.content}
+                  primary={<Typography sx={{ whiteSpace: 'pre-wrap' }}>{message.content}</Typography>}
                   secondary={new Date(message.timestamp).toLocaleTimeString()}
+                  sx={{ color: message.role === 'user' ? 'primary.contrastText' : 'text.secondary' }}
                 />
               </Paper>
             </ListItem>
