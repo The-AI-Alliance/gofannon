@@ -1,7 +1,9 @@
-const localConfig = require('./environments/local');
-const firebaseConfig = require('./environments/firebase');
-const amplifyConfig = require('./environments/amplify');
-const kubernetesConfig = require('./environments/kubernetes');
+
+import localConfig from './environments/local.js';
+// import firebaseConfig from './environments/firebase.js';
+// import amplifyConfig from './environments/amplify.js';
+// import kubernetesConfig from './environments/kubernetes.js';
+
 
 const env = process.env.VITE_APP_ENV || process.env.APP_ENV || 'local';
 
@@ -20,7 +22,5 @@ switch (env) {
   default:
     config = localConfig;
 }
-
-module.exports = config;
 
 export default config;

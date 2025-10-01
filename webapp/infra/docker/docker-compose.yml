@@ -47,6 +47,8 @@ services:
       - gofannon-net
     command: server /data --console-address ":9001"
 
+  
+
 networks:
   gofannon-net:
     driver: bridge

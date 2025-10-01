@@ -13,6 +13,7 @@ RUN pnpm build
 # Stage 2: Serve the static files with Nginx
 FROM nginx:1.23-alpine
 COPY --from=builder /app/packages/webui/dist /usr/share/nginx/html
-# COPY ./infra/docker/nginx.conf /etc/nginx/conf.d/default.conf # You would create this file for routing
+
+COPY ./infra/docker/nginx.conf /etc/nginx/conf.d/default.conf 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

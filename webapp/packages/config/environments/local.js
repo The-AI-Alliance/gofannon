@@ -1,4 +1,4 @@
-module.exports = {
+const localConfig = {
   env: 'local',
   api: {
     baseUrl: 'http://localhost:8000',
@@ -21,3 +21,5 @@ module.exports = {
     },
   },
 };
+
+export default localConfig;

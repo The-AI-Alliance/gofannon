@@ -1,4 +1,4 @@
-module.exports = {
+export default firebaseConfig = {
   env: 'firebase',
   api: {
     baseUrl: 'https://us-central1-your-project-id.cloudfunctions.net/api',

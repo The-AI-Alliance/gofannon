@@ -7,7 +7,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Box from '@mui/material/Box';
 
 // Placeholder for a protected dashboard page
-const Dashboard = () => <h2>Dashboard - Welcome!</h2>;
+const Dashboard = () => <h2>Dashboard - Welcome!!!</h2>;
 
 function PrivateRoute({ children }) {
   const { user, loading } = useContext(AuthContext);

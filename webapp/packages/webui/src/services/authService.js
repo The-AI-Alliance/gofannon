@@ -4,8 +4,16 @@ import appConfig from '../config';
 const mockAuth = {
   login: async (credentials) => {
     console.log('Mock login with:', credentials);
-    const mockUser = { uid: 'mock-user-123', email: 'dev@gofannon.com' };
+    const mockUser = { uid: 'mock-user-123', email: credentials?.email || 'dev@gofannon.com' };
     localStorage.setItem('user', JSON.stringify(mockUser));
+    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
+    return mockUser;
+  },
+  loginWithProvider: async (providerId) => {
+    console.log(`Mock login with provider: ${providerId}`);
+    const mockUser = { uid: `mock-${providerId}-user`, email: `${providerId}-dev@gofannon.com` };
+    localStorage.setItem('user', JSON.stringify(mockUser));
+    await new Promise(resolve => setTimeout(resolve, 500));
     return mockUser;
   },
   logout: async () => {
@@ -14,7 +22,13 @@ const mockAuth = {
   },
   getCurrentUser: () => {
     const userStr = localStorage.getItem('user');
-    return userStr ? JSON.parse(userStr) : null;
+    try {
+        return userStr ? JSON.parse(userStr) : null;
+    } catch (e) {
+        console.error("Failed to parse user from localStorage", e);
+        localStorage.removeItem('user');
+        return null;
+    }
   },
 };
 
