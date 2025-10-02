@@ -2,12 +2,11 @@ import React, { useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthContext } from './contexts/AuthContext';
 import Layout from './components/Layout';
-import LoginPage from './components/LoginPage';
+import LoginPage from './pages/LoginPage';
+import HomePage from './pages/HomePage';
+import ChatPage from './pages/ChatPage';
 import CircularProgress from '@mui/material/CircularProgress';
 import Box from '@mui/material/Box';
-
-// Placeholder for a protected dashboard page
-const Dashboard = () => <h2>Dashboard - Welcome!!!</h2>;
 
 function PrivateRoute({ children }) {
   const { user, loading } = useContext(AuthContext);
@@ -24,19 +23,29 @@ function PrivateRoute({ children }) {
 function App() {
   return (
     <Router>
-      <Layout>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route
-            path="/"
-            element={
-              <PrivateRoute>
-                <Dashboard />
-              </PrivateRoute>
-            }
-          />
-        </Routes>
-      </Layout>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/"
+          element={
+            <PrivateRoute>
+              <Layout>
+                <HomePage />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/chat"
+          element={
+            <PrivateRoute>
+              <Layout>
+                <ChatPage />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
+      </Routes>
     </Router>
   );
 }
