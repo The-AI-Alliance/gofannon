@@ -24,16 +24,17 @@ class ChatService {
   }
 
   async getProviders() {
-    await fetch(`${API_BASE_URL}/providers`)
-       .then(response => {
-        if (!response.ok) {
-            throw new Error('Failed to fetch providers');
-        }
-        console.log("Fetched providers: ", response);
-        return response.json();
-    })
+    console.log("Fetching providers from ", `${API_BASE_URL}/providers`);
+    const response = await fetch(`${API_BASE_URL}/providers`, { headers: { 'Accept': 'application/json' } });
     
-  }
+    if (!response.ok) {
+        throw new Error('Failed to fetch providers');
+    }
+    
+    const data = await response.json();
+    console.log("Fetched providers: ", data);
+    return data;
+}
 
   async sendMessage(message, settings) {
     const response = await fetch(`${API_BASE_URL}/chat/send`, {

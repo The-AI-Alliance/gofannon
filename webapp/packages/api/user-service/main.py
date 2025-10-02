@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from typing import Annotated, Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 from datetime import datetime
@@ -11,6 +12,16 @@ import asyncio
 import litellm
 
 app = FastAPI()
+
+origins = ["http://localhost:3000", "http://localhost:3001"] # TODO: Set this with config
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Local storage paths
 STORAGE_PATH = Path("./local_storage")
