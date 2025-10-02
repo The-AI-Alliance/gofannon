@@ -1,4 +1,3 @@
-import { ConstructionOutlined } from '@mui/icons-material';
 import config from '../config';
 
 const API_BASE_URL = config.api.baseUrl;
@@ -18,7 +17,10 @@ class ChatService {
   }
 
   async createSession() {
-    // The component expects an object with a session_id key.
+    // The backend's /chat endpoint does not currently use session_id directly in the request body.
+    // However, the frontend ChatPage.jsx calls this to get a session_id.
+    // For now, we return the locally generated session_id.
+    // If backend session persistence is desired for /chat, the backend route needs to be updated.
     this.sessionId = this.getOrCreateSessionId();
     return { session_id: this.sessionId };
   }
@@ -34,29 +36,38 @@ class ChatService {
     const data = await response.json();
     console.log("Fetched providers: ", data);
     return data;
-}
+  }
 
-  async sendMessage(message, settings) {
-    const response = await fetch(`${API_BASE_URL}/chat/send`, {
+  // Changed `message` to `messages` (plural) and renamed `settings.config` to `parameters`
+  async sendMessage(messages, chatSettings) { // messages is List<ChatMessage>, chatSettings contains provider, model, config
+    console.log("Sending message with settings:", chatSettings);
+    console.log("Messages being sent:", messages);
+
+    const requestBody = {
+      messages: messages, // This should be the array of {role, content}
+      provider: chatSettings.provider,
+      model: chatSettings.model,
+      parameters: chatSettings.config, // Renamed from 'config' to 'parameters' to match backend
+      stream: false // Explicitly set to false to match backend's default and current handling
+    };
+
+    // Corrected endpoint from /chat/send to /chat
+    const response = await fetch(`${API_BASE_URL}/chat`, { 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        session_id: this.sessionId,
-        message,
-        provider: settings.provider,
-        model: settings.model,
-        config: settings.config,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ detail: 'Failed to send message' }));
+      console.error("Backend error response:", errorData);
       throw new Error(errorData.detail || 'Failed to send message');
     }
 
     const data = await response.json();
+    console.log("Initial chat response (ticket_id):", data);
     
     // If we got a ticket, poll for the result
     if (data.ticket_id) {
@@ -70,7 +81,8 @@ class ChatService {
     for (let i = 0; i < maxAttempts; i++) {
       await new Promise(resolve => setTimeout(resolve, delay));
       
-      const response = await fetch(`${API_BASE_URL}/chat/status/${ticketId}`);
+      // Corrected endpoint from /chat/status/{ticketId} to /chat/{ticketId}
+      const response = await fetch(`${API_BASE_URL}/chat/${ticketId}`); 
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: 'Failed to check status' }));
@@ -78,11 +90,13 @@ class ChatService {
       }
 
       const data = await response.json();
+      console.log(`Polling status for ${ticketId}:`, data.status);
       
       if (data.status === 'completed') {
         return data.result;
       } else if (data.status === 'failed') {
-        throw new Error(data.result.error || 'Chat request failed');
+        // Use data.error as backend returns 'error' key
+        throw new Error(data.error || 'Chat request failed'); 
       }
     }
     
@@ -90,16 +104,17 @@ class ChatService {
   }
 
   async getHistory() {
-    const response = await fetch(`${API_BASE_URL}/chat/history/${this.sessionId}`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch history');
-    }
-    return response.json();
+    // This endpoint `/chat/history/${this.sessionId}` is not defined in `main.py`
+    // The current backend session management is for config, not chat history.
+    // If history is needed, a new backend endpoint and storage would be required.
+    console.warn("getHistory called but not implemented on backend for sessions. Returning empty array.");
+    return []; 
   }
 
   clearSession() {
     sessionStorage.removeItem('chat_session_id');
     this.sessionId = this.getOrCreateSessionId();
+    console.log("Chat session cleared.");
   }
 }
 

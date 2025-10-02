@@ -37,13 +37,13 @@ const ChatPage = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [sessionId, setSessionId] = useState(null);
+  const [sessionId, setSessionId] = useState(null); // Retained for local session management if needed later
   const [configOpen, setConfigOpen] = useState(false);
   const [providers, setProviders] = useState({});
   const [selectedProvider, setSelectedProvider] = useState('');
   const [selectedModel, setSelectedModel] = useState('');
-  const [modelConfig, setModelConfig] = useState({});
-  const [currentModelParams, setCurrentModelParams] = useState({});
+  const [modelParamSchema, setModelParamSchema] = useState({}); // Stores the schema for current model's parameters
+  const [currentModelParams, setCurrentModelParams] = useState({}); // Stores the *values* for current model's parameters
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -64,7 +64,7 @@ const ChatPage = () => {
       setSessionId(session.session_id);
       
       const providersData = await chatService.getProviders();
-      console.log("Providers data: ", providersData);
+      console.log("Providers data received: ", providersData);
       setProviders(providersData);
       
       const providerKeys = Object.keys(providersData);
@@ -74,43 +74,63 @@ const ChatPage = () => {
         
         const models = Object.keys(providersData[defaultProvider].models);
         if (models.length > 0) {
-          setSelectedModel(models[0]);
-          const modelParams = providersData[defaultProvider].models[models[0]];
-          setModelConfig(modelParams);
+          const defaultModel = models[0];
+          setSelectedModel(defaultModel);
+          // Access .parameters from the model object
+          const modelParams = providersData[defaultProvider].models[defaultModel].parameters; 
+          setModelParamSchema(modelParams);
           
           const defaultParams = {};
           Object.keys(modelParams).forEach(key => {
             defaultParams[key] = modelParams[key].default;
           });
           setCurrentModelParams(defaultParams);
+        } else {
+          // No models found for the default provider
+          setSelectedModel('');
+          setModelParamSchema({});
+          setCurrentModelParams({});
         }
+      } else {
+        setError('No AI providers found.');
       }
     } catch (err) {
       setError('Failed to initialize chat: ' + err.message);
+      console.error("Chat initialization error:", err);
     }
   };
 
   const handleSend = async () => {
-    if (!input.trim() || !sessionId) return;
+    // Ensure input, session, and a selected model are available
+    if (!input.trim() || !sessionId || !selectedProvider || !selectedModel) return;
 
     const userMessage = {
       role: 'user',
       content: input,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString(), // Keep timestamp for frontend display
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
+    // Update local messages state immediately to show user's message
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
+    setInput(''); // Clear input field
     setLoading(true);
     setError(null);
 
     try {
+      // Map local message objects to backend ChatMessage format ({role, content})
+      // Ensure only 'role' and 'content' are sent to the backend
+      const messagesForBackend = updatedMessages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+      }));
+
       const response = await chatService.sendMessage(
-        input,
+        messagesForBackend, // Send the full conversation history
         {
           provider: selectedProvider,
           model: selectedModel,
-          config: currentModelParams,
+          config: currentModelParams, // 'config' here will be mapped to 'parameters' in chatService
         }
       );
 
@@ -120,9 +140,10 @@ const ChatPage = () => {
         timestamp: new Date().toISOString(),
       };
 
-      setMessages(prev => [...prev, assistantMessage]);
+      setMessages(prev => [...prev, assistantMessage]); // Add assistant's response to local state
     } catch (err) {
       setError('Failed to send message: ' + err.message);
+      console.error("Error sending message:", err);
     } finally {
       setLoading(false);
     }
@@ -139,17 +160,22 @@ const ChatPage = () => {
     const provider = e.target.value;
     setSelectedProvider(provider);
     
-    const models = Object.keys(providers[provider].models);
+    const models = Object.keys(providers[provider]?.models || {});
     if (models.length > 0) {
-      setSelectedModel(models[0]);
-      const modelParams = providers[provider].models[models[0]];
-      setModelConfig(modelParams);
+      const defaultModel = models[0];
+      setSelectedModel(defaultModel);
+      const modelParams = providers[provider].models[defaultModel].parameters; // Access .parameters
+      setModelParamSchema(modelParams);
       
       const defaultParams = {};
       Object.keys(modelParams).forEach(key => {
         defaultParams[key] = modelParams[key].default;
       });
       setCurrentModelParams(defaultParams);
+    } else {
+      setSelectedModel('');
+      setModelParamSchema({});
+      setCurrentModelParams({});
     }
   };
 
@@ -157,8 +183,8 @@ const ChatPage = () => {
     const model = e.target.value;
     setSelectedModel(model);
     
-    const modelParams = providers[selectedProvider].models[model];
-    setModelConfig(modelParams);
+    const modelParams = providers[selectedProvider].models[model].parameters; // Access .parameters
+    setModelParamSchema(modelParams);
     
     const defaultParams = {};
     Object.keys(modelParams).forEach(key => {
@@ -176,19 +202,23 @@ const ChatPage = () => {
 
   const renderParamControl = (paramName, paramConfig) => {
     const value = currentModelParams[paramName];
+    // Ensure the value used by the control is the current state value, 
+    // falling back to default if not yet set in state (e.g., on initial render before setCurrentModelParams)
+    const controlledValue = value !== undefined ? value : paramConfig.default;
 
-    if (paramConfig.type === 'float' || paramConfig.type === 'int') {
+    if (paramConfig.type === 'float' || paramConfig.type === 'integer') { // 'int' changed to 'integer' to match provider_config.py
       return (
         <Box key={paramName} sx={{ mb: 2 }}>
-          <Typography gutterBottom>
-            {paramName}: {value}
+          <Typography gutterBottom variant="body2" color="text.secondary">
+            {paramConfig.description || paramName}: <Typography component="span" variant="body1" color="text.primary">{controlledValue}</Typography>
           </Typography>
           <Slider
-            value={value === undefined ? paramConfig.default : value}
+            value={controlledValue}
             onChange={(e, newValue) => handleParamChange(paramName, newValue)}
             min={paramConfig.min}
             max={paramConfig.max}
-            step={paramConfig.type === 'float' ? 0.01 : 1}
+            // Step 0.1 for float, 1 for integer. Adjusted to 0.01 for more granular float control if needed.
+            step={paramConfig.type === 'float' ? (paramConfig.step || 0.1) : 1} 
             marks
             valueLabelDisplay="auto"
           />
@@ -196,34 +226,21 @@ const ChatPage = () => {
       );
     }
 
-    if (paramConfig.acceptable_values) {
-      return (
-        <FormControl key={paramName} fullWidth sx={{ mb: 2 }}>
-          <InputLabel>{paramName}</InputLabel>
-          <Select
-            value={value === undefined ? paramConfig.default : value}
-            onChange={(e) => handleParamChange(paramName, e.target.value)}
-            label={paramName}
-          >
-            {paramConfig.acceptable_values.map(val => (
-              <MenuItem key={val} value={val}>{val}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      );
-    }
-
+    // Default to TextField for other types (e.g., string). provider_config.py currently only has float/integer.
     return (
       <TextField
         key={paramName}
         fullWidth
-        label={paramName}
-        value={value === undefined ? paramConfig.default : value}
+        label={paramConfig.description || paramName}
+        value={controlledValue}
         onChange={(e) => handleParamChange(paramName, e.target.value)}
         sx={{ mb: 2 }}
+        type={paramConfig.type === 'integer' ? 'number' : 'text'}
       />
     );
   };
+
+  const isChatReady = !loading && sessionId && selectedProvider && selectedModel;
 
   return (
     <Container maxWidth="md">
@@ -233,7 +250,7 @@ const ChatPage = () => {
             AI Chat
           </Typography>
           <Chip 
-            label={`${selectedProvider}/${selectedModel}`} 
+            label={`${selectedProvider}${selectedModel ? '/' + selectedModel : ''}`} 
             color="primary" 
             variant="outlined"
             sx={{ mr: 2 }}
@@ -301,12 +318,12 @@ const ChatPage = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            disabled={loading || !sessionId}
+            disabled={!isChatReady}
           />
           <IconButton 
             color="primary" 
             onClick={handleSend}
-            disabled={loading || !input.trim() || !sessionId}
+            disabled={!isChatReady || !input.trim()}
           >
             <SendIcon />
           </IconButton>
@@ -350,8 +367,8 @@ const ChatPage = () => {
             Model Parameters
           </Typography>
           
-          {Object.keys(modelConfig).map(paramName => 
-            renderParamControl(paramName, modelConfig[paramName])
+          {selectedModel && Object.keys(modelParamSchema).map(paramName => 
+            renderParamControl(paramName, modelParamSchema[paramName])
           )}
         </DialogContent>
         <DialogActions>
