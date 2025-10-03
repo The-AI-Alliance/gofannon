@@ -12,6 +12,7 @@ from pathlib import Path
 import asyncio
 import litellm
 
+from services.mcp_client_service import McpClientService, get_mcp_client_service
 # Import the shared provider configuration
 from config.provider_config import PROVIDER_CONFIG as APP_PROVIDER_CONFIG
 
@@ -65,11 +66,12 @@ class SessionData(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-# Removed the hardcoded PROVIDER_CONFIGS dictionary.
-# Now using APP_PROVIDER_CONFIG imported from config.provider_config
+class ListMcpToolsRequest(BaseModel):
+    mcp_url: str
+    auth_token: Optional[str] = None
+
 
 # Helper functions
-# NOTE: The user requested stubbing out database backends for now.
 # For simplicity, these helper functions currently operate on local JSON files.
 # When a NoSQL database is introduced, these will be replaced with custom getter/setter functions.
 
@@ -270,3 +272,15 @@ async def delete_session(session_id: str):
 @app.get("/health")
 def health_check():
     return {"status": "healthy", "service": "user-service"}
+
+@app.post("/mcp/tools")
+async def list_mcp_tools(
+    request: ListMcpToolsRequest,
+    mcp_service: McpClientService = Depends(get_mcp_client_service)
+):
+    """
+    Connects to a remote MCP server and lists its available tools.
+    """
+    print(f"Received request to list tools for MCP server: {request.mcp_url}")
+    tools = await mcp_service.list_tools_for_server(request.mcp_url, request.auth_token)
+    return {"mcp_url": request.mcp_url, "tools": tools}

@@ -13,13 +13,17 @@ import {
   Alert,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
+import BuildIcon from '@mui/icons-material/Build'
 import { useAgentFlow } from './AgentCreationFlowContext';
+import ToolsSelectionDialog from './ToolsSelectionDialog'; 
+
 
 const ToolsScreen = () => {
   const { tools, setTools } = useAgentFlow();
   const [currentToolUrl, setCurrentToolUrl] = useState('');
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+  const [toolsDialog, setToolsDialog] = useState({ open: false, mcpUrl: '', existingSelectedTools: [] });
 
   const handleAddTool = () => {
     if (!currentToolUrl.trim()) {
@@ -40,7 +44,7 @@ const ToolsScreen = () => {
 
     setTools(prev => ({
       ...prev,
-      [currentToolUrl]: [], // Value is an empty array as per requirement
+      [currentToolUrl]: prev[currentToolUrl] || [], // Keep existing selections or start with empty array
     }));
     setCurrentToolUrl('');
     setError(null);
@@ -62,6 +66,20 @@ const ToolsScreen = () => {
       return;
     }
     navigate('/create-agent/description');
+  };
+
+  // Function to open the tools selection dialog for a specific MCP server
+  const handleOpenToolsDialog = (mcpUrl) => {
+    setToolsDialog({
+      open: true,
+      mcpUrl: mcpUrl,
+      existingSelectedTools: tools[mcpUrl] || [], // Pass currently selected tools
+    });
+  };
+
+  // Callback from ToolsSelectionDialog to update the main tools state
+  const handleSaveSelectedTools = (mcpUrl, selectedNames) => {
+    setTools(prev => ({ ...prev, [mcpUrl]: selectedNames }));
   };
 
   return (
@@ -104,17 +122,34 @@ const ToolsScreen = () => {
             <ListItem
               key={url}
               secondaryAction={
-                <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteTool(url)}>
-                  <DeleteIcon />
-                </IconButton>
+                <>
+                  <IconButton
+                    edge="end"
+                    aria-label="list-tools"
+                    onClick={() => handleOpenToolsDialog(url)}
+                    sx={{ mr: 1 }} // Add some margin to separate icons
+                  >
+                    <BuildIcon />
+                  </IconButton>
+                  <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteTool(url)}>
+                    <DeleteIcon />
+                  </IconButton>
+                </>
               }
             >
-              <ListItemText primary={url} />
+              {/* Display selected tools in the secondary text */}
+              <ListItemText primary={url} secondary={tools[url] && tools[url].length > 0 ? `Selected: ${tools[url].join(', ')}` : "No tools selected"}/>
             </ListItem>
           ))}
         </List>
       )}
-
+      <ToolsSelectionDialog
+        open={toolsDialog.open}
+        onClose={() => setToolsDialog({ ...toolsDialog, open: false })}
+        mcpUrl={toolsDialog.mcpUrl}
+        existingSelectedTools={toolsDialog.existingSelectedTools}
+        onSaveSelectedTools={handleSaveSelectedTools}
+      />
       <Button
         variant="contained"
         color="primary"
