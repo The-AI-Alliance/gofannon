@@ -29,8 +29,15 @@ def agent_handler(input_data):
     It receives input_data as a JSON string and returns an output_data JSON string.
     
     Agent Description: ${description || "No description provided."}
-    Tools: ${Object.keys(tools).length > 0 ? Object.keys(tools).join(', ') : "No tools defined."}
-
+    Tools: ${
+      Object.entries(tools) // Iterate over [url, selectedToolsArray] pairs
+        .filter(([, selectedTools]) => selectedTools.length > 0) // Only include URLs with selected tools
+        .map(([url, selectedTools]) => 
+          `${url} (using: ${selectedTools.join(', ')})` // Format as "url (using: tool1, tool2)"
+        )
+        .join('\n      ') // Join multiple MCP server entries with a newline and indentation
+      || "No tools defined."
+    }
     Input Schema:
     ${JSON.stringify(inputSchema, null, 2)}
 
