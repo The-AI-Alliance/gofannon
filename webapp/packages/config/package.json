@@ -1,9 +1,0 @@
-{
-  "name": "@gofannon/config",
-  "version": "1.0.0",
-  "description": "Shared environment-based configuration for the Gofannon app.",
-  "main": "index.js",
-  "type": "module",
-  "author": "",
-  "license": "ISC"
-}

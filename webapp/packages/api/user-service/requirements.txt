@@ -1,5 +1,0 @@
-fastapi[all]
-uvicorn[standard]
-boto3  # For S3/MinIO
-python-dotenv
-litellm>=1.77.5
