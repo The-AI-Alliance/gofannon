@@ -1,6 +1,12 @@
+
 PROVIDER_CONFIG = {
     "openai": {
+        "api_key_env_var": "OPENAI_API_KEY",
         "models": {
+            "gpt-5-mini-2025-08-07": {
+                "parameters": {
+                }
+            }, 
             "gpt-4": {
                 "parameters": {
                     "temperature": {
@@ -37,10 +43,16 @@ PROVIDER_CONFIG = {
                         "min": -2.0,
                         "max": 2.0,
                         "description": "Penalty for token repetition"
+                    },
+                    "stop": {
+                        "type": "choice",
+                        "default": 0,
+                        "choices": ["\n", " Human:", " AI:"],
+                        "description": "Sequence where the API will stop generating."
                     }
                 }
             },
-            "gpt-3.5-turbo": {
+            "gpt-4.1-nano": {
                 "parameters": {
                     "temperature": {
                         "type": "float",
@@ -67,7 +79,22 @@ PROVIDER_CONFIG = {
             }
         }
     },
+    "gemini": {
+        "api_key_env_var": "GEMINI_API_KEY",
+        "models": {
+            "gemini-2.5-pro": {
+                "parameters": {
+                    "reasoning_effort": {
+                        "type": "choice", 
+                        "default": 0,
+                        "choices": ["disable", "low", "medium", "high"],
+                    }
+                }
+            }
+        }
+    },
     "anthropic": {
+        "api_key_env_var": "ANTHROPIC_API_KEY",
         "models": {
             "claude-3-opus": {
                 "parameters": {

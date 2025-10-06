@@ -103,6 +103,23 @@ const ModelConfigDialog = ({
       );
     }
 
+    if (paramConfig.type === 'choice') {
+      return (
+        <FormControl fullWidth key={paramName} sx={{ mb: 2 }}>
+          <InputLabel>{paramConfig.description || paramName}</InputLabel>
+          <Select
+            value={controlledValue}
+            label={paramConfig.description || paramName}
+            onChange={(e) => handleParamChange(paramName, e.target.value)}
+          >
+            {paramConfig.choices.map((choice, index) => (
+              <MenuItem key={index} value={index}>{choice}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      );
+    }
+
     return (
       <TextField
         key={paramName}

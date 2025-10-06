@@ -181,6 +181,16 @@ async def process_chat(ticket_id: str, request: ChatRequest):
         })
         _save_ticket_stub(ticket_id, ticket_data)
 
+# Helper function to filter providers based on environment variables
+def get_available_providers():
+    available_providers = {}
+    for provider, config in APP_PROVIDER_CONFIG.items():
+        api_key_env_var = config.get("api_key_env_var")
+        # Include provider if api_key_env_var is not specified, or if it is specified and the env var is set.
+        if not api_key_env_var or os.getenv(api_key_env_var):
+            available_providers[provider] = config
+    return available_providers
+
 # Routes
 @app.get("/")
 def read_root():
@@ -189,30 +199,33 @@ def read_root():
 @app.get("/providers")
 def get_providers():
     """Get all available providers and their configurations"""
-    return APP_PROVIDER_CONFIG
+    return get_available_providers()
 
 @app.get("/providers/{provider}")
-def get_provider_config_route(provider: str): # Renamed to avoid name collision with APP_PROVIDER_CONFIG
+def get_provider_config_route(provider: str):
     """Get configuration for a specific provider"""
-    if provider not in APP_PROVIDER_CONFIG:
-        raise HTTPException(status_code=404, detail="Provider not found")
-    return APP_PROVIDER_CONFIG[provider]
+    available_providers = get_available_providers()
+    if provider not in available_providers:
+        raise HTTPException(status_code=404, detail="Provider not found or not configured")
+    return available_providers[provider]
 
 @app.get("/providers/{provider}/models")
 def get_provider_models(provider: str):
     """Get available models for a provider"""
-    if provider not in APP_PROVIDER_CONFIG:
-        raise HTTPException(status_code=404, detail="Provider not found")
-    return list(APP_PROVIDER_CONFIG[provider]["models"].keys())
+    available_providers = get_available_providers()
+    if provider not in available_providers:
+        raise HTTPException(status_code=404, detail="Provider not found or not configured")
+    return list(available_providers[provider]["models"].keys())
 
 @app.get("/providers/{provider}/models/{model}")
 def get_model_config(provider: str, model: str):
     """Get configuration for a specific model"""
-    if provider not in APP_PROVIDER_CONFIG:
-        raise HTTPException(status_code=404, detail="Provider not found")
-    if model not in APP_PROVIDER_CONFIG[provider]["models"]:
+    available_providers = get_available_providers()
+    if provider not in available_providers:
+        raise HTTPException(status_code=404, detail="Provider not found or not configured")
+    if model not in available_providers[provider]["models"]:
         raise HTTPException(status_code=404, detail="Model not found")
-    return APP_PROVIDER_CONFIG[provider]["models"][model]
+    return available_providers[provider]["models"][model]
 
 @app.post("/chat")
 async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
