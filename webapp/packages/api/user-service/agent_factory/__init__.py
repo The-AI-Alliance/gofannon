@@ -24,14 +24,19 @@ async def generate_agent_code(request: GenerateCodeRequest):
 
     what_to_do =  f"You will be given instructions for a python function to create.\nThe input schema is:\n{input_schema_str}\nThe output schema is:\n{output_schema_str}\nONLY return the code as a sting (ready to be executed),not as a markdown codeblock, no explanations.\n"
     system_prompt = tool_docs + how_to_use_tools + what_to_do
+    print("[DEBUG] System Prompt:\n", system_prompt)
     model = request.composer_model_config.model
+    provider = request.composer_model_config.provider
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": request.description},
     ]
+    print("[DEBUG] Messages:\n", messages)
+    print("[DEBUG] Model:", model)
+    print("[DEBUG] Model Config:", request.composer_model_config.parameters)
     config = request.composer_model_config.parameters
     response = await acompletion(
-                model=model,
+                model=f"{provider}/{model}",
                 messages=messages,
                 **config
             )
