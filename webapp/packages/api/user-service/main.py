@@ -13,8 +13,10 @@ import asyncio
 import litellm
 
 from services.mcp_client_service import McpClientService, get_mcp_client_service
+
 # Import the shared provider configuration
 from config.provider_config import PROVIDER_CONFIG as APP_PROVIDER_CONFIG
+from models.agent import GenerateCodeRequest, GenerateCodeResponse
 
 app = FastAPI()
 
@@ -284,3 +286,12 @@ async def list_mcp_tools(
     print(f"Received request to list tools for MCP server: {request.mcp_url}")
     tools = await mcp_service.list_tools_for_server(request.mcp_url, request.auth_token)
     return {"mcp_url": request.mcp_url, "tools": tools}
+
+@app.post("/agents/generate-code", response_model=GenerateCodeResponse)
+async def generate_agent_code(request: GenerateCodeRequest):
+    """
+    Generates agent code based on the provided configuration.
+    """
+    from agent_factory import generate_agent_code as generate_code_function
+    code = await generate_code_function(request)
+    return code

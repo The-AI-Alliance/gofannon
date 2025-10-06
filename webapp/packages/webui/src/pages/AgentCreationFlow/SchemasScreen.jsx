@@ -16,6 +16,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import SettingsIcon from '@mui/icons-material/Settings'; // Import SettingsIcon
 import { useAgentFlow } from './AgentCreationFlowContext';
 import chatService from '../../services/chatService'; // Re-use chatService to fetch providers
+import agentService from '../../services/agentService'; // Import the new agent service
 import ModelConfigDialog from '../../components/ModelConfigDialog'; // Import the new component
 
 const SchemasScreen = () => {
@@ -31,6 +32,10 @@ const SchemasScreen = () => {
   const [currentModelParams, setCurrentModelParams] = useState({});
   const [loadingProviders, setLoadingProviders] = useState(true);
   const [providersError, setProvidersError] = useState(null);
+
+  // State for build process
+  const [isBuilding, setIsBuilding] = useState(false);
+  const [buildError, setBuildError] = useState(null);
 
   // Fetch providers on component mount
   useEffect(() => {
@@ -76,71 +81,35 @@ const SchemasScreen = () => {
     fetchProviders();
   }, []);
 
-  const mockBackendCallAndGenerateCode = (agentModelConfig) => {
-    // Extract model configuration for the generated code
-    const { provider, model, parameters } = agentModelConfig;
-
-    const mockPythonCode = `
-import json
-
-def agent_handler(input_data):
-    """
-    This is a mock agent handler.
-    It receives input_data as a JSON string and returns an output_data JSON string.
-    
-    Agent Description: ${description || "No description provided."}
-
-    Tools: ${
-      Object.entries(tools)
-        .filter(([, selectedTools]) => selectedTools.length > 0)
-        .map(([url, selectedTools]) => 
-          `${url} (using: ${selectedTools.join(', ')})`
-        )
-        .join('\n      ')
-      || "No tools defined."
-    }
-
-    Input Schema:\n    ${JSON.stringify(inputSchema, null, 2)}
-
-    Output Schema:\n    ${JSON.stringify(outputSchema, null, 2)}
-
-    Model for Code Generation:
-      Provider: ${provider || 'N/A'}
-      Model: ${model || 'N/A'}
-      Parameters: ${JSON.stringify(parameters, null, 2)}
-    """
-    
-    # Parse the input JSON
-    input_obj = json.loads(input_data)
-    
-    # Process the input - for now, just echo and add a greeting
-    output_obj = {
-        "outputText": f"Hello from your agent! You said: '{input_obj.get('inputText', '')}'"
-    }
-    
-    # Return the output as a JSON string
-    return json.dumps(output_obj)
-
-if __name__ == "__main__":
-    # Example usage for testing
-    test_input = json.dumps({"inputText": "What is the weather like today?"})
-    result = agent_handler(test_input)
-    print(f"Agent Output: {result}")
-`;
-    setGeneratedCode(mockPythonCode);
-  };
-
-  const handleBuild = () => {
+  const handleBuild = async () => {
     if (!selectedProvider || !selectedModel) {
       setProvidersError('Please select a model for code generation.');
       return;
     }
-    mockBackendCallAndGenerateCode({
-      provider: selectedProvider,
-      model: selectedModel,
-      parameters: currentModelParams,
-    });
-    navigate('/create-agent/code');
+    setBuildError(null);
+    setIsBuilding(true);
+
+    const agentConfig = {
+      tools,
+      description,
+      inputSchema,
+      outputSchema,
+      modelConfig: {
+        provider: selectedProvider,
+        model: selectedModel,
+        parameters: currentModelParams,
+      },
+    };
+
+    try {
+      const response = await agentService.generateCode(agentConfig);
+      setGeneratedCode(response.code);
+      navigate('/create-agent/code');
+    } catch (err) {
+      setBuildError(err.message || 'An unexpected error occurred while building the agent.');
+    } finally {
+      setIsBuilding(false);
+    }
   };
 
   const isModelSelected = selectedProvider && selectedModel;
@@ -158,6 +127,12 @@ if __name__ == "__main__":
       {providersError && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setProvidersError(null)}>
           {providersError}
+        </Alert>
+      )}
+
+      {buildError && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setBuildError(null)}>
+          {buildError}
         </Alert>
       )}
 
@@ -222,10 +197,10 @@ if __name__ == "__main__":
         color="primary"
         onClick={handleBuild}
         fullWidth
-        startIcon={<CodeIcon />}
-        disabled={!isModelSelected}
+        startIcon={isBuilding ? <CircularProgress size={20} color="inherit" /> : <CodeIcon />}
+        disabled={!isModelSelected || isBuilding}
       >
-        Build Agent Code
+        {isBuilding ? 'Building...' : 'Build Agent Code'}
       </Button>
 
       <ModelConfigDialog
