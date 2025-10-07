@@ -91,4 +91,5 @@ class RemoteMCPClient:
                 name=tool_name,
                 arguments=params
             )
+            print(f"[DEBUG] Tool result: {tool_result}")
             return tool_result.data
