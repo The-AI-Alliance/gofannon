@@ -41,4 +41,40 @@ how_to_use_tools = """
         8.25 # (Example Output)
     """
 
-    
+how_to_use_litellm = """
+You also have access to the `litellm` library for making calls to other language models.
+The specific models you can call are listed in the section above.
+
+To make a call, use `await litellm.acompletion()`:
+
+async def acompletion(model: str, messages: list, **kwargs):
+    '''
+    Makes an asynchronous call to a language model.
+
+    :param model: 
+        The name of the model to call, including the provider prefix.
+        (e.g., 'gpt-4', 'openai/gpt-3.5-turbo', 'claude-3-opus', 'gemini/gemini-pro').
+    :param messages: 
+        A list of dictionaries representing the conversation history,
+        following the format: `[{"role": "user", "content": "Hello"}, ...]`.
+    :param kwargs: 
+        Additional parameters to pass to the model provider's API,
+        such as `temperature`, `max_tokens`, `top_p`, etc.
+
+    :return: 
+        A `ModelResponse` object from litellm. To get the content,
+        access `response.choices[0].message.content`.
+
+    :Example:
+    >>> import litellm
+    >>> response = await litellm.acompletion(
+    ...     model="gpt-3.5-turbo",
+    ...     messages=[{"role": "user", "content": "Summarize this for me."}],
+    ...     temperature=0.7,
+    ...     max_tokens=150
+    ... )
+    >>> summary = response.choices[0].message.content
+    >>> print(summary)
+    "This is a summary." # (Example Output)
+    '''
+"""

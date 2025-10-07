@@ -22,6 +22,7 @@ import {
 const ModelConfigDialog = ({
   open,
   onClose,
+  onSave,
   title,
   providers,
   selectedProvider,
@@ -196,7 +197,12 @@ const ModelConfigDialog = ({
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={onClose}>{onSave ? 'Cancel' : 'Close'}</Button>
+        {onSave && (
+          <Button onClick={onSave} variant="contained" disabled={!selectedProvider || !selectedModel}>
+            Save
+          </Button>
+        )}
       </DialogActions>
     </Dialog>
   );
@@ -221,6 +227,7 @@ ModelConfigDialog.propTypes = {
 
 ModelConfigDialog.defaultProps = {
   providersError: null,
+  onSave: null,
 };
 
 export default ModelConfigDialog;
