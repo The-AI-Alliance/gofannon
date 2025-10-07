@@ -79,10 +79,11 @@ async def generate_agent_code(request: GenerateCodeRequest):
     if code_body.strip().endswith("```"):
         code_body = code_body.strip()[:-len("```")].strip()
 
-    header = """from gofannon.remote_mcp_client import RemoteMCPClient
+    # header = """from gofannon.remote_mcp_client import RemoteMCPClient
+    header = """from agent_factory.remote_mcp_client import RemoteMCPClient
 import litellm
 
-async def run(input, tools):
+async def run(input_dict, tools):
    mcpc = { url : RemoteMCPClient(remote_url = url) for url in tools.keys() }"""
     
     indented_body = "\n".join(["   " + line for line in code_body.split('\n')])

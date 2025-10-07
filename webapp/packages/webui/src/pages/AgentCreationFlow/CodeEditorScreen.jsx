@@ -11,8 +11,7 @@ const CodeEditorScreen = () => {
   const navigate = useNavigate();
 
   const handleRunInSandbox = () => {
-    // As per requirements: "For now simply navigate to the Chat endpoint"
-    navigate('/chat');
+    navigate('/create-agent/sandbox');
   };
 
   const handleDeploy = () => {

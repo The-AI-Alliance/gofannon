@@ -11,12 +11,14 @@ import os
 from pathlib import Path
 import asyncio
 import litellm
+import traceback
 
 from services.mcp_client_service import McpClientService, get_mcp_client_service
 
 # Import the shared provider configuration
 from config.provider_config import PROVIDER_CONFIG as APP_PROVIDER_CONFIG
-from models.agent import GenerateCodeRequest, GenerateCodeResponse
+from models.agent import GenerateCodeRequest, GenerateCodeResponse, RunCodeRequest, RunCodeResponse
+from agent_factory.remote_mcp_client import RemoteMCPClient
 
 app = FastAPI()
 
@@ -308,3 +310,42 @@ async def generate_agent_code(request: GenerateCodeRequest):
     from agent_factory import generate_agent_code as generate_code_function
     code = await generate_code_function(request)
     return code
+
+
+@app.post("/agents/run-code", response_model=RunCodeResponse)
+async def run_agent_code(request: RunCodeRequest):
+    """
+    Executes agent code in a sandboxed environment.
+    """
+    try:
+        # Prepare the execution scope. The code string will handle its own imports.
+        # We pass necessary modules/classes in globals for the `exec` context.
+        exec_globals = {
+            "RemoteMCPClient": RemoteMCPClient,
+            "litellm": litellm,
+            "asyncio": asyncio,
+            "__builtins__": __builtins__
+        }
+        
+        local_scope = {}
+        
+        # The user's code is a string that defines `async def run(...)`
+        # We execute it to define the function within our local_scope.
+        code_obj = compile(request.code, '<string>', 'exec')
+        exec(code_obj, exec_globals, local_scope)
+
+        run_function = local_scope.get('run')
+
+        if not run_function or not asyncio.iscoroutinefunction(run_function):
+            raise ValueError("Code did not define an 'async def run(input, tools)' function.")
+
+        # Call the async function with the provided input and tools
+        result = await run_function(input_dict=request.input_dict, tools=request.tools)
+        
+        return RunCodeResponse(result=result)
+        
+    except Exception as e:
+        error_str = f"{type(e).__name__}: {e}"
+        tb_str = traceback.format_exc()
+        print(f"Error running agent code: {tb_str}")
+        return JSONResponse(status_code=400, content={"result": None, "error": f"{error_str}\n\n{tb_str}"})

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 from .chat import ProviderConfig
 
 class GenerateCodeRequest(BaseModel):
@@ -11,8 +11,22 @@ class GenerateCodeRequest(BaseModel):
     invokable_models: Optional[List[ProviderConfig]] = Field(None, alias="invokableModels")
 
     class ConfigDict:
-        validate_by_name = True
+        # validate_by_name = True
+        populate_by_name = True
         
 class GenerateCodeResponse(BaseModel):
     code: str
+
+class RunCodeRequest(BaseModel):
+    code: str
+    input_dict: Dict[str, Any] = Field(..., alias="inputDict")
+    tools: Dict[str, List[str]]
+
+    class ConfigDict:
+        populate_by_name = True
+
+class RunCodeResponse(BaseModel):
+    result: Optional[Any] = None
+    error: Optional[str] = None
+
 

@@ -28,6 +28,35 @@ class AgentService {
       throw error;
     }
   }
+
+  async runCodeInSandbox(code, inputDict, tools) {
+    console.log('[AgentService] Running code in sandbox with input:', inputDict);
+    const requestBody = {
+      code,
+      inputDict, // This will be correctly serialized as `inputDict`
+      tools,
+    };
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/agents/run-code`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to run code in sandbox.');
+      }
+      return data; // returns { result: ..., error: ... }
+    } catch (error) {
+      console.error('[AgentService] Error running code in sandbox:', error);
+      throw error;
+    }
+  }
 }
 
 export default new AgentService();
