@@ -1,44 +1,42 @@
 how_to_use_tools = """
-    Consider the tool docs above. Presume there is a dictionary of object called `mcpc` where each key is the MCP URL and the value is an object with methods corresponding to the tools.
-    Each item in the dictionary is an instance of a class that has a method `call`- here is the docstring for `async def call(self, tool_name: str, **params: Any) -> Any:`:
-        Calls a specific tool exposed by the remote MCP server.
+# How to Call Tools
 
-        This method sends a request to the server to execute a function 
-        (a "tool") by its registered name, passing the required arguments.
+You are provided with a pre-initialized dictionary of clients called `mcpc`.
+- The keys of `mcpc` are the MCP server URLs (e.g., 'http://example.com/mcp').
+- The values are client objects used to call tools on that server.
 
-        :param tool_name: 
-            The **name** of the tool (function) as listed by `list_tools()`. 
-            (e.g., 'query_database', 'add_item', 'calculate_tax').
-        :param params: 
-            Keyword arguments (key=value) corresponding to the tool's expected 
-            input parameters as defined in its schema/docstring.
-            
-            - **Required arguments** must be provided.
-            - **Optional arguments** can be omitted.
-            
-            The type and name of the parameters must match the tool's definition 
-            (e.g., if a tool expects `count: int`, you must pass `count=5`).
+**ALL tool calls are asynchronous and MUST use the `await` keyword.**
 
-        :raises ValueError: 
-            If the `tool_name` is not found on the server, or if arguments 
-            are missing/invalid (though the server handles deep validation).
-        
-        :return: 
-            The result returned from the remote tool execution. This is typically
-            a Python dictionary, list, string, or number, depending on what the 
-            server-side tool function returns.
-            
-        :Example:
-        >>> # Assuming the server has a tool named 'calculate_tax' defined as:
-        >>> # def calculate_tax(amount: float, rate: float) -> float: ...
-        >>> tax_result = await client.call(
-        ...     tool_name="calculate_tax", 
-        ...     amount=100.00, 
-        ...     rate=0.07 
-        ... )
-        >>> print(tax_result) 
-        8.25 # (Example Output)
-    """
+To call a tool, you **MUST** use the `.call()` method on the appropriate client object from the `mcpc` dictionary.
+
+Here is the documentation for the `call` method:
+`async def call(self, tool_name: str, **params: Any) -> Any:`
+    Calls a specific tool exposed by the remote MCP server.
+
+    This method sends a request to the server to execute a function
+    (a "tool") by its registered name, passing the required arguments.
+
+    :param tool_name:
+        The **name** of the tool (function) as a string.
+        (e.g., 'query_database', 'add_item').
+    :param params:
+        Keyword arguments (key=value) corresponding to the tool's expected
+        input parameters.
+
+    :return:
+        The result from the remote tool. The type depends on what the tool returns.
+
+    :Example:
+    >>> # To call the 'calculate_tax' tool on the server at 'http://tax.api/mcp'
+    >>> tax_result = await mcpc['http://tax.api/mcp'].call(
+    ...     tool_name="calculate_tax",
+    ...     amount=100.00,
+    ...     rate=0.07
+    ... )
+    >>> print(tax_result)
+    7.00
+    
+"""
 
 how_to_use_litellm = """
 You also have access to the `litellm` library for making calls to other language models.

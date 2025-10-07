@@ -36,35 +36,37 @@ class RemoteMCPClient:
 
     def get_tool_doc(self, tool_name: str) -> Optional[str]:
         """
-        Retrieves a Python-like docstring for a specific tool, including
-        an example of how to call it with the MCP client.
+        Generates a markdown-formatted docstring for a specific tool.
+        This avoids creating a fake function signature which can confuse LLMs.
         """
         for tool in self._tools:
             if tool.name == tool_name:
-                params = []
+                params_md_list = []
                 schema = tool.inputSchema.get('properties', {})
                 required = tool.inputSchema.get('required', [])
                 example_args_list = []
 
                 for name, props in schema.items():
                     type_str = props.get('type', 'Any').replace('integer', 'int').replace('string', 'str')
-                    if name in required:
-                        params.append(f"{name}: {type_str}")
-                    else:
-                        params.append(f"{name}: {type_str} = ...")
+                    req_str = "required" if name in required else "optional"
+                    description = props.get('description', '')
+                    params_md_list.append(f"- `{name}` ({type_str}, {req_str}): {description}")
                     example_args_list.append(f"{name}=...")
-                
+
+                params_md = "\n".join(params_md_list)
                 example_args_str = ", ".join(example_args_list)
 
-                signature = f"def {tool_name}({', '.join(params)}) -> Any:"
-                example_call = f"await mcpc['{self.remote_url}'].call(tool_name='{tool_name}', {example_args_str})"
+                doc = f"""### Tool: `{tool_name}`
+**Description**: {tool.description}
 
-                doc = f"""{signature}
-    \"\"\"{tool.description}
+**Parameters**:
+{params_md if params_md_list else "This tool takes no parameters."}
 
-    To call this tool, use the `mcpc` client dictionary like this:
-    `result = {example_call}`
-    \"\"\""""
+**How to call**:
+You **MUST** use `await` to call this tool.
+
+result = await mcpc['{self.remote_url}'].call(tool_name='{tool_name}', {example_args_str})
+"""
                 return doc
         return None
 
@@ -92,4 +94,4 @@ class RemoteMCPClient:
                 arguments=params
             )
             print(f"[DEBUG] Tool result: {tool_result}")
-            return tool_result.data
+            return tool_result
