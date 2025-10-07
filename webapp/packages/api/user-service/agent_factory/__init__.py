@@ -1,5 +1,5 @@
 from .remote_mcp_client import RemoteMCPClient
-from .prompts import how_to_use_tools, how_to_use_litellm
+from .prompts import how_to_use_tools, how_to_use_litellm, what_to_do_prompt_template
 from litellm import acompletion
 from models.agent import GenerateCodeRequest, GenerateCodeResponse
 import json
@@ -9,14 +9,19 @@ async def generate_agent_code(request: GenerateCodeRequest):
     Generates agent code based on the provided configuration.
     """
     ## Generate MCPs and get doc strings of tools
-    mcp_clients = []
     tool_docs = ""
     if request.tools:
+        tool_docs_parts = []
         for url, selected_tools in request.tools.items():
             mcp_client = RemoteMCPClient(remote_url=url)
             tools = await mcp_client.list_tools()
-            tool_docs += f"\nmcpc[{url}]".join([mcp_client.get_tool_doc(tool.name) for tool in tools if tool.name in selected_tools])
-            mcp_clients.append(mcp_client)
+            docs_for_url = [
+                doc for tool in tools if tool.name in selected_tools 
+                and (doc := mcp_client.get_tool_doc(tool.name)) is not None
+            ]
+            if docs_for_url:
+                tool_docs_parts.append(f"## Tools from {url}\n\n" + "\n\n".join(docs_for_url))
+        tool_docs = "\n\n".join(tool_docs_parts)
     
     ## Generate docs for invokable models
     model_docs = ""
@@ -30,8 +35,10 @@ async def generate_agent_code(request: GenerateCodeRequest):
     input_schema_str = json.dumps(request.input_schema, indent=4)
     output_schema_str = json.dumps(request.output_schema, indent=4)
 
-    what_to_do =  f"You will be given instructions for a python function to create.\nThe input schema is:\n{input_schema_str}\nThe output schema is:\n{output_schema_str}\nONLY return the code as a sting (ready to be executed),not as a markdown codeblock, no explanations.\n"
-    
+    what_to_do = what_to_do_prompt_template.format(
+        input_schema=input_schema_str,
+        output_schema=output_schema_str
+    )
     
     system_prompt_parts = []
     if tool_docs:
@@ -62,5 +69,24 @@ async def generate_agent_code(request: GenerateCodeRequest):
                 **config
             )
 
-    code = response.choices[0].message.content
-    return GenerateCodeResponse(code=code.strip())
+    code_body = response.choices[0].message.content
+
+    # Clean up potential markdown formatting from the response
+    if code_body.strip().startswith("```python"):
+        code_body = code_body.strip()[len("```python"):].strip()
+    if code_body.strip().startswith("```"):
+        code_body = code_body.strip()[len("```"):].strip()
+    if code_body.strip().endswith("```"):
+        code_body = code_body.strip()[:-len("```")].strip()
+
+    header = """from gofannon.remote_mcp_client import RemoteMCPClient
+import litellm
+
+async def run(input, tools):
+   mcpc = { url : RemoteMCPClient(remote_url = url) for url in tools.keys() }"""
+    
+    indented_body = "\n".join(["   " + line for line in code_body.split('\n')])
+    
+    full_code = f"{header}\n{indented_body}"
+
+    return GenerateCodeResponse(code=full_code)

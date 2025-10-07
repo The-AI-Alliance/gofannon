@@ -1,4 +1,3 @@
-
 how_to_use_tools = """
     Consider the tool docs above. Presume there is a dictionary of object called `mcpc` where each key is the MCP URL and the value is an object with methods corresponding to the tools.
     Each item in the dictionary is an instance of a class that has a method `call`- here is the docstring for `async def call(self, tool_name: str, **params: Any) -> Any:`:
@@ -53,7 +52,7 @@ async def acompletion(model: str, messages: list, **kwargs):
 
     :param model: 
         The name of the model to call, including the provider prefix.
-        (e.g., 'gpt-4', 'openai/gpt-3.5-turbo', 'claude-3-opus', 'gemini/gemini-pro').
+        (e.g., 'openai/gpt-4', 'openai/gpt-3.5-turbo', 'claude-3-opus', 'gemini/gemini-pro').
     :param messages: 
         A list of dictionaries representing the conversation history,
         following the format: `[{"role": "user", "content": "Hello"}, ...]`.
@@ -77,4 +76,36 @@ async def acompletion(model: str, messages: list, **kwargs):
     >>> print(summary)
     "This is a summary." # (Example Output)
     '''
+"""
+
+what_to_do_prompt_template = """
+You are tasked with writing the body of an asynchronous Python function with the signature `async def run(input_dict: dict, tools: dict) -> dict:`.
+
+This function will receive:
+- `input_dict`: A dictionary conforming to the following input schema.
+- `tools`: A dictionary of tool configurations.
+
+A dictionary of MCP clients named `mcpc` is already initialized for you like this:
+`mcpc = {{ url : RemoteMCPClient(remote_url = url) for url in tools.keys() }}`
+You can use it to call tools as described in the documentation.
+
+**Input Schema:**
+```json
+{input_schema}
+```
+
+**Output Schema:**
+The function **MUST** return a dictionary that conforms to the following output schema.
+```json
+{output_schema}
+```
+
+**Instructions:**
+Your task is to implement the logic for this function based on the user's request.
+ONLY return the Python code for the function body.
+- Do NOT include the `async def run(...)` function signature.
+- Do NOT include any imports.
+- Do NOT wrap the code in Markdown backticks (```).
+- Do NOT add any explanations or surrounding text.
+- Your code will be executed inside an `async` function, so you can and should use `await` for async calls.
 """

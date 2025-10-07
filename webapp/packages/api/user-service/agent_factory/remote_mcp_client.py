@@ -1,8 +1,8 @@
 import asyncio
 from typing import Any, Dict, List, Optional
 from fastmcp import Client
-from fastmcp.tools.tool import Tool  # Import the Tool model for type hinting
-from fastmcp.client.auth import BearerAuth  # For authentication
+from fastmcp.tools.tool import Tool
+from fastmcp.client.auth import BearerAuth
 
 class RemoteMCPClient:
     """
@@ -16,7 +16,7 @@ class RemoteMCPClient:
         Initializes the client.
         """
         self.remote_url = remote_url
-        self.auth: Optional[Auth] = BearerTokenAuth(token=auth_token) if auth_token else None
+        self.auth: Optional[BearerAuth] = BearerAuth(token=auth_token) if auth_token else None
         self.mcp_client = Client(self.remote_url, auth=self.auth)
         self._tools: List[Tool] = []
 
@@ -36,13 +36,15 @@ class RemoteMCPClient:
 
     def get_tool_doc(self, tool_name: str) -> Optional[str]:
         """
-        Retrieves a Python-like docstring for a specific tool.
+        Retrieves a Python-like docstring for a specific tool, including
+        an example of how to call it with the MCP client.
         """
         for tool in self._tools:
             if tool.name == tool_name:
                 params = []
                 schema = tool.inputSchema.get('properties', {})
                 required = tool.inputSchema.get('required', [])
+                example_args_list = []
 
                 for name, props in schema.items():
                     type_str = props.get('type', 'Any').replace('integer', 'int').replace('string', 'str')
@@ -50,31 +52,37 @@ class RemoteMCPClient:
                         params.append(f"{name}: {type_str}")
                     else:
                         params.append(f"{name}: {type_str} = ...")
+                    example_args_list.append(f"{name}=...")
+                
+                example_args_str = ", ".join(example_args_list)
 
                 signature = f"def {tool_name}({', '.join(params)}) -> Any:"
-                return f"{signature}\n    \"\"\"{tool.description}\"\"\""
+                example_call = f"await mcpc['{self.remote_url}'].call(tool_name='{tool_name}', {example_args_str})"
+
+                doc = f"""{signature}
+    \"\"\"{tool.description}
+
+    To call this tool, use the `mcpc` client dictionary like this:
+    `result = {example_call}`
+    \"\"\""""
+                return doc
         return None
 
     async def call(self, tool_name: str, **params: Any) -> Any:
         """
         Calls a specific tool on the remote server using 'await'.
+        If the tool list has not been fetched yet, it will be fetched on the first call.
 
         :param tool_name: The name of the tool to call.
         :param params: Keyword arguments.
         :return: The result returned from the remote tool execution.
         :raises ValueError: If the tool is not found.
         """
-        if tool_name not in [tool.name for tool in self._tools]:
-             if not self._tools:
-                # Call the async list_tools function synchronously for the check
-                # Note: We must use the recommended nest_asyncio approach here as well
-                loop = asyncio.get_event_loop()
-                loop.run_until_complete(self.list_tools())
+        if not self._tools:
+            await self.list_tools()
 
-                if tool_name not in [tool.name for tool in self._tools]:
-                    raise ValueError(f"Tool '{tool_name}' not found on the server.")
-             else:
-                raise ValueError(f"Tool '{tool_name}' not found on the server.")
+        if tool_name not in [tool.name for tool in self._tools]:
+            raise ValueError(f"Tool '{tool_name}' not found on the server.")
 
         print(f"Calling tool '{tool_name}' with args: {params}")
 
