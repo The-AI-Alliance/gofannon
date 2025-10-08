@@ -11,10 +11,14 @@ import os
 from pathlib import Path
 import asyncio
 import litellm
+import traceback
 
 from services.mcp_client_service import McpClientService, get_mcp_client_service
+
 # Import the shared provider configuration
 from config.provider_config import PROVIDER_CONFIG as APP_PROVIDER_CONFIG
+from models.agent import GenerateCodeRequest, GenerateCodeResponse, RunCodeRequest, RunCodeResponse
+from agent_factory.remote_mcp_client import RemoteMCPClient
 
 app = FastAPI()
 
@@ -179,6 +183,16 @@ async def process_chat(ticket_id: str, request: ChatRequest):
         })
         _save_ticket_stub(ticket_id, ticket_data)
 
+# Helper function to filter providers based on environment variables
+def get_available_providers():
+    available_providers = {}
+    for provider, config in APP_PROVIDER_CONFIG.items():
+        api_key_env_var = config.get("api_key_env_var")
+        # Include provider if api_key_env_var is not specified, or if it is specified and the env var is set.
+        if not api_key_env_var or os.getenv(api_key_env_var):
+            available_providers[provider] = config
+    return available_providers
+
 # Routes
 @app.get("/")
 def read_root():
@@ -187,30 +201,33 @@ def read_root():
 @app.get("/providers")
 def get_providers():
     """Get all available providers and their configurations"""
-    return APP_PROVIDER_CONFIG
+    return get_available_providers()
 
 @app.get("/providers/{provider}")
-def get_provider_config_route(provider: str): # Renamed to avoid name collision with APP_PROVIDER_CONFIG
+def get_provider_config_route(provider: str):
     """Get configuration for a specific provider"""
-    if provider not in APP_PROVIDER_CONFIG:
-        raise HTTPException(status_code=404, detail="Provider not found")
-    return APP_PROVIDER_CONFIG[provider]
+    available_providers = get_available_providers()
+    if provider not in available_providers:
+        raise HTTPException(status_code=404, detail="Provider not found or not configured")
+    return available_providers[provider]
 
 @app.get("/providers/{provider}/models")
 def get_provider_models(provider: str):
     """Get available models for a provider"""
-    if provider not in APP_PROVIDER_CONFIG:
-        raise HTTPException(status_code=404, detail="Provider not found")
-    return list(APP_PROVIDER_CONFIG[provider]["models"].keys())
+    available_providers = get_available_providers()
+    if provider not in available_providers:
+        raise HTTPException(status_code=404, detail="Provider not found or not configured")
+    return list(available_providers[provider]["models"].keys())
 
 @app.get("/providers/{provider}/models/{model}")
 def get_model_config(provider: str, model: str):
     """Get configuration for a specific model"""
-    if provider not in APP_PROVIDER_CONFIG:
-        raise HTTPException(status_code=404, detail="Provider not found")
-    if model not in APP_PROVIDER_CONFIG[provider]["models"]:
+    available_providers = get_available_providers()
+    if provider not in available_providers:
+        raise HTTPException(status_code=404, detail="Provider not found or not configured")
+    if model not in available_providers[provider]["models"]:
         raise HTTPException(status_code=404, detail="Model not found")
-    return APP_PROVIDER_CONFIG[provider]["models"][model]
+    return available_providers[provider]["models"][model]
 
 @app.post("/chat")
 async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
@@ -284,3 +301,51 @@ async def list_mcp_tools(
     print(f"Received request to list tools for MCP server: {request.mcp_url}")
     tools = await mcp_service.list_tools_for_server(request.mcp_url, request.auth_token)
     return {"mcp_url": request.mcp_url, "tools": tools}
+
+@app.post("/agents/generate-code", response_model=GenerateCodeResponse)
+async def generate_agent_code(request: GenerateCodeRequest):
+    """
+    Generates agent code based on the provided configuration.
+    """
+    from agent_factory import generate_agent_code as generate_code_function
+    code = await generate_code_function(request)
+    return code
+
+
+@app.post("/agents/run-code", response_model=RunCodeResponse)
+async def run_agent_code(request: RunCodeRequest):
+    """
+    Executes agent code in a sandboxed environment.
+    """
+    try:
+        # Prepare the execution scope. The code string will handle its own imports.
+        # We pass necessary modules/classes in globals for the `exec` context.
+        exec_globals = {
+            "RemoteMCPClient": RemoteMCPClient,
+            "litellm": litellm,
+            "asyncio": asyncio,
+            "__builtins__": __builtins__
+        }
+        
+        local_scope = {}
+        
+        # The user's code is a string that defines `async def run(...)`
+        # We execute it to define the function within our local_scope.
+        code_obj = compile(request.code, '<string>', 'exec')
+        exec(code_obj, exec_globals, local_scope)
+
+        run_function = local_scope.get('run')
+
+        if not run_function or not asyncio.iscoroutinefunction(run_function):
+            raise ValueError("Code did not define an 'async def run(input, tools)' function.")
+
+        # Call the async function with the provided input and tools
+        result = await run_function(input_dict=request.input_dict, tools=request.tools)
+        
+        return RunCodeResponse(result=result)
+        
+    except Exception as e:
+        error_str = f"{type(e).__name__}: {e}"
+        tb_str = traceback.format_exc()
+        print(f"Error running agent code: {tb_str}")
+        return JSONResponse(status_code=400, content={"result": None, "error": f"{error_str}\n\n{tb_str}"})

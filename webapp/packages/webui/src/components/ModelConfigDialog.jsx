@@ -22,6 +22,7 @@ import {
 const ModelConfigDialog = ({
   open,
   onClose,
+  onSave,
   title,
   providers,
   selectedProvider,
@@ -103,6 +104,23 @@ const ModelConfigDialog = ({
       );
     }
 
+    if (paramConfig.type === 'choice') {
+      return (
+        <FormControl fullWidth key={paramName} sx={{ mb: 2 }}>
+          <InputLabel>{paramConfig.description || paramName}</InputLabel>
+          <Select
+            value={controlledValue}
+            label={paramConfig.description || paramName}
+            onChange={(e) => handleParamChange(paramName, e.target.value)}
+          >
+            {paramConfig.choices.map((choice, index) => (
+              <MenuItem key={index} value={index}>{choice}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      );
+    }
+
     return (
       <TextField
         key={paramName}
@@ -179,7 +197,12 @@ const ModelConfigDialog = ({
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={onClose}>{onSave ? 'Cancel' : 'Close'}</Button>
+        {onSave && (
+          <Button onClick={onSave} variant="contained" disabled={!selectedProvider || !selectedModel}>
+            Save
+          </Button>
+        )}
       </DialogActions>
     </Dialog>
   );
@@ -204,6 +227,7 @@ ModelConfigDialog.propTypes = {
 
 ModelConfigDialog.defaultProps = {
   providersError: null,
+  onSave: null,
 };
 
 export default ModelConfigDialog;

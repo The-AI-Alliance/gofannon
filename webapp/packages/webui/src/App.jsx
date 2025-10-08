@@ -1,5 +1,6 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import config from './config';
 import { AuthContext } from './contexts/AuthContext';
 import { AgentCreationFlowProvider } from './pages/AgentCreationFlow/AgentCreationFlowContext'; // Import AgentCreationFlowProvider
 import Layout from './components/Layout';
@@ -28,6 +29,9 @@ function PrivateRoute({ children }) {
 }
 
 function App() {
+  useEffect(() => {
+    document.title = config?.app?.name || 'Gofannon: Web UI';
+  }, []);  
   return (
     <Router>
       <Routes>

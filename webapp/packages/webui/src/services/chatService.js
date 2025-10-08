@@ -9,7 +9,9 @@ class ChatService {
 
   getOrCreateSessionId() {
     let sessionId = sessionStorage.getItem('chat_session_id');
+    console.log("Retrieved chat session_id from sessionStorage:", sessionId);
     if (!sessionId) {
+      console.log("No existing chat session_id found. Generating new one.");
       sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       sessionStorage.setItem('chat_session_id', sessionId);
     }
@@ -22,7 +24,8 @@ class ChatService {
     // For now, we return the locally generated session_id.
     // If backend session persistence is desired for /chat, the backend route needs to be updated.
     this.sessionId = this.getOrCreateSessionId();
-    return { session_id: this.sessionId };
+    console.log("Using chat sessionId:", this.sessionId);
+    return { sessionId: this.sessionId };
   }
 
   async getProviders() {

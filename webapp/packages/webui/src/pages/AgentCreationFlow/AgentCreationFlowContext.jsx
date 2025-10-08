@@ -17,6 +17,7 @@ export const AgentCreationFlowProvider = ({ children }) => {
     const [inputSchema, setInputSchema] = useState({ inputText: "string" }); // Default JSON structure
     const [outputSchema, setOutputSchema] = useState({ outputText: "string" }); // Default JSON structure
     const [generatedCode, setGeneratedCode] = useState('');
+    const [invokableModels, setInvokableModels] = useState([]);
 
     const value = {
         tools,
@@ -29,6 +30,8 @@ export const AgentCreationFlowProvider = ({ children }) => {
         setOutputSchema,
         generatedCode,
         setGeneratedCode,
+        invokableModels,
+        setInvokableModels,
     };
 
     return (

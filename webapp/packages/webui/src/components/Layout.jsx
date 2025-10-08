@@ -11,9 +11,11 @@ import {
   Button,
 } from '@mui/material';
 import ChatIcon from '@mui/icons-material/Chat';
+import config from '../config';
 
 const Layout = ({ children }) => {
   const navigate = useNavigate();
+  const appName = config?.app?.name || 'Gofannon WebApp';
 
   return (
     <Box sx={{ display: 'flex' }}>
@@ -24,7 +26,7 @@ const Layout = ({ children }) => {
       >
         <Toolbar>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            Gofannon WebApp
+            {appName}
           </Typography>
           <Button 
             color="inherit" 

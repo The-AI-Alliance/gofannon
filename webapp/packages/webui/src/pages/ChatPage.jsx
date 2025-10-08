@@ -21,7 +21,7 @@ import {
   SmartToy as BotIcon,
 } from '@mui/icons-material';
 import chatService from '../services/chatService';
-import ModelConfigDialog from '../components/ModelConfigDialog'; // New component import
+import ModelConfigDialog from '../components/ModelConfigDialog';
 
 const ChatPage = () => {
   const [messages, setMessages] = useState([]);
@@ -29,13 +29,17 @@ const ChatPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [sessionId, setSessionId] = useState(null);
-  const [chatModelConfig, setChatModelConfig] = useState({
-    provider: '',
-    model: '',
-    parameters: {},
-  });
-  const [isModelConfigOpen, setIsModelConfigOpen] = useState(false);
   const messagesEndRef = useRef(null);
+
+  // State for Model Configuration
+  const [isModelConfigOpen, setIsModelConfigOpen] = useState(false);
+  const [providers, setProviders] = useState({});
+  const [selectedProvider, setSelectedProvider] = useState('');
+  const [selectedModel, setSelectedModel] = useState('');
+  const [modelParamSchema, setModelParamSchema] = useState({});
+  const [currentModelParams, setCurrentModelParams] = useState({});
+  const [loadingProviders, setLoadingProviders] = useState(true);
+  const [providersError, setProvidersError] = useState(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -46,19 +50,55 @@ const ChatPage = () => {
   }, [messages]);
 
   useEffect(() => {
-    // Initial setup: just get session ID. Model config will be handled by the dialog.
-    const session = chatService.createSession(); // This just returns a local session ID for now
-    setSessionId(session.session_id);
+    // Correctly initialize session ID from the service instance.
+    setSessionId(chatService.sessionId);
   }, []);
 
-  // Function passed to ModelConfigDialog to update the chatModelConfig state
-  const handleModelConfigSave = (newConfig) => {
-    setChatModelConfig(newConfig);
-    setIsModelConfigOpen(false); // Close the dialog after saving
-  };
+  // Fetch providers on component mount
+  useEffect(() => {
+    const fetchProviders = async () => {
+      setLoadingProviders(true);
+      setProvidersError(null);
+      try {
+        const providersData = await chatService.getProviders();
+        setProviders(providersData);
+  
+        // Find first provider with a model and set it as default
+        const providerKeys = Object.keys(providersData);
+        let defaultProviderSet = false;
+        for (const provider of providerKeys) {
+          const models = Object.keys(providersData[provider].models || {});
+          if (models.length > 0) {
+            setSelectedProvider(provider);
+            const defaultModel = models[0];
+            setSelectedModel(defaultModel);
+            const modelParams = providersData[provider].models[defaultModel].parameters;
+            setModelParamSchema(modelParams);
+  
+            const defaultParams = {};
+            Object.keys(modelParams).forEach(key => {
+              defaultParams[key] = modelParams[key].default;
+            });
+            setCurrentModelParams(defaultParams);
+            defaultProviderSet = true;
+            break; // exit after finding the first valid provider/model
+          }
+        }
+        if (!defaultProviderSet) {
+           setProvidersError('No available models found across all providers.');
+        }
+      } catch (err) {
+        setProvidersError('Failed to fetch AI providers: ' + err.message);
+        console.error("Error fetching providers for chat:", err);
+      } finally {
+        setLoadingProviders(false);
+      }
+    };
+    fetchProviders();
+  }, []);
 
   const handleSend = async () => {
-    if (!input.trim() || !sessionId || !chatModelConfig.provider || !chatModelConfig.model) return;
+    if (!input.trim() || !sessionId || !selectedProvider || !selectedModel) return;
 
     const userMessage = {
       role: 'user',
@@ -81,9 +121,9 @@ const ChatPage = () => {
       const response = await chatService.sendMessage(
         messagesForBackend,
         {
-          provider: chatModelConfig.provider,
-          model: chatModelConfig.model,
-          config: chatModelConfig.parameters,
+          provider: selectedProvider,
+          model: selectedModel,
+          config: currentModelParams,
         }
       );
 
@@ -109,7 +149,7 @@ const ChatPage = () => {
     }
   };
 
-  const isChatReady = !loading && sessionId && chatModelConfig.provider && chatModelConfig.model;
+  const isChatReady = !loading && sessionId && selectedProvider && selectedModel;
 
   return (
     <Container maxWidth="md">
@@ -118,12 +158,16 @@ const ChatPage = () => {
           <Typography variant="h5" sx={{ flexGrow: 1 }}>
             AI Chat
           </Typography>
-          <Chip
-            label={`${chatModelConfig.provider}${chatModelConfig.model ? '/' + chatModelConfig.model : ''}`}
-            color="primary"
-            variant="outlined"
-            sx={{ mr: 2 }}
-          />
+          {loadingProviders ? (
+            <CircularProgress size={24} />
+          ) : selectedModel ? (
+            <Chip
+              label={`${selectedProvider}/${selectedModel}`}
+              color="primary"
+              variant="outlined"
+              sx={{ mr: 2 }}
+            />
+          ) : null}
           <IconButton onClick={() => setIsModelConfigOpen(true)}>
             <SettingsIcon />
           </IconButton>
@@ -187,25 +231,33 @@ const ChatPage = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            disabled={!isChatReady}
+            disabled={!isChatReady || loadingProviders}
           />
           <IconButton
             color="primary"
             onClick={handleSend}
-            disabled={!isChatReady || !input.trim()}
+            disabled={!isChatReady || !input.trim() || loadingProviders}
           >
             <SendIcon />
           </IconButton>
         </Box>
       </Paper>
 
-      {/* Model Configuration Dialog */}
       <ModelConfigDialog
         open={isModelConfigOpen}
         onClose={() => setIsModelConfigOpen(false)}
         title="Chat Model Configuration"
-        initialConfig={chatModelConfig}
-        onSave={handleModelConfigSave}
+        providers={providers}
+        selectedProvider={selectedProvider}
+        setSelectedProvider={setSelectedProvider}
+        selectedModel={selectedModel}
+        setSelectedModel={setSelectedModel}
+        modelParamSchema={modelParamSchema}
+        setModelParamSchema={setModelParamSchema}
+        currentModelParams={currentModelParams}
+        setCurrentModelParams={setCurrentModelParams}
+        loadingProviders={loadingProviders}
+        providersError={providersError}
       />
     </Container>
   );

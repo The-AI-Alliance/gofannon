@@ -8,18 +8,25 @@ import {
   Grid,
   Divider,
   Alert,
+  List,
+  ListItem,
+  ListItemText,
+  IconButton,
   Chip,
   CircularProgress
 } from '@mui/material';
 import CodeIcon from '@mui/icons-material/Code';
 import EditIcon from '@mui/icons-material/Edit';
-import SettingsIcon from '@mui/icons-material/Settings'; // Import SettingsIcon
+import SettingsIcon from '@mui/icons-material/Settings'; 
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { useAgentFlow } from './AgentCreationFlowContext';
 import chatService from '../../services/chatService'; // Re-use chatService to fetch providers
+import agentService from '../../services/agentService'; // Import the new agent service
 import ModelConfigDialog from '../../components/ModelConfigDialog'; // Import the new component
 
 const SchemasScreen = () => {
-  const { tools, description, inputSchema, outputSchema, setGeneratedCode } = useAgentFlow();
+  const { tools, description, inputSchema, outputSchema, setGeneratedCode, invokableModels, setInvokableModels } = useAgentFlow();
   const navigate = useNavigate();
 
   // State for Model Configuration
@@ -31,6 +38,18 @@ const SchemasScreen = () => {
   const [currentModelParams, setCurrentModelParams] = useState({});
   const [loadingProviders, setLoadingProviders] = useState(true);
   const [providersError, setProvidersError] = useState(null);
+
+  // State for build process
+  const [isBuilding, setIsBuilding] = useState(false);
+  const [buildError, setBuildError] = useState(null);
+
+  
+  // State for the invokable models dialog
+  const [invokableModelDialogOpen, setInvokableModelDialogOpen] = useState(false);
+  const [currentInvokableProvider, setCurrentInvokableProvider] = useState('');
+  const [currentInvokableModel, setCurrentInvokableModel] = useState('');
+  const [currentInvokableSchema, setCurrentInvokableSchema] = useState({});
+  const [currentInvokableParams, setCurrentInvokableParams] = useState({});
 
   // Fetch providers on component mount
   useEffect(() => {
@@ -76,73 +95,59 @@ const SchemasScreen = () => {
     fetchProviders();
   }, []);
 
-  const mockBackendCallAndGenerateCode = (agentModelConfig) => {
-    // Extract model configuration for the generated code
-    const { provider, model, parameters } = agentModelConfig;
-
-    const mockPythonCode = `
-import json
-
-def agent_handler(input_data):
-    """
-    This is a mock agent handler.
-    It receives input_data as a JSON string and returns an output_data JSON string.
-    
-    Agent Description: ${description || "No description provided."}
-
-    Tools: ${
-      Object.entries(tools)
-        .filter(([, selectedTools]) => selectedTools.length > 0)
-        .map(([url, selectedTools]) => 
-          `${url} (using: ${selectedTools.join(', ')})`
-        )
-        .join('\n      ')
-      || "No tools defined."
-    }
-
-    Input Schema:\n    ${JSON.stringify(inputSchema, null, 2)}
-
-    Output Schema:\n    ${JSON.stringify(outputSchema, null, 2)}
-
-    Model for Code Generation:
-      Provider: ${provider || 'N/A'}
-      Model: ${model || 'N/A'}
-      Parameters: ${JSON.stringify(parameters, null, 2)}
-    """
-    
-    # Parse the input JSON
-    input_obj = json.loads(input_data)
-    
-    # Process the input - for now, just echo and add a greeting
-    output_obj = {
-        "outputText": f"Hello from your agent! You said: '{input_obj.get('inputText', '')}'"
-    }
-    
-    # Return the output as a JSON string
-    return json.dumps(output_obj)
-
-if __name__ == "__main__":
-    # Example usage for testing
-    test_input = json.dumps({"inputText": "What is the weather like today?"})
-    result = agent_handler(test_input)
-    print(f"Agent Output: {result}")
-`;
-    setGeneratedCode(mockPythonCode);
-  };
-
-  const handleBuild = () => {
+  const handleBuild = async () => {
     if (!selectedProvider || !selectedModel) {
       setProvidersError('Please select a model for code generation.');
       return;
     }
-    mockBackendCallAndGenerateCode({
-      provider: selectedProvider,
-      model: selectedModel,
-      parameters: currentModelParams,
-    });
-    navigate('/create-agent/code');
+    setBuildError(null);
+    setIsBuilding(true);
+
+    const agentConfig = {
+      tools,
+      description,
+      inputSchema,
+      outputSchema,
+      invokableModels,
+      modelConfig: {
+        provider: selectedProvider,
+        model: selectedModel,
+        parameters: currentModelParams,
+      },
+    };
+
+    try {
+      const response = await agentService.generateCode(agentConfig);
+      setGeneratedCode(response.code);
+      navigate('/create-agent/code');
+    } catch (err) {
+      setBuildError(err.message || 'An unexpected error occurred while building the agent.');
+    } finally {
+      setIsBuilding(false);
+    }
   };
 
+  const handleAddInvokableModel = () => {
+    const newModel = {
+        provider: currentInvokableProvider,
+        model: currentInvokableModel,
+        parameters: currentInvokableParams,
+    };
+    setInvokableModels(prev => [...prev, newModel]);
+    setInvokableModelDialogOpen(false);
+  };
+  
+  const handleDeleteInvokableModel = (index) => {
+    setInvokableModels(invokableModels.filter((_, i) => i !== index));
+  };
+
+  const openAddModelDialog = () => {
+    // Reset to defaults before opening
+    setCurrentInvokableProvider(selectedProvider);
+    setCurrentInvokableModel(selectedModel);
+    setInvokableModelDialogOpen(true);
+  };
+  
   const isModelSelected = selectedProvider && selectedModel;
 
   return (
@@ -158,6 +163,12 @@ if __name__ == "__main__":
       {providersError && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setProvidersError(null)}>
           {providersError}
+        </Alert>
+      )}
+
+      {buildError && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setBuildError(null)}>
+          {buildError}
         </Alert>
       )}
 
@@ -192,6 +203,48 @@ if __name__ == "__main__":
 
       <Divider sx={{ my: 3 }} />
 
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Typography variant="h6">Models the Agent Can Invoke</Typography>
+        <Button
+            variant="outlined"
+            startIcon={<AddCircleOutlineIcon />}
+            onClick={openAddModelDialog}
+            disabled={loadingProviders || providersError}
+        >
+            Add Model
+        </Button>
+      </Box>
+
+      {invokableModels.length === 0 ? (
+        <Typography color="text.secondary" sx={{ mb: 3 }}>
+          No invokable models added. The agent will not be able to call other LLMs.
+        </Typography>
+      ) : (
+        <List dense sx={{ mb: 3, border: '1px solid #ddd', borderRadius: 1, maxHeight: 200, overflow: 'auto' }}>
+          {invokableModels.map((model, index) => (
+            <ListItem
+              key={index}
+              secondaryAction={
+                <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteInvokableModel(index)}>
+                  <DeleteIcon />
+                </IconButton>
+              }
+            >
+              <ListItemText
+                primary={`${model.provider}/${model.model}`}
+                secondary={
+                  Object.keys(model.parameters).length > 0
+                    ? `Params: ${Object.keys(model.parameters).join(', ')}`
+                    : 'Default parameters'
+                }
+              />
+            </ListItem>
+          ))}
+        </List>
+      )}
+
+      <Divider sx={{ my: 3 }} />
+
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
         <Typography variant="h6">Model for Code Generation</Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -222,11 +275,29 @@ if __name__ == "__main__":
         color="primary"
         onClick={handleBuild}
         fullWidth
-        startIcon={<CodeIcon />}
-        disabled={!isModelSelected}
+        startIcon={isBuilding ? <CircularProgress size={20} color="inherit" /> : <CodeIcon />}
+        disabled={!isModelSelected || isBuilding}
       >
-        Build Agent Code
+        {isBuilding ? 'Building...' : 'Build Agent Code'}
       </Button>
+
+      <ModelConfigDialog
+        open={invokableModelDialogOpen}
+        onClose={() => setInvokableModelDialogOpen(false)}
+        onSave={handleAddInvokableModel}
+        title="Add an Invokable Model for the Agent"
+        providers={providers}
+        selectedProvider={currentInvokableProvider}
+        setSelectedProvider={setCurrentInvokableProvider}
+        selectedModel={currentInvokableModel}
+        setSelectedModel={setCurrentInvokableModel}
+        modelParamSchema={currentInvokableSchema}
+        setModelParamSchema={setCurrentInvokableSchema}
+        currentModelParams={currentInvokableParams}
+        setCurrentModelParams={setCurrentInvokableParams}
+        loadingProviders={loadingProviders}
+        providersError={providersError}
+      />
 
       <ModelConfigDialog
         open={modelConfigDialogOpen}

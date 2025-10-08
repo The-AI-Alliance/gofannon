@@ -1,22 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Typography, Button, Paper, TextField, Stack } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
+import SaveIcon from '@mui/icons-material/Save';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PublishIcon from '@mui/icons-material/Publish';
 import { useAgentFlow } from './AgentCreationFlowContext';
 
 const CodeEditorScreen = () => {
-  const { generatedCode } = useAgentFlow();
+  const { generatedCode, setGeneratedCode } = useAgentFlow();
   const navigate = useNavigate();
+  const [isEditing, setIsEditing] = useState(false);
 
   const handleRunInSandbox = () => {
-    // As per requirements: "For now simply navigate to the Chat endpoint"
-    navigate('/chat');
+    navigate('/create-agent/sandbox');
   };
 
   const handleDeploy = () => {
     navigate('/create-agent/deploy');
+  };
+
+  const handleToggleEdit = () => {
+    setIsEditing(prev => !prev);
   };
 
   return (
@@ -25,13 +30,15 @@ const CodeEditorScreen = () => {
         Screen 4: Agent Code
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        This is the generated Python code for your agent. (Editor disabled for POC)
+        This is the generated Python code for your agent. You can edit it directly.
       </Typography>
 
       <Box sx={{ border: '1px solid #ddd', borderRadius: 1, p: 2, bgcolor: 'background.default', mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
           <Typography variant="h6">Python Code</Typography>
-          <Button size="small" startIcon={<EditIcon />} disabled>Edit</Button>
+          <Button size="small" startIcon={isEditing ? <SaveIcon /> : <EditIcon />} onClick={handleToggleEdit}>
+            {isEditing ? 'Save' : 'Edit'}
+          </Button>
         </Box>
         <TextField
           fullWidth
@@ -39,13 +46,14 @@ const CodeEditorScreen = () => {
           minRows={15}
           maxRows={25}
           value={generatedCode}
+          onChange={(e) => setGeneratedCode(e.target.value)}
           InputProps={{
-            readOnly: true,
+            readOnly: !isEditing,
             style: {
               fontFamily: 'monospace',
               fontSize: '0.9rem',
-              color: 'lightcoral', // Styling for code to distinguish it
-              backgroundColor: '#1e1e1e',
+              color: isEditing ? 'inherit' : 'lightcoral', // Styling for code to distinguish it
+              backgroundColor: isEditing ? 'inherit' : '#1e1e1e',
             }
           }}
           sx={{ '& .MuiInputBase-root': { p: 1 } }}

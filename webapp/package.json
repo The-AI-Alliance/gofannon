@@ -6,9 +6,12 @@
   "scripts": {
     "dev": "pnpm --filter webui dev",
     "build": "pnpm --filter webui build",
-    "test": "pnpm -r test"
+    "test": "pnpm run test:api && pnpm run test:e2e",
+    "test:api": "cd packages/api/user-service && python -m pytest",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.45.1",
     "pnpm": "^8.0.0"
   },
   "engines": {
