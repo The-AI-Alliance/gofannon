@@ -23,4 +23,5 @@ switch (env) {
     config = localConfig;
 }
 
+config.name = "Gofannon WebApp"
 export default config;

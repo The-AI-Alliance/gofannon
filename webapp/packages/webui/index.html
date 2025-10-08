@@ -4,7 +4,12 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Gofannon: Web UI</title>
+    <title>Loading...</title> <!-- Placeholder title, will be updated by script -->
+    <script type="module">
+      // Import the configuration module
+      import appConfig from '/src/config/index.js';
+      document.title = `${appConfig.name}`;
+    </script>
   </head>
   <body>
     <div id="root"></div>
