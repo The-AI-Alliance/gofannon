@@ -14,5 +14,11 @@ class Settings:
     AWS_DEFAULT_REGION: str | None = os.getenv("AWS_DEFAULT_REGION")
     S3_BUCKET_NAME: str = os.getenv("S3_BUCKET_NAME", "local-bucket")
 
+    # Database Settings
+    DATABASE_PROVIDER: str = os.getenv("DATABASE_PROVIDER", "memory") # Default to memory if not set
+    COUCHDB_URL: str | None = os.getenv("COUCHDB_URL")
+    COUCHDB_USER: str | None = os.getenv("COUCHDB_USER")
+    COUCHDB_PASSWORD: str | None = os.getenv("COUCHDB_PASSWORD")
+
 
 settings = Settings()

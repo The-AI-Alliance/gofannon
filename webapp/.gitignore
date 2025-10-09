@@ -19,6 +19,9 @@ instance/
 # Docker
 docker-data/
 
+# CouchDB
+couchdb-data/
+
 # OS
 .DS_Store
 Thumbs.db

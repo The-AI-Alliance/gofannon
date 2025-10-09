@@ -20,6 +20,29 @@ class GenerateCodeRequest(BaseModel):
         # validate_by_name = True
         populate_by_name = True
         
+class CreateAgentRequest(BaseModel):
+    name: str
+    description: str
+    code: str
+    tools: Dict[str, List[str]]
+    swagger_specs: Optional[List[SwaggerSpec]] = Field(None, alias="swaggerSpecs")
+    input_schema: Dict[str, Any] = Field(..., alias="inputSchema")
+    output_schema: Dict[str, Any] = Field(..., alias="outputSchema")
+    invokable_models: Optional[List[ProviderConfig]] = Field(None, alias="invokableModels")
+
+    class ConfigDict:
+        populate_by_name = True
+
+class Agent(CreateAgentRequest):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), alias="_id")
+    rev: Optional[str] = Field(None, alias="_rev")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class ConfigDict:
+        populate_by_name = True
+
+        
 class GenerateCodeResponse(BaseModel):
     code: str
 
