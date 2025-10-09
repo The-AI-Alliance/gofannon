@@ -3,6 +3,8 @@ from typing import Dict, Any, List, Optional, Union
 from .chat import ProviderConfig
 from datetime import datetime
 
+import uuid
+
 
 class SwaggerSpec(BaseModel):
     name: str
@@ -27,8 +29,8 @@ class CreateAgentRequest(BaseModel):
     code: str
     tools: Dict[str, List[str]]
     swagger_specs: Optional[List[SwaggerSpec]] = Field(None, alias="swaggerSpecs")
-    input_schema: Dict[str, Any] = Field(..., alias="inputSchema")
-    output_schema: Dict[str, Any] = Field(..., alias="outputSchema")
+    input_schema: Optional[Dict[str, Any]] = Field(..., alias="inputSchema")
+    output_schema: Optional[Dict[str, Any]] = Field(..., alias="outputSchema")
     invokable_models: Optional[List[ProviderConfig]] = Field(None, alias="invokableModels")
 
     class ConfigDict:
@@ -37,8 +39,8 @@ class CreateAgentRequest(BaseModel):
 class Agent(CreateAgentRequest):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), alias="_id")
     rev: Optional[str] = Field(None, alias="_rev")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
+    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
 
     class ConfigDict:
         populate_by_name = True

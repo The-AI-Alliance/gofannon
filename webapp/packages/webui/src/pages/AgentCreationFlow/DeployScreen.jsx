@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -19,6 +20,8 @@ const DeployScreen = () => {
   const [deploymentType, setDeploymentType] = useState('');
   const [hostingPlatform, setHostingPlatform] = useState('');
 
+  const navigate = useNavigate();
+
   const handleDeploy = () => {
     // This button is disabled for POC, so this function won't be called initially.
     console.log('Deploying agent with:', { deploymentType, hostingPlatform });
@@ -26,9 +29,7 @@ const DeployScreen = () => {
   };
 
   const handleSave = () => {
-    // Placeholder for save functionality
-    console.log('Saving agent configuration:', { deploymentType, hostingPlatform });
-    // In a real scenario, this would call a service to persist the agent's full configuration.
+    navigate('/create-agent/save');
   };
 
   return (

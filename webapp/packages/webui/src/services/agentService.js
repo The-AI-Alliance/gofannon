@@ -57,7 +57,7 @@ class AgentService {
   }
 
   async saveAgent(agentData) {
-    console.log('[AgentService] Saving agent:', agentData.name);
+    console.log('[AgentService] Saving agent:', agentData);
     try {
       const response = await fetch(`${API_BASE_URL}/agents`, {
         method: 'POST',

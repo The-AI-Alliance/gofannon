@@ -228,6 +228,7 @@ def health_check():
 @app.post("/agents", response_model=Agent, status_code=201)
 async def create_agent(request: CreateAgentRequest, db: DatabaseService = Depends(get_db)):
     """Saves a new agent configuration to the database."""
+    print(f"[DEBUG] Creating agent with: {request.dict()}")
     agent = Agent(**request.dict())
     saved_doc = db.save("agents", agent.id, agent.dict(by_alias=True))
     agent.rev = saved_doc.get("rev") # Add revision from DB response
