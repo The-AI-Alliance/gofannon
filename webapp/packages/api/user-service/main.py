@@ -228,19 +228,32 @@ def health_check():
 @app.post("/agents", response_model=Agent, status_code=201)
 async def create_agent(request: CreateAgentRequest, db: DatabaseService = Depends(get_db)):
     """Saves a new agent configuration to the database."""
-    print(f"[DEBUG] Creating agent with: {request.dict()}")
-    agent = Agent(**request.dict())
-    saved_doc = db.save("agents", agent.id, agent.dict(by_alias=True))
+    # Instantiate Agent model from CreateAgentRequest data.
+    # Convert request data to a dictionary using internal field names (snake_case)
+    # for robust instantiation of the Agent model.
+    agent_data_internal_names = request.model_dump(by_alias=True)
+    agent = Agent(**agent_data_internal_names)
+
+    # Save the agent to the database.
+    # Use by_alias=True to serialize the Agent model into a dictionary
+    # with camelCase keys (e.g., inputSchema, swaggerSpecs, _id, _rev)
+    # matching the common external representation and CouchDB's _id/_rev.
+    saved_doc_data = agent.model_dump()
+    saved_doc = db.save("agents", agent.id, saved_doc_data)
+    
     agent.rev = saved_doc.get("rev") # Add revision from DB response
     return agent
 
-@app.get("/agents", response_model=List[Agent])
+@app.get("/agents", response_model=List[dict]) #List[Agent])
 async def list_agents(db: DatabaseService = Depends(get_db)):
     """Lists all saved agents."""
     # This simple query returns all documents. A more advanced implementation
     # might use views for sorting or filtering.
     all_docs = db.list_all("agents")
-    return [Agent(**doc) for doc in all_docs]
+    print(f"[DEBUG] Retrieved {len(all_docs)} agents from database.")
+    print(f"[DEBUG] Sample agent data: {all_docs[0] if all_docs else 'No agents found.'}")
+    # return [Agent(**doc) for doc in all_docs]
+    return all_docs
 
 @app.get("/agents/{agent_id}", response_model=Agent)
 async def get_agent(agent_id: str, db: DatabaseService = Depends(get_db)):

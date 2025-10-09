@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from pydantic.alias_generators import to_camel
 from typing import Dict, Any, List, Optional, Union
 from .chat import ProviderConfig
 from datetime import datetime
@@ -35,6 +36,7 @@ class CreateAgentRequest(BaseModel):
 
     class ConfigDict:
         populate_by_name = True
+        alias_generator = to_camel
 
 class Agent(CreateAgentRequest):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), alias="_id")
