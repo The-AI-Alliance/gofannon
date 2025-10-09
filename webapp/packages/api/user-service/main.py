@@ -15,6 +15,7 @@ import traceback
 import httpx
 
 from services.database_service import get_database_service, DatabaseService
+from config import settings
 from services.mcp_client_service import McpClientService, get_mcp_client_service
 
 # Import the shared provider configuration
@@ -60,7 +61,7 @@ from models.chat import ChatResponse, ProviderConfig, SessionData
 
 # Database service dependency
 def get_db() -> DatabaseService:
-    yield get_database_service()
+    yield get_database_service(settings)
 
 
 # Background task for LLM processing
