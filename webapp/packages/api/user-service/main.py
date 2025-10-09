@@ -66,7 +66,7 @@ def get_db() -> DatabaseService:
 # Background task for LLM processing
 async def process_chat(ticket_id: str, request: ChatRequest):
     # Background tasks don't have access to dependency injection, so we get a service instance directly
-    db_service = get_database_service()
+    db_service = get_database_service(settings)
     try:
         # Update ticket status
         ticket_data = {
@@ -131,6 +131,7 @@ def read_root():
 @app.get("/providers")
 def get_providers():
     """Get all available providers and their configurations"""
+    print("[DEBUG] Fetching available providers")
     return get_available_providers()
 
 @app.get("/providers/{provider}")
@@ -173,7 +174,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     )
 
 @app.get("/chat/{ticket_id}")
-async def get_chat_status(ticket_id: str, db: DatabaseService = Depends(get_db))
+async def get_chat_status(ticket_id: str, db: DatabaseService = Depends(get_db)):
     """Get the status and result of a chat request"""
     try:
         ticket_data = db.get("tickets", ticket_id)

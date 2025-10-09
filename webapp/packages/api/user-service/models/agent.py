@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional, Union
 from .chat import ProviderConfig
+from datetime import datetime
 
 
 class SwaggerSpec(BaseModel):
@@ -19,7 +20,7 @@ class GenerateCodeRequest(BaseModel):
     class ConfigDict:
         # validate_by_name = True
         populate_by_name = True
-        
+
 class CreateAgentRequest(BaseModel):
     name: str
     description: str

@@ -3,8 +3,6 @@ from typing import Any, Dict, List
 from fastapi import HTTPException
 import couchdb
 
-from ..config import settings
-
 class DatabaseService(abc.ABC):
     """Abstract base class for a generic database service."""
 
@@ -32,7 +30,7 @@ class DatabaseService(abc.ABC):
 class CouchDBService(DatabaseService):
     """CouchDB implementation of the DatabaseService."""
 
-    def __init__(self, url: str, user: str, password: str):
+    def __init__(self, url: str, user: str, password: str, settings):
         try:
             self.server = couchdb.Server(url)
             self.server.resource.credentials = (user, password)
@@ -118,13 +116,13 @@ class MemoryDBService(DatabaseService):
 
 _db_instance = None
 
-def get_database_service() -> DatabaseService:
+def get_database_service(settings) -> DatabaseService:
     global _db_instance
     if _db_instance is None:
         if settings.DATABASE_PROVIDER == "couchdb":
             if not all([settings.COUCHDB_URL, settings.COUCHDB_USER, settings.COUCHDB_PASSWORD]):
                 raise ValueError("COUCHDB_URL, COUCHDB_USER, and COUCHDB_PASSWORD must be set for couchdb provider")
-            _db_instance = CouchDBService(settings.COUCHDB_URL, settings.COUCHDB_USER, settings.COUCHDB_PASSWORD)
+            _db_instance = CouchDBService(settings.COUCHDB_URL, settings.COUCHDB_USER, settings.COUCHDB_PASSWORD,settings)
         else:
             # Default to in-memory if not configured
             _db_instance = MemoryDBService()
