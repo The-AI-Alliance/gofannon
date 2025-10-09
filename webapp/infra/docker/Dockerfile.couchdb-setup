@@ -1,0 +1,13 @@
+# webapp/infra/docker/Dockerfile.couchdb-setup
+FROM alpine:latest
+
+# Install curl and bash for the initialization script
+RUN apk add --no-cache curl bash
+
+WORKDIR /app
+
+# Copy and make the init script executable
+COPY couchdb-init.sh .
+RUN chmod +x couchdb-init.sh
+
+# The command to run the script will be provided by docker-compose
