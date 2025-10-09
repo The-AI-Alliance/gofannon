@@ -26,7 +26,7 @@ import agentService from '../../services/agentService'; // Import the new agent 
 import ModelConfigDialog from '../../components/ModelConfigDialog'; // Import the new component
 
 const SchemasScreen = () => {
-  const { tools, description, inputSchema, outputSchema, setGeneratedCode, invokableModels, setInvokableModels } = useAgentFlow();
+  const { tools, description, swaggerSpecs,  inputSchema, outputSchema, setGeneratedCode, invokableModels, setInvokableModels } = useAgentFlow();
   const navigate = useNavigate();
 
   // State for Model Configuration
@@ -109,6 +109,7 @@ const SchemasScreen = () => {
       inputSchema,
       outputSchema,
       invokableModels,
+      swaggerSpecs,
       modelConfig: {
         provider: selectedProvider,
         model: selectedModel,

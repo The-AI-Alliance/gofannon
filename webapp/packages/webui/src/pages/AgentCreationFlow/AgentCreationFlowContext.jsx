@@ -13,6 +13,7 @@ export const useAgentFlow = () => {
 
 export const AgentCreationFlowProvider = ({ children }) => {
     const [tools, setTools] = useState({}); // { "url": [] }
+    const [swaggerSpecs, setSwaggerSpecs] = useState([]); // [{ name: string, content: string }]
     const [description, setDescription] = useState('');
     const [inputSchema, setInputSchema] = useState({ inputText: "string" }); // Default JSON structure
     const [outputSchema, setOutputSchema] = useState({ outputText: "string" }); // Default JSON structure
@@ -22,6 +23,8 @@ export const AgentCreationFlowProvider = ({ children }) => {
     const value = {
         tools,
         setTools,
+        swaggerSpecs,
+        setSwaggerSpecs,
         description,
         setDescription,
         inputSchema,

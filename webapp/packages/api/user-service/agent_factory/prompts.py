@@ -76,6 +76,42 @@ async def acompletion(model: str, messages: list, **kwargs):
     '''
 """
 
+
+how_to_use_swagger_tools = """
+# How to Call Tools from an OpenAPI/Swagger Spec
+
+You are also provided with a pre-initialized asynchronous HTTP client called `http_client` from the `httpx` library.
+You **MUST** use this client to make any HTTP requests to the APIs defined in the OpenAPI/Swagger specifications.
+
+**ALL HTTP calls are asynchronous and MUST use the `await` keyword.**
+
+Here is an example of how to use `http_client` to make a GET request:
+
+:Example:
+>>> # To call the 'getUser' operation from the 'user_api' spec
+>>> # The base URL is provided in the tool's documentation.
+>>> response = await http_client.get(
+...     "https://api.example.com/v1/users/123",
+...     headers={"Authorization": "Bearer YOUR_API_KEY"} # if needed
+... )
+>>> # ALWAYS check if the request was successful
+>>> response.raise_for_status() 
+>>> user_data = response.json()
+>>> print(user_data)
+
+To make a POST request with a JSON body:
+:Example:
+>>> new_user_data = {"name": "John Doe", "email": "john.doe@example.com"}
+>>> response = await http_client.post(
+...     "https://api.example.com/v1/users",
+...     json=new_user_data
+... )
+>>> response.raise_for_status()
+>>> created_user = response.json()
+
+Refer to the specific documentation for each tool to know the correct URL, HTTP method, and what parameters (query, path, body) are expected.
+"""
+
 what_to_do_prompt_template = """
 You are tasked with writing the body of an asynchronous Python function with the signature `async def run(input_dict: dict, tools: dict) -> dict:`.
 
@@ -107,3 +143,4 @@ ONLY return the Python code for the function body.
 - Do NOT add any explanations or surrounding text.
 - Your code will be executed inside an `async` function, so you can and should use `await` for async calls.
 """
+

@@ -8,3 +8,4 @@ google-auth
 pytest
 pytest-asyncio
 httpx
+PyYAML

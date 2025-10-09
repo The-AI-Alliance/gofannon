@@ -12,6 +12,7 @@ from pathlib import Path
 import asyncio
 import litellm
 import traceback
+import httpx
 
 from services.mcp_client_service import McpClientService, get_mcp_client_service
 
@@ -324,6 +325,7 @@ async def run_agent_code(request: RunCodeRequest):
             "RemoteMCPClient": RemoteMCPClient,
             "litellm": litellm,
             "asyncio": asyncio,
+            "http_client": httpx.AsyncClient(),
             "__builtins__": __builtins__
         }
         

@@ -4,8 +4,6 @@ const API_BASE_URL = config.api.baseUrl;
 
 class AgentService {
   async generateCode(agentConfig) {
-    console.log('[AgentService] Generating code with config:', agentConfig);
-    console.log('[AgentService] :', JSON.stringify(agentConfig))
     try {
       const response = await fetch(`${API_BASE_URL}/agents/generate-code`, {
         method: 'POST',
