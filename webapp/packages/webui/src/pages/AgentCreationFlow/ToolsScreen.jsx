@@ -78,7 +78,6 @@ const ToolsScreen = () => {
       const reader = new FileReader();
       reader.onload = (e) => {
         const content = e.target.result;
-        console.log("[DEBUG] Uploaded Swagger Spec Content (length):", content.length);
         setSwaggerSpecs(prev => [...prev, { name: file.name, content }]);
         setError(null);
       };

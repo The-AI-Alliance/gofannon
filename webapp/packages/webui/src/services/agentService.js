@@ -57,7 +57,6 @@ class AgentService {
   }
 
   async saveAgent(agentData) {
-    console.log('[AgentService] Saving agent:', agentData);
     try {
       const response = await fetch(`${API_BASE_URL}/agents`, {
         method: 'POST',
@@ -80,7 +79,6 @@ class AgentService {
   }
 
   async getAgents() {
-    console.log('[AgentService] Fetching all agents');
     try {
       const response = await fetch(`${API_BASE_URL}/agents`, {
         headers: { 'Accept': 'application/json' },
@@ -96,7 +94,6 @@ class AgentService {
   }
 
   async getAgent(agentId) {
-    console.log(`[AgentService] Fetching agent with ID: ${agentId}`);
     try {
       const response = await fetch(`${API_BASE_URL}/agents/${agentId}`, {
         headers: { 'Accept': 'application/json' },

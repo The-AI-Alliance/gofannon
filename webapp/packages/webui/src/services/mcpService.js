@@ -5,7 +5,6 @@ const API_BASE_URL = config.api.baseUrl;
 
 class McpService {
   async listTools(mcpUrl, authToken = null) {
-    console.log(`[McpService] Listing tools for MCP server: ${mcpUrl}`);
     try {
       const response = await fetch(`${API_BASE_URL}/mcp/tools`, {
         method: 'POST',
@@ -23,7 +22,6 @@ class McpService {
       }
 
       const data = await response.json();
-      console.log(`[McpService] Tools from ${mcpUrl}:`, data.tools);
       return data.tools; // Expecting an array of {name: string, description: string}
     } catch (error) {
       console.error(`[McpService] Network or unexpected error for ${mcpUrl}:`, error);

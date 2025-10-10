@@ -59,14 +59,12 @@ async def generate_agent_code(request: GenerateCodeRequest):
     if request.tools:
         system_prompt_parts.append(how_to_use_tools)
     if request.swagger_specs:
-        print("[DEBUG] Adding Swagger tools instructions to system prompt.")
         system_prompt_parts.append(how_to_use_swagger_tools)    
     if request.invokable_models:
         system_prompt_parts.append(how_to_use_litellm)
     system_prompt_parts.append(what_to_do)
     system_prompt = "\n\n".join(system_prompt_parts)  
 
-    print("[DEBUG] System Prompt:\n", system_prompt)
     model = request.composer_model_config.model
     provider = request.composer_model_config.provider
     messages = [

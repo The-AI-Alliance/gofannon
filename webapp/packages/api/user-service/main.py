@@ -132,7 +132,6 @@ def read_root():
 @app.get("/providers")
 def get_providers():
     """Get all available providers and their configurations"""
-    print("[DEBUG] Fetching available providers")
     return get_available_providers()
 
 @app.get("/providers/{provider}")
@@ -250,8 +249,6 @@ async def list_agents(db: DatabaseService = Depends(get_db)):
     # This simple query returns all documents. A more advanced implementation
     # might use views for sorting or filtering.
     all_docs = db.list_all("agents")
-    print(f"[DEBUG] Retrieved {len(all_docs)} agents from database.")
-    print(f"[DEBUG] Sample agent data: {all_docs[0] if all_docs else 'No agents found.'}")
     return [Agent(**doc) for doc in all_docs]
     # return all_docs
 
