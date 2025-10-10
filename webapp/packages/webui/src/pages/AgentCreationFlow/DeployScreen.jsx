@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -10,17 +11,25 @@ import {
   FormControlLabel,
   Radio,
   Divider,
+  Stack, // Import Stack for button layout
 } from '@mui/material';
 import PublishIcon from '@mui/icons-material/Publish';
+import SaveIcon from '@mui/icons-material/Save'; // Import SaveIcon
 
 const DeployScreen = () => {
   const [deploymentType, setDeploymentType] = useState('');
   const [hostingPlatform, setHostingPlatform] = useState('');
 
+  const navigate = useNavigate();
+
   const handleDeploy = () => {
     // This button is disabled for POC, so this function won't be called initially.
     console.log('Deploying agent with:', { deploymentType, hostingPlatform });
     // In a real scenario, this would trigger the deployment process.
+  };
+
+  const handleSave = () => {
+    navigate('/create-agent/save');
   };
 
   return (
@@ -29,7 +38,7 @@ const DeployScreen = () => {
         Deploy Your Agent
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Choose how your agent will interact and where it will be hosted.
+        Choose how your agent will interact and where it will be hosted. You can save the agent configuration now and deploy it later.
       </Typography>
 
       <FormControl component="fieldset" fullWidth sx={{ mb: 3 }}>
@@ -64,16 +73,26 @@ const DeployScreen = () => {
         </RadioGroup>
       </FormControl>
 
-      <Button
-        variant="contained"
-        color="primary"
-        startIcon={<PublishIcon />}
-        onClick={handleDeploy}
-        disabled // Disabled for POC as per requirement
-        fullWidth
-      >
-        Deploy Agent
-      </Button>
+      {/* Use Stack for button alignment */}
+      <Stack direction="row" spacing={2} justifyContent="flex-end" sx={{ mt: 3 }}>
+        <Button
+          variant="outlined"
+          color="secondary"
+          startIcon={<SaveIcon />}
+          onClick={handleSave}
+        >
+          Save Agent
+        </Button>
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<PublishIcon />}
+          onClick={handleDeploy}
+          disabled // Disabled for POC as per requirement
+        >
+          Deploy Agent
+        </Button>
+      </Stack>
     </Paper>
   );
 };

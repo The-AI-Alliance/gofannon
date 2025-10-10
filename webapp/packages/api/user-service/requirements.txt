@@ -9,3 +9,4 @@ pytest
 pytest-asyncio
 httpx
 PyYAML
+CouchDB>=1.2

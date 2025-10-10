@@ -13,6 +13,7 @@ import SchemasScreen from './pages/AgentCreationFlow/SchemasScreen';
 import CodeEditorScreen from './pages/AgentCreationFlow/CodeEditorScreen';
 import SandboxScreen from './pages/AgentCreationFlow/SandboxScreen';
 import DeployScreen from './pages/AgentCreationFlow/DeployScreen';
+import SaveAgentScreen from './pages/AgentCreationFlow/SaveAgentScreen';
 import CircularProgress from '@mui/material/CircularProgress';
 import Box from '@mui/material/Box';
 
@@ -71,6 +72,7 @@ function App() {
                     <Route path="code" element={<CodeEditorScreen />} />
                     <Route path="sandbox" element={<SandboxScreen />} />
                     <Route path="deploy" element={<DeployScreen />} />
+                    <Route path="save" element={<SaveAgentScreen />} />
                   </Routes>
                 </AgentCreationFlowProvider>
               </Layout>

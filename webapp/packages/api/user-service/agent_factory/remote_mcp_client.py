@@ -93,5 +93,4 @@ result = await mcpc['{self.remote_url}'].call(tool_name='{tool_name}', {example_
                 name=tool_name,
                 arguments=params
             )
-            print(f"[DEBUG] Tool result: {tool_result}")
             return tool_result

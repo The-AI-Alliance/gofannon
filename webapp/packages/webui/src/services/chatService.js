@@ -9,7 +9,7 @@ class ChatService {
 
   getOrCreateSessionId() {
     let sessionId = sessionStorage.getItem('chat_session_id');
-    console.log("Retrieved chat session_id from sessionStorage:", sessionId);
+    
     if (!sessionId) {
       console.log("No existing chat session_id found. Generating new one.");
       sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -117,7 +117,7 @@ class ChatService {
   clearSession() {
     sessionStorage.removeItem('chat_session_id');
     this.sessionId = this.getOrCreateSessionId();
-    console.log("Chat session cleared.");
+    
   }
 }
 

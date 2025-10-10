@@ -1,13 +1,49 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Typography, Button, Paper, Grid } from '@mui/material';
+import {
+  Box,
+  Typography,
+  Button,
+  Paper,
+  Grid,
+  CircularProgress,
+  Alert,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Divider,
+} from '@mui/material';
 import ChatIcon from '@mui/icons-material/Chat';
-import CodeIcon from '@mui/icons-material/Code'; // Import a new icon for "Create Agent"
+import CodeIcon from '@mui/icons-material/Code';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 import { useAuth } from '../contexts/AuthContext';
+import agentService from '../services/agentService';
 
 const HomePage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [agents, setAgents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchAgents = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const savedAgents = await agentService.getAgents();
+        setAgents(savedAgents);
+      } catch (err) {
+        setError('Failed to load saved agents.');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAgents();
+  }, []);
 
   return (
     <Box sx={{ flexGrow: 1, p: 3 }}>
@@ -79,6 +115,46 @@ const HomePage = () => {
             >
               Start Agent Creation
             </Button>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12}>
+          <Paper sx={{ p: 3, mt: 4 }}>
+            <Typography variant="h5" gutterBottom>
+              My Saved Agents
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            {loading && (
+              <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                <CircularProgress />
+              </Box>
+            )}
+            {error && <Alert severity="error">{error}</Alert>}
+            {!loading && !error && (
+              <List>
+                {agents.length === 0 ? (
+                  <Typography color="text.secondary">
+                    You haven't saved any agents yet. Click "Create New Agent" to get started.
+                  </Typography>
+                ) : (
+                  agents.map((agent) => (
+                    <ListItem
+                      key={agent._id}
+                      button
+                      // onClick={() => navigate(`/agent/${agent._id}`)} // Future feature
+                    >
+                      <ListItemIcon>
+                        <SmartToyIcon />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={agent.name}
+                        secondary={agent.description}
+                      />
+                    </ListItem>
+                  ))
+                )}
+              </List>
+            )}
           </Paper>
         </Grid>
       </Grid>

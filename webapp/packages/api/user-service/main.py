@@ -14,11 +14,13 @@ import litellm
 import traceback
 import httpx
 
+from services.database_service import get_database_service, DatabaseService
+from config import settings
 from services.mcp_client_service import McpClientService, get_mcp_client_service
 
 # Import the shared provider configuration
 from config.provider_config import PROVIDER_CONFIG as APP_PROVIDER_CONFIG
-from models.agent import GenerateCodeRequest, GenerateCodeResponse, RunCodeRequest, RunCodeResponse
+from models.agent import GenerateCodeRequest, GenerateCodeResponse, RunCodeRequest, RunCodeResponse, Agent, CreateAgentRequest
 from agent_factory.remote_mcp_client import RemoteMCPClient
 
 app = FastAPI()
@@ -33,14 +35,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Local storage paths
-STORAGE_PATH = Path("./local_storage")
-TICKETS_PATH = STORAGE_PATH / "tickets"
-SESSIONS_PATH = STORAGE_PATH / "sessions"
 
-# Ensure directories exist
-TICKETS_PATH.mkdir(parents=True, exist_ok=True)
-SESSIONS_PATH.mkdir(parents=True, exist_ok=True)
 
 # Models
 class ChatMessage(BaseModel):
@@ -54,90 +49,25 @@ class ChatRequest(BaseModel):
     parameters: Dict[str, Any] = {}
     stream: bool = False
 
-class ChatResponse(BaseModel):
-    ticket_id: str
-    status: str
-    result: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
-
-class ProviderConfig(BaseModel):
-    provider: str
-    model: str
-    parameters: Dict[str, Any]
-
-class SessionData(BaseModel):
-    session_id: str
-    provider_config: Optional[ProviderConfig] = None
-    created_at: datetime
-    updated_at: datetime
 
 class ListMcpToolsRequest(BaseModel):
     mcp_url: str
     auth_token: Optional[str] = None
 
 
-# Helper functions
-# For simplicity, these helper functions currently operate on local JSON files.
-# When a NoSQL database is introduced, these will be replaced with custom getter/setter functions.
-
-_tickets_in_memory: Dict[str, Dict[str, Any]] = {}
-_sessions_in_memory: Dict[str, SessionData] = {}
+# Import models after defining local ones to avoid circular dependencies
+from models.chat import ChatResponse, ProviderConfig, SessionData
 
 
-def _save_ticket_stub(ticket_id: str, data: dict):
-    _tickets_in_memory[ticket_id] = data
-    # In a real scenario, this would persist to a DB
-    # For POC, local file system simulation is enough, but with in-memory dict as requested.
-    # ticket_file = TICKETS_PATH / f"{ticket_id}.json"
-    # with open(ticket_file, 'w') as f:
-    #     json.dump(data, f, default=str)
-
-def _load_ticket_stub(ticket_id: str) -> dict:
-    data = _tickets_in_memory.get(ticket_id)
-    if not data:
-        raise HTTPException(status_code=404, detail="Ticket not found")
-    return data
-    # ticket_file = TICKETS_PATH / f"{ticket_id}.json"
-    # if not ticket_file.exists():
-    #     raise HTTPException(status_code=404, detail="Ticket not found")
-    # with open(ticket_file, 'r') as f:
-    #     return json.load(f)
-
-def _save_session_stub(session_id: str, data: SessionData):
-    _sessions_in_memory[session_id] = data
-    # session_file = SESSIONS_PATH / f"{session_id}.json"
-    # with open(session_file, 'w') as f:
-    #     json.dump(data.dict(), f, default=str)
-
-def _load_session_stub(session_id: str) -> SessionData:
-    session_data = _sessions_in_memory.get(session_id)
-    if not session_data:
-        # Create new session if not found, as per original logic
-        session_data = SessionData(
-            session_id=session_id,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        )
-        _save_session_stub(session_id, session_data)
-    return session_data
-    # session_file = SESSIONS_PATH / f"{session_id}.json"
-    # if not session_file.exists():
-    #     # Create new session
-    #     session_data = SessionData(
-    #         session_id=session_id,
-    #         created_at=datetime.utcnow(),
-    #         updated_at=datetime.utcnow()
-    #     )
-    #     _save_session_stub(session_id, session_data)
-    #     return session_data
-    
-    # with open(session_file, 'r') as f:
-    #     data = json.load(f)
-    #     return SessionData(**data)
+# Database service dependency
+def get_db() -> DatabaseService:
+    yield get_database_service(settings)
 
 
 # Background task for LLM processing
 async def process_chat(ticket_id: str, request: ChatRequest):
+    # Background tasks don't have access to dependency injection, so we get a service instance directly
+    db_service = get_database_service(settings)
     try:
         # Update ticket status
         ticket_data = {
@@ -145,7 +75,7 @@ async def process_chat(ticket_id: str, request: ChatRequest):
             "created_at": datetime.utcnow().isoformat(), # Use isoformat for JSON serialization
             "request": request.dict()
         }
-        _save_ticket_stub(ticket_id, ticket_data)
+        db_service.save("tickets", ticket_id, ticket_data)
         
         # Convert messages to format expected by litellm
         messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
@@ -173,7 +103,7 @@ async def process_chat(ticket_id: str, request: ChatRequest):
                 "usage": response.usage.dict() if response.usage else None
             }
         })
-        _save_ticket_stub(ticket_id, ticket_data)
+        db_service.save("tickets", ticket_id, ticket_data)
         
     except Exception as e:
         # Update ticket with error
@@ -182,7 +112,7 @@ async def process_chat(ticket_id: str, request: ChatRequest):
             "completed_at": datetime.utcnow().isoformat(),
             "error": str(e)
         })
-        _save_ticket_stub(ticket_id, ticket_data)
+        db_service.save("tickets", ticket_id, ticket_data)
 
 # Helper function to filter providers based on environment variables
 def get_available_providers():
@@ -244,12 +174,12 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     )
 
 @app.get("/chat/{ticket_id}")
-async def get_chat_status(ticket_id: str):
+async def get_chat_status(ticket_id: str, db: DatabaseService = Depends(get_db)):
     """Get the status and result of a chat request"""
     try:
-        ticket_data = _load_ticket_stub(ticket_id) # Use the stubbed function
+        ticket_data = db.get("tickets", ticket_id)
         return ChatResponse(
-            ticket_id=ticket_id,
+            ticket_id=ticket_data.get("_id", ticket_id),
             status=ticket_data["status"],
             result=ticket_data.get("result"),
             error=ticket_data.get("error")
@@ -260,36 +190,82 @@ async def get_chat_status(ticket_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/sessions/{session_id}/config")
-async def update_session_config(session_id: str, config: ProviderConfig):
+async def update_session_config(session_id: str, config: ProviderConfig, db: DatabaseService = Depends(get_db)):
     """Update session configuration"""
-    session = _load_session_stub(session_id) # Use the stubbed function
-    session.provider_config = config
-    session.updated_at = datetime.utcnow()
-    _save_session_stub(session_id, session) # Use the stubbed function
+    try:
+        session_doc = db.get("sessions", session_id)
+    except HTTPException as e:
+        if e.status_code == 404:
+            session_doc = {"created_at": datetime.utcnow().isoformat()}
+        else:
+            raise
+
+    session_doc["provider_config"] = config.dict()
+    session_doc["updated_at"] = datetime.utcnow().isoformat()
+    
+    db.save("sessions", session_id, session_doc)
     return {"message": "Configuration updated", "session_id": session_id}
 
 @app.get("/sessions/{session_id}/config")
-async def get_session_config(session_id: str):
+async def get_session_config(session_id: str, db: DatabaseService = Depends(get_db)):
     """Get session configuration"""
-    session = _load_session_stub(session_id) # Use the stubbed function
-    return session.provider_config
+    session_doc = db.get("sessions", session_id)
+    return session_doc.get("provider_config")
 
 @app.delete("/sessions/{session_id}")
-async def delete_session(session_id: str):
+async def delete_session(session_id: str, db: DatabaseService = Depends(get_db)):
     """Delete a session"""
-    if session_id in _sessions_in_memory:
-        del _sessions_in_memory[session_id]
-        return {"message": "Session deleted"}
-    # session_file = SESSIONS_PATH / f"{session_id}.json"
-    # if session_file.exists():
-    #     session_file.unlink()
-    #     return {"message": "Session deleted"}
-    raise HTTPException(status_code=404, detail="Session not found")
+    db.delete("sessions", session_id)
+    return {"message": "Session deleted"}
 
 # Health check
 @app.get("/health")
 def health_check():
     return {"status": "healthy", "service": "user-service"}
+
+
+@app.post("/agents", response_model=Agent, status_code=201)
+async def create_agent(request: CreateAgentRequest, db: DatabaseService = Depends(get_db)):
+    """Saves a new agent configuration to the database."""
+    # Instantiate Agent model from CreateAgentRequest data.
+    # Convert request data to a dictionary using internal field names (snake_case)
+    # for robust instantiation of the Agent model.
+    agent_data_internal_names = request.model_dump(by_alias=True)
+    agent = Agent(**agent_data_internal_names)
+
+    # Save the agent to the database.
+    # Use by_alias=True to serialize the Agent model into a dictionary
+    # with camelCase keys (e.g., inputSchema, swaggerSpecs, _id, _rev)
+    # matching the common external representation and CouchDB's _id/_rev.
+    saved_doc_data = agent.model_dump()
+    saved_doc = db.save("agents", agent.id, saved_doc_data)
+    
+    agent.rev = saved_doc.get("rev") # Add revision from DB response
+    return agent
+
+@app.get("/agents", response_model=List[Agent])
+async def list_agents(db: DatabaseService = Depends(get_db)):
+    """Lists all saved agents."""
+    # This simple query returns all documents. A more advanced implementation
+    # might use views for sorting or filtering.
+    all_docs = db.list_all("agents")
+    return [Agent(**doc) for doc in all_docs]
+    # return all_docs
+
+@app.get("/agents/{agent_id}", response_model=Agent)
+async def get_agent(agent_id: str, db: DatabaseService = Depends(get_db)):
+    """Retrieves a specific agent by its ID."""
+    agent_doc = db.get("agents", agent_id)
+    return Agent(**agent_doc)
+
+@app.delete("/agents/{agent_id}", status_code=204)
+async def delete_agent(agent_id: str, db: DatabaseService = Depends(get_db)):
+    """Deletes an agent by its ID."""
+    try:
+        db.delete("agents", agent_id)
+        return
+    except HTTPException as e:
+        raise e
 
 @app.post("/mcp/tools")
 async def list_mcp_tools(
