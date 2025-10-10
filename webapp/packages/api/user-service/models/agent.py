@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from pydantic.config import ConfigDict
 from pydantic.alias_generators import to_camel
 from typing import Dict, Any, List, Optional, Union
 from .chat import ProviderConfig
@@ -20,9 +21,7 @@ class GenerateCodeRequest(BaseModel):
     invokable_models: Optional[List[ProviderConfig]] = Field(None, alias="invokableModels")
     swagger_specs: Optional[List[SwaggerSpec]] = Field(None, alias="swaggerSpecs")
 
-    class ConfigDict:
-        # validate_by_name = True
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 class CreateAgentRequest(BaseModel):
     name: str
@@ -34,9 +33,10 @@ class CreateAgentRequest(BaseModel):
     output_schema: Optional[Dict[str, Any]] = Field(..., alias="outputSchema")
     invokable_models: Optional[List[ProviderConfig]] = Field(None, alias="invokableModels")
 
-    class ConfigDict:
-        populate_by_name = True
-        alias_generator = to_camel
+    model_config = ConfigDict(
+        populate_by_name=True,   
+        alias_generator=to_camel 
+    )
 
 class Agent(CreateAgentRequest):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), alias="_id")
@@ -44,8 +44,8 @@ class Agent(CreateAgentRequest):
     created_at: datetime = Field(default_factory=lambda: datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
     updated_at: datetime = Field(default_factory=lambda: datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
 
-    class ConfigDict:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
+        
 
         
 class GenerateCodeResponse(BaseModel):
@@ -56,8 +56,7 @@ class RunCodeRequest(BaseModel):
     input_dict: Dict[str, Any] = Field(..., alias="inputDict")
     tools: Dict[str, List[str]]
 
-    class ConfigDict:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 class RunCodeResponse(BaseModel):
     result: Optional[Any] = None

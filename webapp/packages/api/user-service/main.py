@@ -244,7 +244,7 @@ async def create_agent(request: CreateAgentRequest, db: DatabaseService = Depend
     agent.rev = saved_doc.get("rev") # Add revision from DB response
     return agent
 
-@app.get("/agents", response_model=List[dict]) #List[Agent])
+@app.get("/agents", response_model=List[Agent])
 async def list_agents(db: DatabaseService = Depends(get_db)):
     """Lists all saved agents."""
     # This simple query returns all documents. A more advanced implementation
@@ -252,8 +252,8 @@ async def list_agents(db: DatabaseService = Depends(get_db)):
     all_docs = db.list_all("agents")
     print(f"[DEBUG] Retrieved {len(all_docs)} agents from database.")
     print(f"[DEBUG] Sample agent data: {all_docs[0] if all_docs else 'No agents found.'}")
-    # return [Agent(**doc) for doc in all_docs]
-    return all_docs
+    return [Agent(**doc) for doc in all_docs]
+    # return all_docs
 
 @app.get("/agents/{agent_id}", response_model=Agent)
 async def get_agent(agent_id: str, db: DatabaseService = Depends(get_db)):
