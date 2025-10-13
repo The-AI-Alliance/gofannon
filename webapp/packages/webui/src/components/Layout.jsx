@@ -11,6 +11,7 @@ import {
   Button,
 } from '@mui/material';
 import ChatIcon from '@mui/icons-material/Chat';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 import config from '../config';
 
 const Layout = ({ children }) => {
@@ -25,9 +26,17 @@ const Layout = ({ children }) => {
         sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
       >
         <Toolbar>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, cursor: 'pointer' }} onClick={() => navigate('/')}>
             {appName}
           </Typography>
+          +          <Button 
+            color="inherit" 
+            startIcon={<SmartToyIcon />}
+            onClick={() => navigate('/agents')}
+            sx={{ mr: 1 }}
+          >
+            Agents
+          </Button>
           <Button 
             color="inherit" 
             startIcon={<ChatIcon />}

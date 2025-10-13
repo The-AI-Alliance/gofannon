@@ -2,15 +2,16 @@ import React, { useContext, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import config from './config';
 import { AuthContext } from './contexts/AuthContext';
-import { AgentCreationFlowProvider } from './pages/AgentCreationFlow/AgentCreationFlowContext'; // Import AgentCreationFlowProvider
+import { AgentCreationFlowProvider } from './pages/AgentCreationFlow/AgentCreationFlowContext'; 
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import ChatPage from './pages/ChatPage';
-import ToolsScreen from './pages/AgentCreationFlow/ToolsScreen'; // Import agent flow screens
+import ViewAgent from './pages/ViewAgent';
+import SavedAgentsPage from './pages/SavedAgentsPage';
+import ToolsScreen from './pages/AgentCreationFlow/ToolsScreen'; 
 import DescriptionScreen from './pages/AgentCreationFlow/DescriptionScreen';
 import SchemasScreen from './pages/AgentCreationFlow/SchemasScreen';
-import CodeEditorScreen from './pages/AgentCreationFlow/CodeEditorScreen';
 import SandboxScreen from './pages/AgentCreationFlow/SandboxScreen';
 import DeployScreen from './pages/AgentCreationFlow/DeployScreen';
 import SaveAgentScreen from './pages/AgentCreationFlow/SaveAgentScreen';
@@ -48,6 +49,16 @@ function App() {
           }
         />
         <Route
+          path="/agents"
+          element={
+            <PrivateRoute>
+              <Layout>
+                <SavedAgentsPage />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
+        <Route
           path="/chat"
           element={
             <PrivateRoute>
@@ -57,7 +68,19 @@ function App() {
             </PrivateRoute>
           }
         />
-        {/* Agent Creation Flow Routes */}
+        <Route
+          path="/agent/:agentId"
+          element={
+            <PrivateRoute>
+              <Layout>
+                {/* Provider is needed for navigation to sandbox/deploy */}
+                <AgentCreationFlowProvider>
+                  <ViewAgent />
+                </AgentCreationFlowProvider>
+              </Layout>
+            </PrivateRoute>
+          }
+        />
         <Route 
           path="/create-agent/*" 
           element={
@@ -69,7 +92,7 @@ function App() {
                     <Route path="tools" element={<ToolsScreen />} />
                     <Route path="description" element={<DescriptionScreen />} />
                     <Route path="schemas" element={<SchemasScreen />} />
-                    <Route path="code" element={<CodeEditorScreen />} />
+                    <Route path="code" element={<ViewAgent isCreating={true} />} />
                     <Route path="sandbox" element={<SandboxScreen />} />
                     <Route path="deploy" element={<DeployScreen />} />
                     <Route path="save" element={<SaveAgentScreen />} />

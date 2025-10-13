@@ -107,6 +107,28 @@ class AgentService {
       throw error;
     }
   }
+
+  async updateAgent(agentId, agentData) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/agents/${agentId}`, {
+        method: 'PUT', // Or PATCH if the backend supports partial updates
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(agentData),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to update the agent.');
+      }
+      return data;
+    } catch (error) {
+      console.error(`[AgentService] Error updating agent ${agentId}:`, error);
+      throw error;
+    }
+  }  
 }
 
 export default new AgentService();
