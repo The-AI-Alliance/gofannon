@@ -6,12 +6,15 @@ export default firebaseConfig = {
   auth: {
     provider: 'firebase',
     firebase: {
-      apiKey: 'YOUR_API_KEY',
-      authDomain: 'YOUR_PROJECT_ID.firebaseapp.com',
-      // ... other firebase config
+      apiKey: process.env.VITE_FIREBASE_API_KEY,
+      authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+      storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.VITE_FIREBASE_APP_ID,
     },
     // Configurable social logins
-    enabledSocialProviders: ['google', 'facebook'],
+    enabledSocialProviders: ['google'],
   },
   storage: {
     provider: 'gcs', // Google Cloud Storage
@@ -20,6 +23,9 @@ export default firebaseConfig = {
     },
   },
   theme: {
-    // Theme can be overridden here if needed
+    palette: {
+      primary: { main: '#FFA000' }, // Firebase-like orange
+      secondary: { main: '#039BE5' }, // Firebase-like blue
+    },
   },
 };

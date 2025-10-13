@@ -13,10 +13,27 @@ import asyncio
 import litellm
 import traceback
 import httpx
+import firebase_admin
+from firebase_admin import credentials, auth
+from fastapi import Depends
+from fastapi.security import OAuth2PasswordBearer
 
 from services.database_service import get_database_service, DatabaseService
 from config import settings
 from services.mcp_client_service import McpClientService, get_mcp_client_service
+
+# --- Firebase Admin SDK Initialization ---
+if settings.APP_ENV == "firebase":
+    try:
+        # In a Cloud Function environment, GOOGLE_APPLICATION_CREDENTIALS is set automatically.
+        # For local emulation, you'd need to set this env var to your service account key file.
+        cred = credentials.ApplicationDefault()
+        firebase_admin.initialize_app(cred)
+        print("Firebase Admin SDK initialized successfully.")
+    except Exception as e:
+        print(f"Error initializing Firebase Admin SDK: {e}")
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 # Import the shared provider configuration
 from config.provider_config import PROVIDER_CONFIG as APP_PROVIDER_CONFIG
@@ -35,7 +52,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- Security Dependency ---
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    """Dependency to verify Firebase ID token and get user info."""
+    if settings.APP_ENV != "firebase":
+        # In non-firebase environments (like 'local'), skip authentication.
+        return {"uid": "local-dev-user"}
 
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        decoded_token = auth.verify_id_token(token)
+        return decoded_token
+    except auth.InvalidIdTokenError:
+        raise HTTPException(status_code=401, detail="Invalid authentication token")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Authentication error: {e}")
+ 
 
 # Models
 class ChatMessage(BaseModel):
@@ -161,7 +194,7 @@ def get_model_config(provider: str, model: str):
     return available_providers[provider]["models"][model]
 
 @app.post("/chat")
-async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
+async def chat(request: ChatRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
     """Submit a chat request and get a ticket ID"""
     ticket_id = str(uuid.uuid4())
     
@@ -174,7 +207,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     )
 
 @app.get("/chat/{ticket_id}")
-async def get_chat_status(ticket_id: str, db: DatabaseService = Depends(get_db)):
+async def get_chat_status(ticket_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Get the status and result of a chat request"""
     try:
         ticket_data = db.get("tickets", ticket_id)
@@ -190,7 +223,7 @@ async def get_chat_status(ticket_id: str, db: DatabaseService = Depends(get_db))
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/sessions/{session_id}/config")
-async def update_session_config(session_id: str, config: ProviderConfig, db: DatabaseService = Depends(get_db)):
+async def update_session_config(session_id: str, config: ProviderConfig, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Update session configuration"""
     try:
         session_doc = db.get("sessions", session_id)
@@ -207,13 +240,13 @@ async def update_session_config(session_id: str, config: ProviderConfig, db: Dat
     return {"message": "Configuration updated", "session_id": session_id}
 
 @app.get("/sessions/{session_id}/config")
-async def get_session_config(session_id: str, db: DatabaseService = Depends(get_db)):
+async def get_session_config(session_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Get session configuration"""
     session_doc = db.get("sessions", session_id)
     return session_doc.get("provider_config")
 
 @app.delete("/sessions/{session_id}")
-async def delete_session(session_id: str, db: DatabaseService = Depends(get_db)):
+async def delete_session(session_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Delete a session"""
     db.delete("sessions", session_id)
     return {"message": "Session deleted"}
@@ -225,7 +258,7 @@ def health_check():
 
 
 @app.post("/agents", response_model=Agent, status_code=201)
-async def create_agent(request: CreateAgentRequest, db: DatabaseService = Depends(get_db)):
+async def create_agent(request: CreateAgentRequest, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Saves a new agent configuration to the database."""
     # Instantiate Agent model from CreateAgentRequest data.
     # Convert request data to a dictionary using internal field names (snake_case)
@@ -244,7 +277,7 @@ async def create_agent(request: CreateAgentRequest, db: DatabaseService = Depend
     return agent
 
 @app.get("/agents", response_model=List[Agent])
-async def list_agents(db: DatabaseService = Depends(get_db)):
+async def list_agents(db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Lists all saved agents."""
     # This simple query returns all documents. A more advanced implementation
     # might use views for sorting or filtering.
@@ -253,13 +286,13 @@ async def list_agents(db: DatabaseService = Depends(get_db)):
     # return all_docs
 
 @app.get("/agents/{agent_id}", response_model=Agent)
-async def get_agent(agent_id: str, db: DatabaseService = Depends(get_db)):
+async def get_agent(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Retrieves a specific agent by its ID."""
     agent_doc = db.get("agents", agent_id)
     return Agent(**agent_doc)
 
 @app.delete("/agents/{agent_id}", status_code=204)
-async def delete_agent(agent_id: str, db: DatabaseService = Depends(get_db)):
+async def delete_agent(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Deletes an agent by its ID."""
     try:
         db.delete("agents", agent_id)
@@ -270,7 +303,8 @@ async def delete_agent(agent_id: str, db: DatabaseService = Depends(get_db)):
 @app.post("/mcp/tools")
 async def list_mcp_tools(
     request: ListMcpToolsRequest,
-    mcp_service: McpClientService = Depends(get_mcp_client_service)
+    mcp_service: McpClientService = Depends(get_mcp_client_service),
+    user: dict = Depends(get_current_user)
 ):
     """
     Connects to a remote MCP server and lists its available tools.
@@ -280,7 +314,7 @@ async def list_mcp_tools(
     return {"mcp_url": request.mcp_url, "tools": tools}
 
 @app.post("/agents/generate-code", response_model=GenerateCodeResponse)
-async def generate_agent_code(request: GenerateCodeRequest):
+async def generate_agent_code(request: GenerateCodeRequest, user: dict = Depends(get_current_user)):
     """
     Generates agent code based on the provided configuration.
     """
@@ -290,7 +324,7 @@ async def generate_agent_code(request: GenerateCodeRequest):
 
 
 @app.post("/agents/run-code", response_model=RunCodeResponse)
-async def run_agent_code(request: RunCodeRequest):
+async def run_agent_code(request: RunCodeRequest, user: dict = Depends(get_current_user)):
     """
     Executes agent code in a sandboxed environment.
     """

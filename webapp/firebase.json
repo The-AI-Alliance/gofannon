@@ -1,0 +1,44 @@
+{
+  "functions": [
+    {
+      "source": "packages/api/user-service",
+      "codebase": "api",
+      "runtime": "python311",
+      "ignore": [
+        "venv",
+        ".venv",
+        "__pycache__",
+        "*.pyc",
+        "tests/"
+      ]
+    }
+  ],
+  "hosting": {
+    "public": "packages/webui/dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/api{,/**}",
+        "function": {
+          "functionId": "api",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "firestore": {
+    "rules": "infra/firebase/firestore.rules",
+    "indexes": "infra/firebase/firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "infra/firebase/storage.rules"
+  }
+}

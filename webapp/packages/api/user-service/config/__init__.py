@@ -19,6 +19,9 @@ class Settings:
     COUCHDB_URL: str | None = os.getenv("COUCHDB_URL")
     COUCHDB_USER: str | None = os.getenv("COUCHDB_USER")
     COUCHDB_PASSWORD: str | None = os.getenv("COUCHDB_PASSWORD")
+    
+    # Google Cloud Settings
+    GOOGLE_CLOUD_PROJECT: str | None = os.getenv("GOOGLE_CLOUD_PROJECT", "gofannon-dev") 
 
 
 settings = Settings()

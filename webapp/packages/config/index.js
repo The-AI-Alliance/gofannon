@@ -1,6 +1,6 @@
 
 import localConfig from './environments/local.js';
-// import firebaseConfig from './environments/firebase.js';
+import firebaseConfig from './environments/firebase.js';
 // import amplifyConfig from './environments/amplify.js';
 // import kubernetesConfig from './environments/kubernetes.js';
 

@@ -18,10 +18,19 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    setLoading(true);
-    const currentUser = authService.getCurrentUser();
-    setUser(currentUser);
-    setLoading(false);
+    // If the auth service supports onAuthStateChanged (like Firebase), use it.
+    if (typeof authService.onAuthStateChanged === 'function') {
+      const unsubscribe = authService.onAuthStateChanged((user) => {
+        setUser(user);
+        setLoading(false);
+      });
+      return () => unsubscribe(); // Cleanup subscription on unmount
+    } else {
+      // Fallback for mock or simpler auth services
+      const currentUser = authService.getCurrentUser();
+      setUser(currentUser);
+      setLoading(false);
+    }       
   }, []);
 
   const handleLogin = async (loginFn, ...args) => {

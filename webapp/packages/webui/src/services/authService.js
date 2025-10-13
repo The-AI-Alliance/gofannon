@@ -1,4 +1,14 @@
 import appConfig from '../config';
+import { initializeApp } from 'firebase/app';
+import {
+    getAuth,
+    signInWithEmailAndPassword,
+    signInWithPopup,
+    GoogleAuthProvider,
+    onAuthStateChanged,
+    signOut,
+
+} from 'firebase/auth';
 
 // --- MOCK Implementation (for local development) ---
 const mockAuth = {
@@ -34,18 +44,62 @@ const mockAuth = {
 
 // --- Firebase Implementation (Placeholder) ---
 const firebaseAuth = {
-  // You would import firebase and implement these methods
+  _app: null,
+  _auth: null,
+
+  _initialize() {
+    if (!this._app) {
+      this._app = initializeApp(appConfig.auth.firebase);
+      this._auth = getAuth(this._app);
+    }
+    return this._auth;
+  },
+
   login: async ({ email, password }) => {
-    // await signInWithEmailAndPassword(auth, email, password); ...
-    throw new Error('Firebase Auth not implemented');
+    const auth = this._initialize();
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    return userCredential.user;
+   },
+
+  loginWithProvider: async (providerId) => {
+    const auth = this._initialize();
+    let provider;
+    if (providerId === 'google') {
+      provider = new GoogleAuthProvider();
+    } else {
+      throw new Error(`Provider ${providerId} not supported.`);
+    }
+    const result = await signInWithPopup(auth, provider);
+    return result.user;
   },
+
   logout: async () => {
-    // await signOut(auth); ...
-    throw new Error('Firebase Auth not implemented');
+    const auth = this._initialize();
+    await signOut(auth);
   },
+
   getCurrentUser: () => {
-    // return auth.currentUser;
-    throw new Error('Firebase Auth not implemented');
+    const auth = this._initialize();
+    return auth.currentUser;
+  },
+  
+  // New method to handle auth state changes
+  onAuthStateChanged: (callback) => {
+    const auth = this._initialize();
+    return onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // User is signed in. We can extract the necessary info.
+        callback({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          getIdToken: () => user.getIdToken(),
+        });
+      } else {
+        // User is signed out.
+        callback(null);
+      }
+    });    
   },
 };
 

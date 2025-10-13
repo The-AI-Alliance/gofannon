@@ -1,6 +1,7 @@
 import boto3
 from botocore.client import Config
 from ..config import settings
+from google.cloud import storage
 
 class StorageService:
     def upload(self, file_name: str, file_obj):
@@ -34,11 +35,32 @@ class LocalDiskStorageService(StorageService):
         # Implementation for saving to local disk
         pass
 
+class GCSStorageService(StorageService):
+    def __init__(self):
+        try:
+            self.storage_client = storage.Client()
+            self.bucket_name = settings.S3_BUCKET_NAME # Re-using S3_BUCKET_NAME for GCS bucket
+            print(f"Successfully connected to Google Cloud Storage. Using bucket: {self.bucket_name}")
+        except Exception as e:
+            print(f"Failed to initialize GCS client: {e}")
+            raise ConnectionError(f"Could not connect to GCS: {e}") from e
+
+    def upload(self, file_name: str, file_obj):
+        bucket = self.storage_client.bucket(self.bucket_name)
+        blob = bucket.blob(file_name)
+        blob.upload_from_file(file_obj)
+        print(f"Uploaded {file_name} to GCS bucket {self.bucket_name}")
+
+    def get_public_url(self, file_name: str) -> str:
+        return f"https://storage.googleapis.com/{self.bucket_name}/{file_name}"
+
 # --- Service Factory ---
 def get_storage_service() -> StorageService:
     if settings.STORAGE_PROVIDER == "s3":
         return S3StorageService()
     elif settings.STORAGE_PROVIDER == "local":
         return LocalDiskStorageService()
+    elif settings.STORAGE_PROVIDER == "gcs":
+        return GCSStorageService()
     else:
         raise ValueError(f"Unknown storage provider: {settings.STORAGE_PROVIDER}")

@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "gofannon-ramen",
+    "staging": "gofannon-ramen"
+  },
+  "targets": {},
+  "etags": {}
+}
