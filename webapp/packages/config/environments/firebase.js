@@ -1,7 +1,7 @@
 const firebaseConfig = {
   env: 'firebase',
   api: {
-    baseUrl: 'https://us-central1-your-project-id.cloudfunctions.net/api',
+    baseUrl: `https://us-central1-${import.meta.env.VITE_FIREBASE_PROJECT_ID}.cloudfunctions.net/api`,
   },
   auth: {
     provider: 'firebase',
@@ -19,7 +19,7 @@ const firebaseConfig = {
   storage: {
     provider: 'gcs', // Google Cloud Storage
     gcs: {
-      bucket: 'your-project-id.appspot.com',
+      bucket: `${import.meta.env.VITE_FIREBASE_STORAGE_BUCKET}`,
     },
   },
   theme: {

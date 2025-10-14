@@ -56,13 +56,13 @@ const firebaseAuth = {
   },
 
   async login({ email, password }) {
-    const auth = this._initialize();
+    const auth = firebaseAuth._initialize();
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     return userCredential.user;
    },
 
   async loginWithProvider(providerId) {
-    const auth = this._initialize();
+    const auth = firebaseAuth._initialize();
     let provider;
     if (providerId === 'google') {
       provider = new GoogleAuthProvider();
@@ -74,18 +74,18 @@ const firebaseAuth = {
   },
 
   async logout() {
-    const auth = this._initialize();
+    const auth = firebaseAuth._initialize();
     await signOut(auth);
   },
 
   getCurrentUser() {
-    const auth = this._initialize();
+    const auth = firebaseAuth._initialize();
     return auth.currentUser;
   },
   
   // New method to handle auth state changes
   onAuthStateChanged(callback) {
-    const auth = this._initialize();
+    const auth = firebaseAuth._initialize();
     return onAuthStateChanged(auth, (user) => {
       if (user) {
         // User is signed in. We can extract the necessary info.
