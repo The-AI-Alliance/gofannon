@@ -22,10 +22,10 @@ export default firebaseConfig = {
       bucket: 'your-project-id.appspot.com',
     },
   },
-  theme: {
-    palette: {
-      primary: { main: '#FFA000' }, // Firebase-like orange
-      secondary: { main: '#039BE5' }, // Firebase-like blue
-    },
-  },
+  // theme: {
+  //   palette: {
+  //     primary: { main: '#FFA000' }, // Firebase-like orange
+  //     // secondary: { main: '#039BE5' }, // Firebase-like blue
+  //   },
+  // },
 };
