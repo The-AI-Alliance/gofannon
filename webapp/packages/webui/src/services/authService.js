@@ -57,7 +57,7 @@ const firebaseAuth = {
 
   async login({ email, password }) {
     const auth = this._initialize();
-    const userCredential = await signInWithEmailAndPassword(this._auth, email, password);
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
     return userCredential.user;
    },
 
