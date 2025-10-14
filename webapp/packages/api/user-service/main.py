@@ -361,3 +361,29 @@ async def run_agent_code(request: RunCodeRequest, user: dict = Depends(get_curre
         tb_str = traceback.format_exc()
         print(f"Error running agent code: {tb_str}")
         return JSONResponse(status_code=400, content={"result": None, "error": f"{error_str}\n\n{tb_str}"})
+
+
+# This is an unseemly hack to adapt FastAPI to Google Cloud Functions.
+# TODO refactor all of this into microservices.
+from firebase_functions import https_fn
+
+@https_fn.on_request(memory=1024)
+def api(req: https_fn.Request) -> https_fn.Response:
+    """Handles all incoming requests to the 'api' function."""
+    # The ASGI handler dispatches the request to your FastAPI app.
+    # Note: As of recent library versions, direct passing of the FastAPI app is supported.
+    # If this causes issues, you might need an ASGI adapter like 'asgi-adapter'.
+    # For now, this direct approach is standard.
+    import uvicorn.workers
+    
+    # Create a dummy server config for the worker
+    class DummyConfig(uvicorn.Config):
+        def __init__(self, app):
+            super().__init__(app=app)
+    
+    # Create the worker to handle the request lifecycle
+    worker = uvicorn.workers.UvicornWorker(DummyConfig(app))
+    
+    # This simulates the ASGI call within the Cloud Function environment
+    from asyncio import run
+    return run(worker.handle_asgi(req, req.environ, None, None))
