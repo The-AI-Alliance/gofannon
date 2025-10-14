@@ -4,7 +4,7 @@ import firebaseConfig from './environments/firebase.js';
 // import amplifyConfig from './environments/amplify.js';
 // import kubernetesConfig from './environments/kubernetes.js';
 
-const env = process.env.VITE_APP_ENV || process.env.APP_ENV || 'local';
+const env = import.meta.env.VITE_APP_ENV || process.env.APP_ENV || 'local';
 console.log(`Using configuration for environment: ${env}`);
 
 let config;

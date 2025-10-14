@@ -42,7 +42,7 @@ const mockAuth = {
   },
 };
 
-// --- Firebase Implementation (Placeholder) ---
+
 const firebaseAuth = {
   _app: null,
   _auth: null,
@@ -55,13 +55,13 @@ const firebaseAuth = {
     return this._auth;
   },
 
-  login: async ({ email, password }) => {
+  async login({ email, password }) {
     const auth = this._initialize();
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const userCredential = await signInWithEmailAndPassword(this._auth, email, password);
     return userCredential.user;
    },
 
-  loginWithProvider: async (providerId) => {
+  async loginWithProvider(providerId) {
     const auth = this._initialize();
     let provider;
     if (providerId === 'google') {
@@ -73,18 +73,18 @@ const firebaseAuth = {
     return result.user;
   },
 
-  logout: async () => {
+  async logout() {
     const auth = this._initialize();
     await signOut(auth);
   },
 
-  getCurrentUser: () => {
+  getCurrentUser() {
     const auth = this._initialize();
     return auth.currentUser;
   },
   
   // New method to handle auth state changes
-  onAuthStateChanged: (callback) => {
+  onAuthStateChanged(callback) {
     const auth = this._initialize();
     return onAuthStateChanged(auth, (user) => {
       if (user) {
