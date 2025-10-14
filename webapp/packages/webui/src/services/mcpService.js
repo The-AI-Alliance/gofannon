@@ -1,16 +1,33 @@
 // webapp/packages/webui/src/services/mcpService.js
 import config from '../config';
+import authService from './authService';
 
 const API_BASE_URL = config.api.baseUrl;
 
 class McpService {
+  async _getAuthHeaders() {
+    const user = authService.getCurrentUser();
+    if (user && typeof user.getIdToken === 'function') {
+      try {
+        const token = await user.getIdToken();
+        return { Authorization: `Bearer ${token}` };
+      } catch (error) {
+        console.error("Error getting auth token:", error);
+        return {};
+      }
+    }
+    return {};
+  }
+
   async listTools(mcpUrl, authToken = null) {
     try {
+      const authHeaders = await this._getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/mcp/tools`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          ...authHeaders,
         },
         body: JSON.stringify({ mcp_url: mcpUrl, auth_token: authToken }),
       });

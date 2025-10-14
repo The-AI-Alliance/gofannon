@@ -1,15 +1,34 @@
+// webapp/packages/webui/src/services/agentService.js
 import config from '../config';
+import authService from './authService';
 
 const API_BASE_URL = config.api.baseUrl;
 
 class AgentService {
+  async _getAuthHeaders() {
+    const user = authService.getCurrentUser();
+    // The user object from onAuthStateChanged contains getIdToken
+    if (user && typeof user.getIdToken === 'function') {
+      try {
+        const token = await user.getIdToken();
+        return { Authorization: `Bearer ${token}` };
+      } catch (error) {
+        console.error("Error getting auth token:", error);
+        return {};
+      }
+    }
+    return {};
+  }
+
   async generateCode(agentConfig) {
     try {
+      const authHeaders = await this._getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/agents/generate-code`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          ...authHeaders,
         },
         body: JSON.stringify(agentConfig),
       });
@@ -36,18 +55,24 @@ class AgentService {
     };
 
     try {
+      const authHeaders = await this._getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/agents/run-code`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          ...authHeaders,
         },
         body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
+      if (response.status === 400) { // Specific check for sandbox execution errors
+        // The backend returns a 400 with an 'error' key in the JSON body
+        throw new Error(data.error || 'Sandbox execution failed with a 400 status.');
+      }
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to run code in sandbox.');
+        throw new Error(data.detail || 'Failed to run code in sandbox.');
       }
       return data; // returns { result: ..., error: ... }
     } catch (error) {
@@ -58,11 +83,13 @@ class AgentService {
 
   async saveAgent(agentData) {
     try {
+      const authHeaders = await this._getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/agents`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          ...authHeaders,
         },
         body: JSON.stringify(agentData),
       });
@@ -80,8 +107,12 @@ class AgentService {
 
   async getAgents() {
     try {
+      const authHeaders = await this._getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/agents`, {
-        headers: { 'Accept': 'application/json' },
+        headers: { 
+          'Accept': 'application/json',
+          ...authHeaders 
+        },
       });
       if (!response.ok) {
         throw new Error('Failed to fetch agents.');
@@ -95,8 +126,12 @@ class AgentService {
 
   async getAgent(agentId) {
     try {
+      const authHeaders = await this._getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/agents/${agentId}`, {
-        headers: { 'Accept': 'application/json' },
+        headers: { 
+          'Accept': 'application/json',
+          ...authHeaders
+        },
       });
       if (!response.ok) {
         throw new Error(`Failed to fetch agent ${agentId}.`);

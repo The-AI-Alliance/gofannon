@@ -42,7 +42,10 @@ from agent_factory.remote_mcp_client import RemoteMCPClient
 
 app = FastAPI()
 
-origins = ["http://localhost:3000", "http://localhost:3001"] # TODO: Set this with config
+frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+origins = [frontend_url,
+     "http://localhost:3001"] # TODO: Set this with config
 
 app.add_middleware(
     CORSMiddleware,
@@ -369,21 +372,60 @@ from firebase_functions import https_fn
 
 @https_fn.on_request(memory=1024)
 def api(req: https_fn.Request) -> https_fn.Response:
-    """Handles all incoming requests to the 'api' function."""
-    # The ASGI handler dispatches the request to your FastAPI app.
-    # Note: As of recent library versions, direct passing of the FastAPI app is supported.
-    # If this causes issues, you might need an ASGI adapter like 'asgi-adapter'.
-    # For now, this direct approach is standard.
-    import uvicorn.workers
+    """
+    An HTTPS Cloud Function that wraps the FastAPI application.
+    This allows Firebase Hosting rewrites to target a single function 'api'
+    which then routes requests internally using FastAPI's router.
+    """
+
+    # We create a dummy 'send' function to capture the response.
+    response_headers = []
+    response_body = b""
+
+    async def send(message):
+        nonlocal response_headers, response_body
+        if message['type'] == 'http.response.start':
+            response_headers.extend(message['headers'])
+        elif message['type'] == 'http.response.body':
+            response_body += message.get('body', b'')
+
+    # We create a dummy 'receive' function. For simple requests, it just returns end of stream.
+    async def receive():
+        return {'type': 'http.request', 'body': req.data, 'more_body': False}
+
+    # Manually run the ASGI application lifecycle.
+    import asyncio
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     
-    # Create a dummy server config for the worker
-    class DummyConfig(uvicorn.Config):
-        def __init__(self, app):
-            super().__init__(app=app)
+    scope = {
+        'type': 'http',
+        'http_version': '1.1',
+        'method': req.method,
+        'scheme': req.scheme,
+        'path': req.path,
+        'query_string': req.query_string,
+        'headers': req.headers.items(),
+        'client': (req.remote_addr, 0),
+        'server': ('gcf', 80),
+    }
+
+    try:
+        # Call the app with the scope, receive, and send callables.
+        loop.run_until_complete(app(scope, receive, send))
+    finally:
+        loop.close()
+
+    # Find the status code from the response headers
+    status_code = 200 # default
+    for header, value in response_headers:
+        if header.decode().lower() == 'status':
+            status_code = int(value)
+            break
     
-    # Create the worker to handle the request lifecycle
-    worker = uvicorn.workers.UvicornWorker(DummyConfig(app))
     
-    # This simulates the ASGI call within the Cloud Function environment
-    from asyncio import run
-    return run(worker.handle_asgi(req, req.environ, None, None))
+    print(f"Request headers: {req.headers}")
+    response_headers.append((b'Access-Control-Allow-Origin', req.headers.get('origin', '*').encode())) #TODO hack, but this all needs to be microservices anyway
+    print(f"Response status: {status_code}, headers: {response_headers}")
+    # Construct and return the response object expected by firebase-functions
+    return https_fn.Response(response_body, status=status_code, headers={h.decode(): v.decode() for h, v in response_headers})
