@@ -42,17 +42,17 @@ from agent_factory.remote_mcp_client import RemoteMCPClient
 
 app = FastAPI()
 
-frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+frontend_url = os.getenv("FRONTEND_URL", "https://gofannon-ramen.web.app") # "http://localhost:3000")
 
-origins = [frontend_url,
+allowed_origins = [frontend_url,
      "http://localhost:3001"] # TODO: Set this with config
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"], # For local/docker, "*" is fine for dev
 )
 
 # --- Security Dependency ---
@@ -369,16 +369,13 @@ async def run_agent_code(request: RunCodeRequest, user: dict = Depends(get_curre
 # This is an unseemly hack to adapt FastAPI to Google Cloud Functions.
 # TODO refactor all of this into microservices.
 from firebase_functions import https_fn, options
+# from a2wsgi import ASGIMiddleware
+# from werkzeug.wrappers import WResponse
 
-@https_fn.on_request(
-    memory=1024,
-    cors=options.CorsOptions(
-        cors_origins=["*"],  # For production, restrict this to your frontend URL
-        cors_methods=["*"],
-        
-        # allow_headers=["Authorization", "Content-Type"],
-    ))
-def api(req: https_fn.Request) -> https_fn.Response:
+# wsgi_app = ASGIMiddleware(app)
+
+@https_fn.on_request(memory=1024)
+def api(req: https_fn.Request):
     """
     An HTTPS Cloud Function that wraps the FastAPI application.
     This allows Firebase Hosting rewrites to target a single function 'api'
@@ -431,9 +428,12 @@ def api(req: https_fn.Request) -> https_fn.Response:
     if status_header:
         status_code = int(status_header)
 
+    response_headers.append((b'access-control-allow-origin', frontend_url.encode()))
     # Convert headers from bytes to string for the Response object
     final_headers = {h.decode(): v.decode() for h, v in response_headers}
  
     print(f"Response status: {status_code}, headers: {final_headers}")
     # Construct and return the response object expected by firebase-functions
     return https_fn.Response(response_body, status=status_code, headers=final_headers)
+
+
