@@ -42,10 +42,11 @@ from agent_factory.remote_mcp_client import RemoteMCPClient
 
 app = FastAPI()
 
-frontend_url = os.getenv("FRONTEND_URL", "https://gofannon-ramen.web.app") # "http://localhost:3000")
+frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
-allowed_origins = [frontend_url,
-     "http://localhost:3001"] # TODO: Set this with config
+allowed_origins = [frontend_url,]
+
+print(f"Configured allowed CORS origins: {allowed_origins}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -369,71 +370,96 @@ async def run_agent_code(request: RunCodeRequest, user: dict = Depends(get_curre
 # This is an unseemly hack to adapt FastAPI to Google Cloud Functions.
 # TODO refactor all of this into microservices.
 from firebase_functions import https_fn, options
-# from a2wsgi import ASGIMiddleware
-# from werkzeug.wrappers import WResponse
+from a2wsgi import ASGIMiddleware
 
-# wsgi_app = ASGIMiddleware(app)
+wsgi_app = ASGIMiddleware(app)
+
+ALLOWED_METHODS = "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+ALLOWED_HEADERS_FALLBACK = "authorization,content-type"
+MAX_AGE = "3600"
+
+def build_cors_headers(req, *, origin_override=None):
+    origin = origin_override or req.headers.get("origin") or frontend_url or "*"
+    req_headers = req.headers.get("access-control-request-headers", "")
+    return {
+        "access-control-allow-origin": origin,
+        "access-control-allow-methods": ALLOWED_METHODS,
+        "access-control-allow-headers": req_headers or ALLOWED_HEADERS_FALLBACK,
+        "access-control-max-age": MAX_AGE,
+        # Vary ensures proper caching when Origin / ACR* differ
+        "vary": "Origin, Access-Control-Request-Method, Access-Control-Request-Headers",
+        # Uncomment if you use cookies/Authorization with browsers:
+        # "access-control-allow-credentials": "true",
+    }
 
 @https_fn.on_request(memory=1024)
 def api(req: https_fn.Request):
     """
     An HTTPS Cloud Function that wraps the FastAPI application.
-    This allows Firebase Hosting rewrites to target a single function 'api'
-    which then routes requests internally using FastAPI's router.
+    Handles CORS preflight (OPTIONS) and routes other requests to FastAPI.
     """
 
-    # We create a dummy 'send' function to capture the response.
+    # 1) Handle CORS preflight immediately
+    if req.method == "OPTIONS":
+        return https_fn.Response("", status=204, headers=build_cors_headers(req))
+
+    # 2) Run the ASGI app for non-OPTIONS requests
     response_headers = []
     response_body = b""
+    status_code = 200  # default; will be set from ASGI start message
 
     async def send(message):
-        nonlocal response_headers, response_body
-        if message['type'] == 'http.response.start':
-            # This captures the status and headers from FastAPI
-            response_headers.extend(message['headers'])
-        elif message['type'] == 'http.response.body':
-            response_body += message.get('body', b'')
+        nonlocal response_headers, response_body, status_code
+        if message["type"] == "http.response.start":
+            status_code = int(message.get("status", 200))
+            response_headers.extend(message.get("headers", []))
+        elif message["type"] == "http.response.body":
+            response_body += message.get("body", b"")
 
-    # We create a dummy 'receive' function. For simple requests, it just returns end of stream.
     async def receive():
-        return {'type': 'http.request', 'body': req.data, 'more_body': False}
+        return {
+            "type": "http.request",
+            "body": req.data or b"",
+            "more_body": False
+        }
 
-    # Manually run the ASGI application lifecycle.
     import asyncio
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
+
+    # ASGI expects bytes for headers and query_string.
+    asgi_headers = []
+    for k, v in req.headers.items():
+        asgi_headers.append((k.lower().encode("latin-1"), str(v).encode("latin-1")))
+
+    query_string = (req.query_string or "").encode("latin-1")
+
     scope = {
-        'type': 'http',
-        'http_version': '1.1',
-        'method': req.method,
-        'scheme': req.scheme,
-        'path': req.path,
-        'query_string': req.query_string,
-        'headers': req.headers.items(),
-        'client': (req.remote_addr, 0),
-        'server': ('gcf', 80),
+        "type": "http",
+        "http_version": "1.1",
+        "method": req.method,
+        "scheme": req.scheme or "https",
+        "path": req.path or "/",
+        "raw_path": (req.path or "/").encode("latin-1"),
+        "query_string": query_string,
+        "headers": asgi_headers,
+        "client": (req.remote_addr, 0),
+        "server": ("gcf", 80),
     }
 
     try:
-        # Call the app with the scope, receive, and send callables.
         loop.run_until_complete(app(scope, receive, send))
     finally:
         loop.close()
 
-    # Find the status code from the response headers
-    status_code = 200 # default
-    # Extract status code from headers if present
-    status_header = next((v for h, v in response_headers if h.decode().lower() == 'status'), None)
-    if status_header:
-        status_code = int(status_header)
+    # 3) Add CORS headers to the final response as well
+    cors_headers = build_cors_headers(req)
+    response_headers.extend([(k.encode(), v.encode()) for k, v in cors_headers.items()])
 
-    response_headers.append((b'access-control-allow-origin', frontend_url.encode()))
-    # Convert headers from bytes to string for the Response object
-    final_headers = {h.decode(): v.decode() for h, v in response_headers}
- 
+    # Convert to str headers for firebase-functions Response
+    final_headers = {h.decode("latin-1"): v.decode("latin-1") for h, v in response_headers}
+
     print(f"Response status: {status_code}, headers: {final_headers}")
-    # Construct and return the response object expected by firebase-functions
     return https_fn.Response(response_body, status=status_code, headers=final_headers)
 
 

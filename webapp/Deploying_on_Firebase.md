@@ -119,6 +119,10 @@ The Python API (Cloud Function) requires environment variables for API keys.
     . "packages/api/user-service/venv/bin/activate" && python3.11 -m pip install -r packages/api/user-service/requirements.txt
     ```
 
+4. **Configure `.env` files:
+    In `webapp/packages/webui/.env` set `VITE_APP_ENV` to `firebase`
+    In `webapp/packages/api/user-service/.env` set `FRONTEND_URL` to `https:<your-project-id>.web.app`
+    
 ## 3. Manual Deployment
 
 To deploy the application manually from your local machine:
