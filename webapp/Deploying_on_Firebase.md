@@ -121,7 +121,10 @@ The Python API (Cloud Function) requires environment variables for API keys.
 
 4. **Configure `.env` files:
     In `webapp/packages/webui/.env` set `VITE_APP_ENV` to `firebase`
-    In `webapp/packages/api/user-service/.env` set `FRONTEND_URL` to `https:<your-project-id>.web.app`
+    In `webapp/packages/api/user-service/.env` set
+    - `FRONTEND_URL` to `https://<your-project-id>.web.app`
+    - `DATABASE_PROVIDER` to `firestore`
+    - `APP_ENV` to `firebase`
     
 ## 3. Manual Deployment
 
