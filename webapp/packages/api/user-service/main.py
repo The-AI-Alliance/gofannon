@@ -368,9 +368,16 @@ async def run_agent_code(request: RunCodeRequest, user: dict = Depends(get_curre
 
 # This is an unseemly hack to adapt FastAPI to Google Cloud Functions.
 # TODO refactor all of this into microservices.
-from firebase_functions import https_fn
+from firebase_functions import https_fn, options
 
-@https_fn.on_request(memory=1024)
+@https_fn.on_request(
+    memory=1024,
+    cors=options.CorsOptions(
+        cors_origins=["*"],  # For production, restrict this to your frontend URL
+        cors_methods=["*"],
+        
+        # allow_headers=["Authorization", "Content-Type"],
+    ))
 def api(req: https_fn.Request) -> https_fn.Response:
     """
     An HTTPS Cloud Function that wraps the FastAPI application.
@@ -385,6 +392,7 @@ def api(req: https_fn.Request) -> https_fn.Response:
     async def send(message):
         nonlocal response_headers, response_body
         if message['type'] == 'http.response.start':
+            # This captures the status and headers from FastAPI
             response_headers.extend(message['headers'])
         elif message['type'] == 'http.response.body':
             response_body += message.get('body', b'')
@@ -418,14 +426,14 @@ def api(req: https_fn.Request) -> https_fn.Response:
 
     # Find the status code from the response headers
     status_code = 200 # default
-    for header, value in response_headers:
-        if header.decode().lower() == 'status':
-            status_code = int(value)
-            break
-    
-    
-    print(f"Request headers: {req.headers}")
-    response_headers.append((b'Access-Control-Allow-Origin', req.headers.get('origin', '*').encode())) #TODO hack, but this all needs to be microservices anyway
-    print(f"Response status: {status_code}, headers: {response_headers}")
+    # Extract status code from headers if present
+    status_header = next((v for h, v in response_headers if h.decode().lower() == 'status'), None)
+    if status_header:
+        status_code = int(status_header)
+
+    # Convert headers from bytes to string for the Response object
+    final_headers = {h.decode(): v.decode() for h, v in response_headers}
+ 
+    print(f"Response status: {status_code}, headers: {final_headers}")
     # Construct and return the response object expected by firebase-functions
-    return https_fn.Response(response_body, status=status_code, headers={h.decode(): v.decode() for h, v in response_headers})
+    return https_fn.Response(response_body, status=status_code, headers=final_headers)
