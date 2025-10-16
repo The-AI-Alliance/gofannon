@@ -125,6 +125,7 @@ The Python API (Cloud Function) requires environment variables for API keys.
       - `firebase apps:create web <web app name> --project <project id>`
     - Get the value for the new app by executing
       - `firebase apps:sdkconfig web <app id returned in the previous step>`
+      
     In `webapp/packages/api/user-service/.env` set
     - `FRONTEND_URL` to `https://<your-project-id>.web.app`
     - `DATABASE_PROVIDER` to `firestore`
