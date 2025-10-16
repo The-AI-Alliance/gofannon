@@ -168,6 +168,7 @@ def read_root():
 
 @app.get("/providers")
 def get_providers():
+    print("[DEBUG] Fetching available providers...")
     """Get all available providers and their configurations"""
     return get_available_providers()
 
@@ -327,36 +328,69 @@ async def generate_agent_code(request: GenerateCodeRequest, user: dict = Depends
     return code
 
 
+async def _execute_agent_code(code: str, input_dict: dict, tools: dict, gofannon_agents: List[str], db: DatabaseService):
+    """Helper function for recursive execution of agent code."""
+    
+    class GofannonClient:
+        def __init__(self, agent_ids: List[str], db_service: DatabaseService):
+            self.db = db_service
+            self.agent_map = {}
+            if agent_ids:
+                try:
+                    all_agents = [Agent(**self.db.get("agents", agent_id)) for agent_id in agent_ids]
+                    for agent in all_agents:
+                        self.agent_map[agent.name] = agent
+                except Exception as e:
+                    print(f"Error loading dependent agents: {e}")
+                    raise ValueError("Could not load one or more dependent Gofannon agents.")
+
+        async def call(self, agent_name: str, input_dict: dict) -> Any:
+            agent_to_run = self.agent_map.get(agent_name)
+            if not agent_to_run:
+                raise ValueError(f"Gofannon agent '{agent_name}' not found or not imported for this run.")
+
+            # Recursive call to the execution helper
+            return await _execute_agent_code(
+                code=agent_to_run.code,
+                input_dict=input_dict,
+                tools=agent_to_run.tools,
+                gofannon_agents=agent_to_run.gofannon_agents,
+                db=self.db
+            )
+
+    exec_globals = {
+        "RemoteMCPClient": RemoteMCPClient,
+        "litellm": litellm,
+        "asyncio": asyncio,
+        "http_client": httpx.AsyncClient(),
+        "gofannon_client": GofannonClient(gofannon_agents, db),
+        "__builtins__": __builtins__
+    }
+    
+    local_scope = {}
+    
+    code_obj = compile(code, '<string>', 'exec')
+    exec(code_obj, exec_globals, local_scope)
+
+    run_function = local_scope.get('run')
+
+    if not run_function or not asyncio.iscoroutinefunction(run_function):
+        raise ValueError("Code did not define an 'async def run(input_dict, tools)' function.")
+
+    result = await run_function(input_dict=input_dict, tools=tools)
+    return result
+
 @app.post("/agents/run-code", response_model=RunCodeResponse)
-async def run_agent_code(request: RunCodeRequest, user: dict = Depends(get_current_user)):
-    """
-    Executes agent code in a sandboxed environment.
-    """
+async def run_agent_code(request: RunCodeRequest, user: dict = Depends(get_current_user), db: DatabaseService = Depends(get_db)):
+    """Executes agent code in a sandboxed environment."""
     try:
-        # Prepare the execution scope. The code string will handle its own imports.
-        # We pass necessary modules/classes in globals for the `exec` context.
-        exec_globals = {
-            "RemoteMCPClient": RemoteMCPClient,
-            "litellm": litellm,
-            "asyncio": asyncio,
-            "http_client": httpx.AsyncClient(),
-            "__builtins__": __builtins__
-        }
-        
-        local_scope = {}
-        
-        # The user's code is a string that defines `async def run(...)`
-        # We execute it to define the function within our local_scope.
-        code_obj = compile(request.code, '<string>', 'exec')
-        exec(code_obj, exec_globals, local_scope)
-
-        run_function = local_scope.get('run')
-
-        if not run_function or not asyncio.iscoroutinefunction(run_function):
-            raise ValueError("Code did not define an 'async def run(input, tools)' function.")
-
-        # Call the async function with the provided input and tools
-        result = await run_function(input_dict=request.input_dict, tools=request.tools)
+        result = await _execute_agent_code(
+            code=request.code,
+            input_dict=request.input_dict,
+            tools=request.tools,
+            gofannon_agents=request.gofannon_agents,
+            db=db
+        )
         
         return RunCodeResponse(result=result)
         

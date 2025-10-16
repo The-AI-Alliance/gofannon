@@ -13,21 +13,35 @@ import {
   Alert,
   Tabs,
   Tab,
+  CircularProgress,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel, 
+  ListItemIcon, 
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import BuildIcon from '@mui/icons-material/Build';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 import { useAgentFlow } from './AgentCreationFlowContext';
+import agentService from '../../services/agentService';
 import ToolsSelectionDialog from './ToolsSelectionDialog'; 
 
 
 const ToolsScreen = () => {
-  const { tools, setTools, swaggerSpecs, setSwaggerSpecs } = useAgentFlow();
+  const { tools, setTools, swaggerSpecs, setSwaggerSpecs, gofannonAgents, setGofannonAgents } = useAgentFlow();
   const [currentToolUrl, setCurrentToolUrl] = useState('');
   const [error, setError] = useState(null);
   const navigate = useNavigate();
   const [toolsDialog, setToolsDialog] = useState({ open: false, mcpUrl: '', existingSelectedTools: [] });
   const [tabIndex, setTabIndex] = useState(0);
+
+  // State for Gofannon Agents tab
+  const [availableAgents, setAvailableAgents] = useState([]);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+  const [selectedAgentId, setSelectedAgentId] = useState('');
+
 
   const handleTabChange = (event, newValue) => {
     setTabIndex(newValue);
@@ -89,15 +103,32 @@ const ToolsScreen = () => {
     event.target.value = null; // Allow re-uploading the same file
   };
 
+  const handleAddGofannonAgent = () => {
+    if (!selectedAgentId) return;
+    if (gofannonAgents.some(agent => agent.id === selectedAgentId)) {
+        setError('This agent has already been added.');
+        return;
+    }
+    const agentToAdd = availableAgents.find(agent => agent._id === selectedAgentId);
+    if (agentToAdd) {
+        setGofannonAgents(prev => [...prev, { id: agentToAdd._id, name: agentToAdd.name }]);
+        setSelectedAgentId('');
+        setError(null);
+    }
+  };
+
+  const handleDeleteGofannonAgent = (agentId) => {
+    setGofannonAgents(prev => prev.filter(agent => agent.id !== agentId));
+  };
+
   const handleDeleteSpec = (specName) => {
     setSwaggerSpecs(prev => prev.filter(spec => spec.name !== specName));
   };
   
   const handleContinue = () => {
-    // Optionally add validation for at least one tool
-    // TODO - validate that at least one tool is selected from each MCP server
-    if (Object.keys(tools).length === 0 && swaggerSpecs.length === 0) {
-      setError('Please add at least one tool (MCP or Swagger) to continue.');
+    const hasMcpTools = Object.values(tools).some(selected => selected.length > 0);
+    if (!hasMcpTools && swaggerSpecs.length === 0 && gofannonAgents.length === 0) {
+      setError('Please add and select at least one tool or agent to continue.');
       return;
     }
     navigate('/create-agent/description');
@@ -115,6 +146,23 @@ const ToolsScreen = () => {
     setTools(prev => ({ ...prev, [mcpUrl]: selectedNames }));
   };
 
+  React.useEffect(() => {
+    const fetchAgents = async () => {
+        setLoadingAgents(true);
+        try {
+            const agents = await agentService.getAgents();
+            setAvailableAgents(agents);
+        } catch (err) {
+            setError('Failed to load available agents.');
+        } finally {
+            setLoadingAgents(false);
+        }
+    };
+    if (tabIndex === 2) { // The new Gofannon tab
+        fetchAgents();
+    }    
+  }, [tabIndex]);
+
   return (
     <Paper sx={{ p: 3, maxWidth: 600, margin: 'auto', mt: 4 }}>
       <Typography variant="h5" component="h2" gutterBottom>
@@ -125,6 +173,7 @@ const ToolsScreen = () => {
         <Tabs value={tabIndex} onChange={handleTabChange} aria-label="tool type tabs">
           <Tab label="MCP Servers" />
           <Tab label="Swagger / OpenAPI" />
+          <Tab label="Gofannon" />
         </Tabs>
       </Box>
 
@@ -217,6 +266,57 @@ const ToolsScreen = () => {
                 </ListItem>
               ))}
             </List>
+          )}
+        </Box>
+      )}
+
+
+      {tabIndex === 2 && (
+        <Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Select other saved agents to make them available as tools for this agent.
+          </Typography>
+          {loadingAgents ? <CircularProgress /> : (
+            <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+            <FormControl fullWidth>
+              <InputLabel id="gofannon-agent-select-label">Select an Agent</InputLabel>
+              <Select
+                labelId="gofannon-agent-select-label"
+                value={selectedAgentId}
+                label="Select an Agent"
+                onChange={(e) => setSelectedAgentId(e.target.value)}
+              >
+                {availableAgents.map((agent) => (
+                  <MenuItem key={agent._id} value={agent._id}>
+                    {agent.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Button variant="contained" onClick={handleAddGofannonAgent} disabled={!selectedAgentId}>
+              Add
+            </Button>
+          </Box>
+          )}
+
+          {gofannonAgents.length > 0 && (
+             <List dense sx={{ border: '1px solid #ccc', borderRadius: 1, maxHeight: 200, overflow: 'auto' }}>
+             {gofannonAgents.map((agent) => (
+               <ListItem
+                 key={agent.id}
+                 secondaryAction={
+                   <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteGofannonAgent(agent.id)}>
+                     <DeleteIcon />
+                   </IconButton>
+                 }
+               >
+                 <ListItemIcon>
+                    <SmartToyIcon />
+                 </ListItemIcon>
+                 <ListItemText primary={agent.name} />
+               </ListItem>
+             ))}
+           </List>
           )}
         </Box>
       )}

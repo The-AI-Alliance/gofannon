@@ -112,6 +112,37 @@ To make a POST request with a JSON body:
 Refer to the specific documentation for each tool to know the correct URL, HTTP method, and what parameters (query, path, body) are expected.
 """
 
+how_to_use_gofannon_agents = """
+# How to Call Other Gofannon Agents
+
+You are provided with a pre-initialized client called `gofannon_client` to call other Gofannon agents that have been imported into your context.
+
+**ALL agent calls are asynchronous and MUST use the `await` keyword.**
+
+To call another agent, you **MUST** use the `.call()` method on the `gofannon_client`.
+
+Here is the documentation for the `call` method:
+`async def call(self, agent_name: str, input_dict: dict) -> Any:`
+    Calls a specific Gofannon agent by its name.
+
+    :param agent_name:
+        The **name** of the agent as a string.
+    :param input_dict:
+        A dictionary conforming to the target agent's input schema.
+
+    :return:
+        The result from the remote agent. The type depends on what the agent returns.
+
+    :Example:
+    >>> # To call the 'stock_analyzer' agent
+    >>> analysis = await gofannon_client.call(
+    ...     agent_name="stock_analyzer",
+    ...     input_dict={"stock_symbol": "GOOGL"}
+    ... )
+    >>> print(analysis)
+    {"recommendation": "buy", "confidence": 0.85}
+"""
+
 what_to_do_prompt_template = """
 You are tasked with writing the body of an asynchronous Python function with the signature `async def run(input_dict: dict, tools: dict) -> dict:`.
 
@@ -119,6 +150,8 @@ This function will receive:
 - `input_dict`: A dictionary conforming to the following input schema.
 - `tools`: A dictionary of tool configurations.
 
+An asynchronous HTTP client `http_client` is available for making API calls to Swagger/OpenAPI specs.
+A client for calling other Gofannon agents named `gofannon_client` is also available if you have imported any.
 A dictionary of MCP clients named `mcpc` is already initialized for you like this:
 `mcpc = {{ url : RemoteMCPClient(remote_url = url) for url in tools.keys() }}`
 You can use it to call tools as described in the documentation.

@@ -26,6 +26,7 @@ const SaveAgentScreen = () => {
     friendlyName,
     docstring,
     invokableModels,
+    gofannonAgents,
   } = useAgentFlow();
 
   const [agentName, setAgentName] = useState(friendlyName || ''); // Pre-fill with existing friendly name if available
@@ -59,13 +60,14 @@ const SaveAgentScreen = () => {
       name: agentName,
       description: description,
       code: generatedCode,
-      docstring: docstring,
-      // friendlyName: friendlyName,
-      tools: tools,
+      docstring,
+      friendlyName: friendlyName,
+      tools,
       swaggerSpecs: swaggerSpecs,
       inputSchema: inputSchema,
       outputSchema: outputSchema,
       invokableModels: invokableModels,
+      gofannonAgents,
     };
 
     try {

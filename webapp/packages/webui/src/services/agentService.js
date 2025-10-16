@@ -46,12 +46,13 @@ class AgentService {
     }
   }
 
-  async runCodeInSandbox(code, inputDict, tools) {
+  async runCodeInSandbox(code, inputDict, tools, gofannonAgents) {
     
     const requestBody = {
       code,
-      inputDict, // This will be correctly serialized as `inputDict`
+      inputDict,
       tools,
+      gofannonAgents: gofannonAgents.map(agent => agent.id),
     };
 
     try {
@@ -63,7 +64,10 @@ class AgentService {
           'Accept': 'application/json',
           ...authHeaders,
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          ...requestBody,
+          gofannonAgents: (requestBody.gofannonAgents || []).map(a => a.id),
+        }),
       });
 
       const data = await response.json();

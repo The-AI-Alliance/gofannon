@@ -21,6 +21,7 @@ export const AgentCreationFlowProvider = ({ children }) => {
     const [friendlyName, setFriendlyName] = useState('');
     const [docstring, setDocstring] = useState('');
     const [invokableModels, setInvokableModels] = useState([]);
+    const [gofannonAgents, setGofannonAgents] = useState([]); // {id, name}
 
     const value = {
         tools,
@@ -41,6 +42,8 @@ export const AgentCreationFlowProvider = ({ children }) => {
         setDocstring,
         invokableModels,
         setInvokableModels,
+        gofannonAgents,
+        setGofannonAgents,
     };
 
     return (

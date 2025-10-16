@@ -14,8 +14,7 @@ import {
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 
 const SandboxScreen = () => {
-  const { inputSchema, tools, generatedCode } = useAgentFlow();
-  
+  const { inputSchema, tools, generatedCode, gofannonAgents } = useAgentFlow();
   // Create initial form state from schema.
   const initialFormState = Object.keys(inputSchema).reduce((acc, key) => {
     acc[key] = ''; // default to empty string
@@ -37,7 +36,7 @@ const SandboxScreen = () => {
     setOutput(null);
 
     try {
-      const response = await agentService.runCodeInSandbox(generatedCode, formData, tools);
+      const response = await agentService.runCodeInSandbox(generatedCode, formData, tools, gofannonAgents);
       if (response.error) {
         setError(response.error);
       } else {

@@ -20,7 +20,7 @@ class GenerateCodeRequest(BaseModel):
     composer_model_config: ProviderConfig = Field(..., alias="modelConfig")
     invokable_models: Optional[List[ProviderConfig]] = Field(None, alias="invokableModels")
     swagger_specs: Optional[List[SwaggerSpec]] = Field(None, alias="swaggerSpecs")
-
+    gofannon_agents: Optional[List[str]] = Field(None, alias="gofannonAgents")
     model_config = ConfigDict(populate_by_name=True)
 
 class GenerateCodeResponse(BaseModel):
@@ -35,12 +35,13 @@ class CreateAgentRequest(BaseModel):
     description: str
     code: str
     docstring: Optional[str] = None
-    # friendly_name: Optional[str] = Field(None, alias="friendlyName")
+    friendly_name: Optional[str] = Field(None, alias="friendlyName")
     tools: Dict[str, List[str]]
-    swagger_specs: Optional[List[SwaggerSpec]] = Field(defualt= None, alias="swaggerSpecs")
+    swagger_specs: Optional[List[SwaggerSpec]] = Field(defualt= [], alias="swaggerSpecs")
     input_schema: Optional[Dict[str, Any]] = Field(..., alias="inputSchema")
     output_schema: Optional[Dict[str, Any]] = Field(..., alias="outputSchema")
     invokable_models: Optional[List[ProviderConfig]] = Field(None, alias="invokableModels")
+    gofannon_agents: Optional[List[str]] = Field(default=[], alias="gofannonAgents")
 
     model_config = ConfigDict(
         populate_by_name=True,   
@@ -60,7 +61,7 @@ class RunCodeRequest(BaseModel):
     code: str
     input_dict: Dict[str, Any] = Field(..., alias="inputDict")
     tools: Dict[str, List[str]]
-
+    gofannon_agents: Optional[List[str]] = Field(default=[], alias="gofannonAgents")
     model_config = ConfigDict(populate_by_name=True)
 
 class RunCodeResponse(BaseModel):
