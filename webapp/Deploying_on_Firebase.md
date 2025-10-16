@@ -119,6 +119,7 @@ The Python API (Cloud Function) requires environment variables for API keys.
     ```
 
 4. **Configure `.env` files**:
+
     Copy `webapp/packages/webui/.env.firebase.example` to `.env`
     - In `.env`, fill in the blank values. To get these values, you must first create a new Firebase app under the existing Firebase project:
       - `firebase apps:create web <web app name> --project <project id>`
