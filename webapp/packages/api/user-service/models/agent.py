@@ -23,12 +23,21 @@ class GenerateCodeRequest(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
+class GenerateCodeResponse(BaseModel):
+    code: str
+    friendly_name: str = Field(..., alias="friendlyName")
+    docstring: str
+
+    model_config = ConfigDict(populate_by_name=True)
+
 class CreateAgentRequest(BaseModel):
     name: str
     description: str
     code: str
+    docstring: Optional[str] = None
+    # friendly_name: Optional[str] = Field(None, alias="friendlyName")
     tools: Dict[str, List[str]]
-    swagger_specs: Optional[List[SwaggerSpec]] = Field(None, alias="swaggerSpecs")
+    swagger_specs: Optional[List[SwaggerSpec]] = Field(defualt= None, alias="swaggerSpecs")
     input_schema: Optional[Dict[str, Any]] = Field(..., alias="inputSchema")
     output_schema: Optional[Dict[str, Any]] = Field(..., alias="outputSchema")
     invokable_models: Optional[List[ProviderConfig]] = Field(None, alias="invokableModels")
@@ -46,10 +55,6 @@ class Agent(CreateAgentRequest):
 
     model_config = ConfigDict(populate_by_name=True)
         
-
-        
-class GenerateCodeResponse(BaseModel):
-    code: str
 
 class RunCodeRequest(BaseModel):
     code: str

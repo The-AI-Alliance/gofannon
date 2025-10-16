@@ -26,7 +26,16 @@ import agentService from '../../services/agentService'; // Import the new agent 
 import ModelConfigDialog from '../../components/ModelConfigDialog'; // Import the new component
 
 const SchemasScreen = () => {
-  const { tools, description, swaggerSpecs,  inputSchema, outputSchema, setGeneratedCode, invokableModels, setInvokableModels } = useAgentFlow();
+  const { tools,
+    description, 
+    swaggerSpecs,
+    inputSchema, 
+    outputSchema, 
+    setGeneratedCode, 
+    setFriendlyName, 
+    setDocstring, 
+    invokableModels, 
+    setInvokableModels } = useAgentFlow();
   const navigate = useNavigate();
 
   // State for Model Configuration
@@ -120,6 +129,8 @@ const SchemasScreen = () => {
     try {
       const response = await agentService.generateCode(agentConfig);
       setGeneratedCode(response.code);
+      setFriendlyName(response.friendlyName);
+      setDocstring(response.docstring);
       navigate('/create-agent/code');
     } catch (err) {
       setBuildError(err.message || 'An unexpected error occurred while building the agent.');

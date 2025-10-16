@@ -59,6 +59,7 @@ const ViewAgent = () => {
           inputSchema: agentFlowContext.inputSchema,
           outputSchema: agentFlowContext.outputSchema,
           invokableModels: agentFlowContext.invokableModels
+          // docstring will be in context if coming from creation flow, but it's not directly used here yet
         });
       } else {
         // In view/edit mode, fetch from API
@@ -89,7 +90,9 @@ const ViewAgent = () => {
       agentFlowContext.setInputSchema(agent.inputSchema);
       agentFlowContext.setOutputSchema(agent.outputSchema);
       agentFlowContext.setInvokableModels(agent.invokableModels);
+      agentFlowContext.setDocstring(agent.docstring);
       navigate(path);
+    
   };
 
   const handleRunInSandbox = () => {
@@ -191,6 +194,21 @@ const ViewAgent = () => {
                 />
             </AccordionDetails>
         </Accordion>
+
+        {agent.docstring && (
+            <Accordion>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Typography>Generated Docstring</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                    <Paper variant="outlined" sx={{ p: 2, bgcolor: 'background.paper', overflowX: 'auto', border: '1px solid #444' }}>
+                        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0 }}>
+                            {agent.docstring}
+                        </pre>
+                    </Paper>
+                </AccordionDetails>
+            </Accordion>
+        )}
 
         <Accordion defaultExpanded>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>

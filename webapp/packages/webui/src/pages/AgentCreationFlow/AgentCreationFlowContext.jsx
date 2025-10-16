@@ -15,9 +15,11 @@ export const AgentCreationFlowProvider = ({ children }) => {
     const [tools, setTools] = useState({}); // { "url": [] }
     const [swaggerSpecs, setSwaggerSpecs] = useState([]); // [{ name: string, content: string }]
     const [description, setDescription] = useState('');
-    const [inputSchema, setInputSchema] = useState({ inputText: "string" }); // Default JSON structure
-    const [outputSchema, setOutputSchema] = useState({ outputText: "string" }); // Default JSON structure
+    const [inputSchema, setInputSchema] = useState({ inputText: "string" }); 
+    const [outputSchema, setOutputSchema] = useState({ outputText: "string" });
     const [generatedCode, setGeneratedCode] = useState('');
+    const [friendlyName, setFriendlyName] = useState('');
+    const [docstring, setDocstring] = useState('');
     const [invokableModels, setInvokableModels] = useState([]);
 
     const value = {
@@ -33,6 +35,10 @@ export const AgentCreationFlowProvider = ({ children }) => {
         setOutputSchema,
         generatedCode,
         setGeneratedCode,
+        friendlyName,
+        setFriendlyName,
+        docstring,
+        setDocstring,
         invokableModels,
         setInvokableModels,
     };
