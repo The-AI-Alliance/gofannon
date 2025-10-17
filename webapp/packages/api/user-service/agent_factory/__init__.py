@@ -98,12 +98,12 @@ result = await gofannon_client.call(agent_name='{agent.name}', input_dict={{...}
         system_prompt_parts.append(how_to_use_swagger_tools) 
     if request.gofannon_agents:
         system_prompt_parts.append(how_to_use_gofannon_agents)  
-        print("[DEBUG] Added gofannon agents to system prompt.")         
+               
     if request.invokable_models:
         system_prompt_parts.append(how_to_use_litellm)
     system_prompt_parts.append(what_to_do)
     system_prompt = "\n\n".join(system_prompt_parts)  
-    print("[DEBUG] System prompt constructed.")
+    
     model = request.composer_model_config.model
     provider = request.composer_model_config.provider
     

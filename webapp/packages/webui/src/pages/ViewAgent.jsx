@@ -23,6 +23,7 @@ import PublishIcon from '@mui/icons-material/Publish';
 import SaveIcon from '@mui/icons-material/Save';
 import WebIcon from '@mui/icons-material/Web';
 import ArticleIcon from '@mui/icons-material/Article';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 
 import { useAgentFlow } from './AgentCreationFlow/AgentCreationFlowContext';
 import agentService from '../services/agentService';
@@ -53,7 +54,7 @@ const ViewAgent = () => {
         }
         
         setAgent({
-          name: '',
+          name: agentFlowContext.friendlyName || '',
           description: agentFlowContext.description,
           tools: agentFlowContext.tools,
           swaggerSpecs: agentFlowContext.swaggerSpecs,
@@ -66,7 +67,19 @@ const ViewAgent = () => {
       } else {
         // In view/edit mode, fetch from API
         const data = await agentService.getAgent(agentId);
-        console.log("Loaded agent data from API:", data);
+        
+        if (data.gofannonAgents && data.gofannonAgents.length > 0) {
+            // To display names, we need to fetch all agents and create a map.
+            const allAgents = await agentService.getAgents();
+            const agentMap = new Map(allAgents.map(a => [a._id, a.name]));
+            data.gofannonAgents = data.gofannonAgents.map(id => ({
+                id: id,
+                name: agentMap.get(id) || `Unknown Agent (ID: ${id})`
+            }));
+        } else {
+            data.gofannonAgents = []; // Ensure it's an array
+        }
+        
         setAgent(data);
       }
     } catch (err) {
@@ -94,6 +107,7 @@ const ViewAgent = () => {
       agentFlowContext.setOutputSchema(agent.outputSchema);
       agentFlowContext.setInvokableModels(agent.invokableModels);
       agentFlowContext.setDocstring(agent.docstring);
+      agentFlowContext.setGofannonAgents(agent.gofannonAgents);
       navigate(path);
     
   };
@@ -179,6 +193,18 @@ const ViewAgent = () => {
                     ))}
                 </List>
                 ) : (<Typography variant="body2" color="text.secondary">No Swagger specs uploaded.</Typography>)}
+                
+                <Typography variant="subtitle1" gutterBottom sx={{mt: 2}}>Gofannon Agents</Typography>
+                {agent.gofannonAgents && agent.gofannonAgents.length > 0 ? (
+                <List dense>
+                    {agent.gofannonAgents.map(ga => (
+                        <ListItem key={ga.id}>
+                            <ListItemIcon><SmartToyIcon /></ListItemIcon>
+                            <ListItemText primary={ga.name} />
+                        </ListItem>
+                    ))}
+                </List>
+                ) : (<Typography variant="body2" color="text.secondary">No Gofannon agents configured.</Typography>)}
             </AccordionDetails>
         </Accordion>
 
