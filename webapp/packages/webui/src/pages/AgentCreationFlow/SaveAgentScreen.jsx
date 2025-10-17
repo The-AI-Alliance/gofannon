@@ -28,7 +28,6 @@ const SaveAgentScreen = () => {
     invokableModels,
     gofannonAgents,
   } = useAgentFlow();
-
   const [agentName, setAgentName] = useState(friendlyName || ''); // Pre-fill with existing friendly name if available
   const [description, setDescription] = useState(agentDescription); // Pre-fill with existing description
   const [isLoading, setIsLoading] = useState(false);

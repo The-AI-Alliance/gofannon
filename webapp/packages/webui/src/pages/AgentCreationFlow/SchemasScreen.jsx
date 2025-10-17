@@ -127,9 +127,6 @@ const SchemasScreen = () => {
         parameters: currentModelParams,
       },
     };
-
-    console.log("[AgentService] gofannonAgents:", gofannonAgents);
-    console.log("[AgentService] gofannonAgents IDs:", gofannonAgents.map(agent => agent.id));
     
     try {
       const response = await agentService.generateCode(agentConfig);

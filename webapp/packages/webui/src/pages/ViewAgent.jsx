@@ -44,7 +44,7 @@ const ViewAgent = () => {
   const loadAgentData = useCallback(async () => {
     setError(null);
     setLoading(true);
-    console.log("Loading agent data from creation flow context:", agentFlowContext);
+    
     try {
       if (isCreationFlow) {
         // In creation flow, data comes from context
@@ -60,8 +60,8 @@ const ViewAgent = () => {
           code: agentFlowContext.generatedCode,
           inputSchema: agentFlowContext.inputSchema,
           outputSchema: agentFlowContext.outputSchema,
-          invokableModels: agentFlowContext.invokableModels
-          // docstring will be in context if coming from creation flow, but it's not directly used here yet
+          invokableModels: agentFlowContext.invokableModels,
+          docstring: agentFlowContext.docstring,
         });
       } else {
         // In view/edit mode, fetch from API

@@ -41,7 +41,7 @@ class ChatService {
   }
 
   async getProviders() {
-    console.log("Fetching providers from ", `${API_BASE_URL}/providers`);
+    
     const authHeaders = await this._getAuthHeaders();
     const response = await fetch(`${API_BASE_URL}/providers`, { 
       headers: { 
@@ -55,7 +55,7 @@ class ChatService {
     }
     
     const data = await response.json();
-    console.log("Fetched providers: ", data);
+    
     return data;
   }
 
