@@ -84,7 +84,7 @@ result = await gofannon_client.call(agent_name='{agent.name}', input_dict={{...}
         input_schema=input_schema_str,
         output_schema=output_schema_str
     )
-    print("[DEBUG] What to do prompt constructed." + str(request))
+    
     system_prompt_parts = []
     if tool_docs:
         system_prompt_parts.append(tool_docs)

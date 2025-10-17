@@ -168,7 +168,6 @@ def read_root():
 
 @app.get("/providers")
 def get_providers():
-    print("[DEBUG] Fetching available providers...")
     """Get all available providers and their configurations"""
     return get_available_providers()
 
@@ -275,7 +274,7 @@ async def create_agent(request: CreateAgentRequest, db: DatabaseService = Depend
     # Use by_alias=True to serialize the Agent model into a dictionary
     # with camelCase keys (e.g., inputSchema, swaggerSpecs, _id, _rev)
     # matching the common external representation and CouchDB's _id/_rev.
-    saved_doc_data = agent.model_dump()
+    saved_doc_data = agent.model_dump(by_alias=True)
     saved_doc = db.save("agents", agent.id, saved_doc_data)
     
     agent.rev = saved_doc.get("rev") # Add revision from DB response

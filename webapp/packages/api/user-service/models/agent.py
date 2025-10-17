@@ -54,7 +54,7 @@ class Agent(CreateAgentRequest):
     created_at: datetime = Field(default_factory=lambda: datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
     updated_at: datetime = Field(default_factory=lambda: datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
 
-    model_config = ConfigDict(populate_by_name=True)
+    # model_config = ConfigDict(populate_by_name=True) # model_config is inherited from CreateAgentRequest
         
 
 class RunCodeRequest(BaseModel):

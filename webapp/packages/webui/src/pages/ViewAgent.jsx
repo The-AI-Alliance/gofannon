@@ -44,12 +44,14 @@ const ViewAgent = () => {
   const loadAgentData = useCallback(async () => {
     setError(null);
     setLoading(true);
+    console.log("Loading agent data from creation flow context:", agentFlowContext);
     try {
       if (isCreationFlow) {
         // In creation flow, data comes from context
         if (!agentFlowContext.generatedCode) {
             throw new Error("Agent code has not been generated yet. Please go back to the schemas screen.");
         }
+        
         setAgent({
           name: '',
           description: agentFlowContext.description,
@@ -64,6 +66,7 @@ const ViewAgent = () => {
       } else {
         // In view/edit mode, fetch from API
         const data = await agentService.getAgent(agentId);
+        console.log("Loaded agent data from API:", data);
         setAgent(data);
       }
     } catch (err) {

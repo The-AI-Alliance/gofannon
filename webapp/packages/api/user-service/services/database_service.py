@@ -64,6 +64,8 @@ class CouchDBService(DatabaseService):
         if doc_id in db:
             existing_doc = db[doc_id]
             doc["_rev"] = existing_doc.rev
+        elif "_rev" in doc:
+            del doc["_rev"]
         
         try:
             doc_id, rev = db.save(doc)
