@@ -34,4 +34,11 @@ fi
 # echo "Creating agents database if it does not exist..."
 # curl -s -X PUT "http://couchdb:5984/agents" -u "${COUCHDB_USER}:${COUCHDB_PASSWORD}" -H "Content-Type: application/json"
 
+# Disable logging of non-essential info to reduce noise
+echo "Setting CouchDB logging level to 'warning'..."
+curl -X PUT "http://couchdb:5984/_node/nonode@nohost/_config/log/level" \
+  -u "${COUCHDB_USER}:${COUCHDB_PASSWORD}" \
+  -d '"warning"'
+
+
 echo "CouchDB initialization complete."

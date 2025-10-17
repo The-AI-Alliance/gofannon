@@ -48,6 +48,8 @@ class AgentService {
 
   async runCodeInSandbox(code, inputDict, tools, gofannonAgents) {
     
+    console.log("[AgentService] gofannonAgents:", gofannonAgents);
+    console.log("[AgentService] gofannonAgents IDs:", gofannonAgents.map(agent => agent.id));
     const requestBody = {
       code,
       inputDict,
@@ -64,10 +66,7 @@ class AgentService {
           'Accept': 'application/json',
           ...authHeaders,
         },
-        body: JSON.stringify({
-          ...requestBody,
-          gofannonAgents: (requestBody.gofannonAgents || []).map(a => a.id),
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();

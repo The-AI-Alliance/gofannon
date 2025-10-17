@@ -35,7 +35,8 @@ const SchemasScreen = () => {
     setFriendlyName, 
     setDocstring, 
     invokableModels, 
-    setInvokableModels } = useAgentFlow();
+    setInvokableModels,
+    gofannonAgents } = useAgentFlow();
   const navigate = useNavigate();
 
   // State for Model Configuration
@@ -119,6 +120,7 @@ const SchemasScreen = () => {
       outputSchema,
       invokableModels,
       swaggerSpecs,
+      gofannonAgents: gofannonAgents.map(agent => agent.id),
       modelConfig: {
         provider: selectedProvider,
         model: selectedModel,
@@ -126,6 +128,9 @@ const SchemasScreen = () => {
       },
     };
 
+    console.log("[AgentService] gofannonAgents:", gofannonAgents);
+    console.log("[AgentService] gofannonAgents IDs:", gofannonAgents.map(agent => agent.id));
+    
     try {
       const response = await agentService.generateCode(agentConfig);
       setGeneratedCode(response.code);

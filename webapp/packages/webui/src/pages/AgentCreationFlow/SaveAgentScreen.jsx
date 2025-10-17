@@ -67,7 +67,7 @@ const SaveAgentScreen = () => {
       inputSchema: inputSchema,
       outputSchema: outputSchema,
       invokableModels: invokableModels,
-      gofannonAgents,
+      gofannonAgents: gofannonAgents.map(agent => agent.id),
     };
 
     try {
