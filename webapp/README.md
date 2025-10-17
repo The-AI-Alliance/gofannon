@@ -33,7 +33,7 @@ This monorepo contains the complete scaffolding for the Gofannon web application
 1.  Start all services using Docker Compose:
     ```bash
     cd infra/docker
-    cp example.env .env  # and edit example key(s)
+    cp example.env .env  # also edit example key(s)
     docker-compose up --build
     ```
 
