@@ -16,6 +16,11 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,  
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -24,6 +29,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import WebIcon from '@mui/icons-material/Web';
 import ArticleIcon from '@mui/icons-material/Article';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 import { useAgentFlow } from './AgentCreationFlow/AgentCreationFlowContext';
 import agentService from '../services/agentService';
@@ -39,6 +45,7 @@ const ViewAgent = () => {
   const [error, setError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
 
   const isCreationFlow = !agentId;
 
@@ -137,6 +144,23 @@ const ViewAgent = () => {
     } finally {
         setIsSaving(false);
     }
+  };
+
+  const handleDeleteAgent = async () => {
+    if (!agentId) return;
+    setDeleteConfirmationOpen(false);
+    setError(null);
+    setIsSaving(true); // Reuse saving state for loading indicator
+
+    try {
+      await agentService.deleteAgent(agentId);
+      navigate('/agents', { replace: true }); // Redirect after deletion
+    } catch (err) {
+      setError(err.message || 'Failed to delete agent.');
+      // Stay on the page to show the error
+      setIsSaving(false);
+    }
+    // On success, isSaving will not be set to false because we navigate away.    
   };
 
   if (loading) {
@@ -249,6 +273,17 @@ const ViewAgent = () => {
         </Accordion>
 
         <Stack direction="row" spacing={2} justifyContent="flex-end" sx={{mt: 3}}>
+            {!isCreationFlow && (
+                <Button
+                    variant="outlined"
+                    color="error"
+                    startIcon={<DeleteIcon />}
+                    onClick={() => setDeleteConfirmationOpen(true)}
+                    disabled={isSaving}
+                >
+                    Delete Agent
+                </Button>
+            )}          
             <Button
                 variant="outlined"
                 startIcon={<PlayArrowIcon />}
@@ -276,6 +311,24 @@ const ViewAgent = () => {
                 </Button>
             )}
         </Stack>
+
+        <Dialog
+            open={deleteConfirmationOpen}
+            onClose={() => setDeleteConfirmationOpen(false)}
+        >
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogContent>
+                <DialogContentText>
+                    Are you sure you want to permanently delete the agent "{agent?.name}"? This action cannot be undone.
+                </DialogContentText>
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={() => setDeleteConfirmationOpen(false)}>Cancel</Button>
+                <Button onClick={handleUpdateAgent} color="error" variant="contained">
+                    Delete
+                </Button>
+            </DialogActions>
+        </Dialog>        
     </Paper>
   );
 };

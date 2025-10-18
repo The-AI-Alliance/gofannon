@@ -48,13 +48,11 @@ class AgentService {
 
   async runCodeInSandbox(code, inputDict, tools, gofannonAgents) {
     
-    console.log("[AgentService] gofannonAgents:", gofannonAgents);
-    console.log("[AgentService] gofannonAgents IDs:", gofannonAgents.map(agent => agent.id));
     const requestBody = {
       code,
       inputDict,
       tools,
-      gofannonAgents: gofannonAgents.map(agent => agent.id),
+      gofannonAgents: (gofannonAgents || []).map(agent => agent.id),
     };
 
     try {
@@ -166,7 +164,29 @@ class AgentService {
       console.error(`[AgentService] Error updating agent ${agentId}:`, error);
       throw error;
     }
-  }  
+  }
+
+  async deleteAgent(agentId) {
+    try {
+      const authHeaders = await this._getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/agents/${agentId}`, {
+        method: 'DELETE',
+        headers: {
+          ...authHeaders,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: `Failed to delete agent ${agentId}. Status: ${response.status}` }));
+        throw new Error(errorData.detail);
+      }
+      // A successful DELETE (204 No Content) will not have a body to return.
+      return;
+    } catch (error) {
+      console.error(`[AgentService] Error deleting agent ${agentId}:`, error);
+      throw error;
+    }
+  }    
 }
 
 export default new AgentService();
