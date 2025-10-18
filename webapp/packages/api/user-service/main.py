@@ -304,6 +304,7 @@ async def delete_agent(agent_id: str, db: DatabaseService = Depends(get_db), use
     except HTTPException as e:
         raise e
 
+
 @app.post("/mcp/tools")
 async def list_mcp_tools(
     request: ListMcpToolsRequest,
