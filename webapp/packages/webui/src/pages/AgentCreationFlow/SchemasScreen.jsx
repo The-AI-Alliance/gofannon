@@ -16,7 +16,6 @@ import {
   CircularProgress
 } from '@mui/material';
 import CodeIcon from '@mui/icons-material/Code';
-import EditIcon from '@mui/icons-material/Edit';
 import SettingsIcon from '@mui/icons-material/Settings'; 
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -24,13 +23,16 @@ import { useAgentFlow } from './AgentCreationFlowContext';
 import chatService from '../../services/chatService'; // Re-use chatService to fetch providers
 import agentService from '../../services/agentService'; // Import the new agent service
 import ModelConfigDialog from '../../components/ModelConfigDialog'; // Import the new component
+import SchemaEditor from '../../components/SchemaEditor';
 
 const SchemasScreen = () => {
   const { tools,
     description, 
     swaggerSpecs,
     inputSchema, 
+    setInputSchema,
     outputSchema, 
+    setOutputSchema,
     setGeneratedCode, 
     setFriendlyName, 
     setDocstring, 
@@ -167,11 +169,10 @@ const SchemasScreen = () => {
   return (
     <Paper sx={{ p: 3, maxWidth: 800, margin: 'auto', mt: 4 }}>
       <Typography variant="h5" component="h2" gutterBottom>
-        Screen 3: Define Input/Output JSON (Optional)
+        Screen 3: Define Input/Output JSON
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        By default, input has `inputText` and output has `outputText`. You can
-        optionally define more complex JSON structures here. (Edit disabled for POC)
+        You can define the JSON structures for your agent's input and output. The default schemas are provided as a starting point.
       </Typography>
 
       {providersError && (
@@ -188,30 +189,18 @@ const SchemasScreen = () => {
 
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} md={6}>
-          <Box sx={{ border: '1px solid #ddd', borderRadius: 1, p: 2, bgcolor: 'background.default' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-              <Typography variant="h6\">Input JSON Schema</Typography>
-              <Button size="small" startIcon={<EditIcon />} disabled>Edit</Button>
-            </Box>
-            <Box sx={{ bgcolor: 'grey.900', p: 1, borderRadius: 1, overflowX: 'auto' }}>
-              <code style={{ whiteSpace: 'pre-wrap', color: 'lightgreen', display: 'block' }}>
-                {JSON.stringify(inputSchema, null, 2)}
-              </code>
-            </Box>
-          </Box>
+          <SchemaEditor
+            title="Input JSON Schema"
+            schema={inputSchema}
+            setSchema={setInputSchema}
+          />
         </Grid>
         <Grid item xs={12} md={6}>
-          <Box sx={{ border: '1px solid #ddd', borderRadius: 1, p: 2, bgcolor: 'background.default' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-              <Typography variant="h6\">Output JSON Schema</Typography>
-              <Button size="small" startIcon={<EditIcon />} disabled>Edit</Button>
-            </Box>
-            <Box sx={{ bgcolor: 'grey.900', p: 1, borderRadius: 1, overflowX: 'auto' }}>
-              <code style={{ whiteSpace: 'pre-wrap', color: 'lightgreen', display: 'block' }}>
-                {JSON.stringify(outputSchema, null, 2)}
-              </code>
-            </Box>
-          </Box>
+          <SchemaEditor
+            title="Output JSON Schema"
+            schema={outputSchema}
+            setSchema={setOutputSchema}
+          />
         </Grid>
       </Grid>
 
