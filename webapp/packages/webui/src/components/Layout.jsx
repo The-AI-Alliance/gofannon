@@ -1,3 +1,4 @@
+// webapp/packages/webui/src/components/Layout.jsx
 import React from 'react';
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
@@ -8,11 +9,9 @@ import {
   Container,
   Box,
   CssBaseline,
-  Button,
 } from '@mui/material';
-import ChatIcon from '@mui/icons-material/Chat';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
 import config from '../config';
+import ProfileMenu from './ProfileMenu';
 
 const Layout = ({ children }) => {
   const navigate = useNavigate();
@@ -29,21 +28,7 @@ const Layout = ({ children }) => {
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, cursor: 'pointer' }} onClick={() => navigate('/')}>
             {appName}
           </Typography>
-          +          <Button 
-            color="inherit" 
-            startIcon={<SmartToyIcon />}
-            onClick={() => navigate('/agents')}
-            sx={{ mr: 1 }}
-          >
-            Agents
-          </Button>
-          <Button 
-            color="inherit" 
-            startIcon={<ChatIcon />}
-            onClick={() => navigate('/chat')}
-          >
-            Chat
-          </Button>
+          <ProfileMenu />
         </Toolbar>
       </AppBar>
       <Box
