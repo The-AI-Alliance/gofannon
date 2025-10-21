@@ -65,12 +65,15 @@ const ViewAgent = () => {
           description: agentFlowContext.description,
           tools: agentFlowContext.tools,
           swaggerSpecs: agentFlowContext.swaggerSpecs,
+          gofannonAgents: agentFlowContext.gofannonAgents,
           code: agentFlowContext.generatedCode,
           inputSchema: agentFlowContext.inputSchema,
           outputSchema: agentFlowContext.outputSchema,
           invokableModels: agentFlowContext.invokableModels,
           docstring: agentFlowContext.docstring,
+          
         });
+
       } else {
         // In view/edit mode, fetch from API
         const data = await agentService.getAgent(agentId);

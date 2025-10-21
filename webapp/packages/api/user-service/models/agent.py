@@ -37,11 +37,11 @@ class CreateAgentRequest(BaseModel):
     docstring: Optional[str] = None
     friendly_name: Optional[str] = Field(None, alias="friendlyName")
     tools: Dict[str, List[str]]
-    swagger_specs: Optional[List[SwaggerSpec]] = Field(default= [], alias="swaggerSpecs")
+    swagger_specs: Optional[List[SwaggerSpec]] = Field(default_factory=list, alias="swaggerSpecs")
     input_schema: Optional[Dict[str, Any]] = Field(..., alias="inputSchema")
     output_schema: Optional[Dict[str, Any]] = Field(..., alias="outputSchema")
     invokable_models: Optional[List[ProviderConfig]] = Field(None, alias="invokableModels")
-    gofannon_agents: Optional[List[str]] = Field(default=[], alias="gofannonAgents")
+    gofannon_agents: Optional[List[str]] = Field(default_factory=list, alias="gofannonAgents")
 
     model_config = ConfigDict(
         populate_by_name=True,   
