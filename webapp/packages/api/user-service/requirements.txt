@@ -16,3 +16,4 @@ firebase-functions>=0.2.0
 google-cloud-storage
 cffi
 a2wsgi
+google-cloud-logging

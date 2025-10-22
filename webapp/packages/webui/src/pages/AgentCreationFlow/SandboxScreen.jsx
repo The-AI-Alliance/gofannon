@@ -12,6 +12,7 @@ import {
   Divider
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import observabilityService from '../../services/observabilityService';
 
 const SandboxScreen = () => {
   const { inputSchema, tools, generatedCode, gofannonAgents } = useAgentFlow();
@@ -34,6 +35,7 @@ const SandboxScreen = () => {
     setIsLoading(true);
     setError(null);
     setOutput(null);
+    observabilityService.log({ eventType: 'user-action', message: 'User running agent in sandbox.' });
 
     try {
       const response = await agentService.runCodeInSandbox(generatedCode, formData, tools, gofannonAgents);
@@ -44,6 +46,7 @@ const SandboxScreen = () => {
       }
     } catch (err) {
       setError(err.message || 'An unexpected error occurred.');
+      observabilityService.logError(err, { context: 'Agent Sandbox Execution' });
     } finally {
       setIsLoading(false);
     }
