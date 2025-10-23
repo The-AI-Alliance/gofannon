@@ -339,16 +339,21 @@ async def deploy_agent(agent_id: str, db: DatabaseService = Depends(get_db), use
 
     try:
         # Check if a deployment with this name already exists
-        db.get("deployments", friendly_name)
-        raise HTTPException(status_code=409, detail=f"A deployment with the name '{friendly_name}' already exists.")
+        existing_deployment = db.get("deployments", friendly_name)
+        # If it exists and belongs to this agent, it's already deployed
+        if existing_deployment.get("agentId") == agent_id:
+            return {"message": "Agent is already deployed", "endpoint": f"/rest/{friendly_name}"}
+        else:
+            # Another agent is using this friendly_name
+            raise HTTPException(status_code=409, detail=f"A deployment with the name '{friendly_name}' already exists for a different agent.")
     except HTTPException as e:
-        if e.status_code != 404:
+        if e.status_code == 404:
+            # No existing deployment, proceed to create one
+            deployment_doc = {"agentId": agent_id}
+            db.save("deployments", friendly_name, deployment_doc)
+            return {"message": "Agent deployed successfully", "endpoint": f"/rest/{friendly_name}"}
+        else:
             raise e
-        # Status 404 is expected, means the name is available.
-
-    deployment_doc = {"agentId": agent_id}
-    db.save("deployments", friendly_name, deployment_doc)
-    return {"message": "Agent deployed successfully", "endpoint": f"/rest/{friendly_name}"}
 
 @app.delete("/agents/{agent_id}/undeploy", status_code=204)
 async def undeploy_agent(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):

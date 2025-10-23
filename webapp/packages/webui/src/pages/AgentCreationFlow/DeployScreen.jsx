@@ -1,5 +1,6 @@
+// webapp/packages/webui/src/pages/AgentCreationFlow/DeployScreen.jsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -28,40 +29,48 @@ const DeployScreen = () => {
   const [success, setSuccess] = useState(false);
 
   const navigate = useNavigate();
+  const { agentId } = useParams(); // Get agentId from URL if viewing existing agent
   const agentFlowContext = useAgentFlow();
 
   const handleDeploy = async () => {
     setIsLoading(true);
     setError(null);
     setSuccess(false);
+    
     try {
-      // First, save the agent to ensure it has an ID
-      const agentData = {
-        name: agentFlowContext.friendlyName,
-        description: agentFlowContext.description,
-        code: agentFlowContext.generatedCode,
-        docstring: agentFlowContext.docstring,
-        friendlyName: agentFlowContext.friendlyName,
-        tools: agentFlowContext.tools,
-        swaggerSpecs: agentFlowContext.swaggerSpecs,
-        inputSchema: agentFlowContext.inputSchema,
-        outputSchema: agentFlowContext.outputSchema,
-        invokableModels: agentFlowContext.invokableModels,
-        gofannonAgents: (agentFlowContext.gofannonAgents || []).map(agent => agent.id),
-      };
-      const savedAgent = await agentService.saveAgent(agentData);
+      // Check if we already have an agent ID (saved agent)
+      let deployAgentId = agentId;
       
-      // Then, deploy the newly saved agent
-      await agentService.deployAgent(savedAgent._id);
+      if (!deployAgentId) {
+        // Agent hasn't been saved yet - save it first
+        const agentData = {
+          name: agentFlowContext.friendlyName,
+          description: agentFlowContext.description,
+          code: agentFlowContext.generatedCode,
+          docstring: agentFlowContext.docstring,
+          friendlyName: agentFlowContext.friendlyName,
+          tools: agentFlowContext.tools,
+          swaggerSpecs: agentFlowContext.swaggerSpecs,
+          inputSchema: agentFlowContext.inputSchema,
+          outputSchema: agentFlowContext.outputSchema,
+          invokableModels: agentFlowContext.invokableModels,
+          gofannonAgents: (agentFlowContext.gofannonAgents || []).map(agent => agent.id),
+        };
+        const savedAgent = await agentService.saveAgent(agentData);
+        deployAgentId = savedAgent._id;
+      }
+      
+      // Now deploy using the agent ID
+      await agentService.deployAgent(deployAgentId);
       
       setSuccess(true);
-      setTimeout(() => navigate(`/agent/${savedAgent._id}`), 2000);
+      setTimeout(() => navigate(`/agent/${deployAgentId}`), 2000);
     } catch (err) {
       setError(err.message || 'An unexpected error occurred during deployment.');
     } finally {
       setIsLoading(false);
     }
-   };
+  };
 
   const handleSave = () => {
     navigate('/create-agent/save');
@@ -120,7 +129,6 @@ const DeployScreen = () => {
         </RadioGroup>
       </FormControl>
 
-      {/* Use Stack for button alignment */}
       <Stack direction="row" spacing={2} justifyContent="flex-end" sx={{ mt: 3 }}>
         <Button
           variant="outlined"

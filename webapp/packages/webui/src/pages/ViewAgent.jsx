@@ -150,7 +150,13 @@ const ViewAgent = () => {
   };
 
   const handleDeploy = () => {
-    updateContextAndNavigate('/create-agent/deploy');
+    if (agentId) {
+      // For saved agents, navigate directly to deploy screen with agentId
+      navigate(`/agent/${agentId}/deploy`);
+    } else {
+      // For unsaved agents (creation flow), update context and navigate
+      updateContextAndNavigate('/create-agent/deploy');
+    }
   };
 
   const handleUpdateAgent = async () => {
@@ -369,11 +375,14 @@ const ViewAgent = () => {
             >
                 Run in Sandbox
             </Button>
+            
             <Button
                 variant="outlined"
                 color="secondary"
                 startIcon={<PublishIcon />}
                 onClick={handleDeploy}
+                disabled={isCreationFlow && !agentFlowContext.friendlyName} // Disable if not saved
+                title={isCreationFlow && !agentFlowContext.friendlyName ? "Please save your agent before deploying" : ""}
             >
                 Deploy Agent
             </Button>

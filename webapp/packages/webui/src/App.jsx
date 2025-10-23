@@ -81,6 +81,18 @@ function App() {
             </PrivateRoute>
           }
         />
+        <Route
+          path="/agent/:agentId/deploy"
+          element={
+            <PrivateRoute>
+              <Layout>
+                <AgentCreationFlowProvider>
+                  <DeployScreen />
+                </AgentCreationFlowProvider>
+              </Layout>
+            </PrivateRoute>
+          }
+        />
         <Route 
           path="/create-agent/*" 
           element={
