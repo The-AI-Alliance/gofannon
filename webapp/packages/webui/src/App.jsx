@@ -3,9 +3,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import config from './config';
 import { AuthContext } from './contexts/AuthContext';
 import { AgentCreationFlowProvider } from './pages/AgentCreationFlow/AgentCreationFlowContext'; 
-import { useLocation } from 'react-router-dom';
-import ErrorBoundary from './components/ErrorBoundary';
-import observabilityService from './services/observabilityService';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
@@ -20,24 +17,6 @@ import DeployScreen from './pages/AgentCreationFlow/DeployScreen';
 import SaveAgentScreen from './pages/AgentCreationFlow/SaveAgentScreen';
 import CircularProgress from '@mui/material/CircularProgress';
 import Box from '@mui/material/Box';
-
-const RouteChangeTracker = () => {
-  const location = useLocation();
-  const { user } = useContext(AuthContext);
-
-  useEffect(() => {
-    observabilityService.log({
-      eventType: 'navigation',
-      message: `User navigated to ${location.pathname}`,
-      metadata: {
-        path: location.pathname,
-        userId: user?.uid,
-      },
-    });
-  }, [location, user]);
-
-  return null;
-};
 
 function PrivateRoute({ children }) {
   const { user, loading } = useContext(AuthContext);
@@ -56,9 +35,7 @@ function App() {
     document.title = config?.app?.name || 'Gofannon: Web UI';
   }, []);  
   return (
-    <ErrorBoundary>
     <Router>
-      <RouteChangeTracker />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route
@@ -126,9 +103,7 @@ function App() {
           }
         />
       </Routes>
-
     </Router>
-    </ErrorBoundary>
   );
 }
 

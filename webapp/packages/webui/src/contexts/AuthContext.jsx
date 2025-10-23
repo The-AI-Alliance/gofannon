@@ -1,7 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import PropTypes from 'prop-types';
 import authService from '../services/authService';
-import observabilityService from '../services/observabilityService';
 
 export const AuthContext = createContext();
 
@@ -40,12 +39,10 @@ export const AuthProvider = ({ children }) => {
     try {
       const loggedInUser = await loginFn(...args);
       setUser(loggedInUser);
-      observabilityService.log({ eventType: 'user-action', message: 'User logged in successfully.', metadata: { email } });
       return loggedInUser;
     } catch (e) {
       console.error("Login failed:", e);
       setError(e.message || 'Login failed. Please check your credentials.');
-      observabilityService.log({ eventType: 'user-action', message: 'User login failed.', level: 'WARN', metadata: { email, error: e.message } });
       setUser(null);
     } finally {
       setLoading(false);

@@ -18,7 +18,6 @@ import FacebookIcon from '@mui/icons-material/Facebook';
 import { useAuth } from '../contexts/AuthContext';
 import { useConfig } from '../contexts/ConfigContext';
 
-
 // A helper to map provider IDs to their respective icons and names
 const socialProviderDetails = {
   google: {
