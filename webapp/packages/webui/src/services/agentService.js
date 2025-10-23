@@ -187,6 +187,65 @@ class AgentService {
       throw error;
     }
   }    
+
+
+  async deployAgent(agentId) {
+    try {
+      const authHeaders = await this._getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/agents/${agentId}/deploy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...authHeaders,
+        },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to deploy agent.');
+      }
+      return data;
+    } catch (error) {
+      console.error(`[AgentService] Error deploying agent ${agentId}:`, error);
+      throw error;
+    }
+  }
+
+  async undeployAgent(agentId) {
+    try {
+      const authHeaders = await this._getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/agents/${agentId}/undeploy`, {
+        method: 'DELETE',
+        headers: {
+          ...authHeaders,
+        },
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: `Failed to undeploy agent ${agentId}.` }));
+        throw new Error(errorData.detail);
+      }
+      return; // 204 No Content on success
+    } catch (error) {
+      console.error(`[AgentService] Error undeploying agent ${agentId}:`, error);
+      throw error;
+    }
+  }
+
+  async getDeployment(agentId) {
+    try {
+      const authHeaders = await this._getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/agents/${agentId}/deployment`, {
+        headers: { ...authHeaders },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to get deployment status.');
+      }
+      return await response.json(); // { is_deployed: boolean, friendly_name?: string }
+    } catch (error) {
+      console.error(`[AgentService] Error getting deployment status for ${agentId}:`, error);
+      throw error;
+    }
+  }  
 }
 
 export default new AgentService();

@@ -13,6 +13,7 @@ import {
   AccordionDetails,
   TextField,
   List,
+  Chip,
   ListItem,
   ListItemText,
   ListItemIcon,
@@ -30,6 +31,7 @@ import WebIcon from '@mui/icons-material/Web';
 import ArticleIcon from '@mui/icons-material/Article';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import DeleteIcon from '@mui/icons-material/Delete';
+import Divider from '@mui/material/Divider';
 
 import { useAgentFlow } from './AgentCreationFlow/AgentCreationFlowContext';
 import agentService from '../services/agentService';
@@ -45,11 +47,31 @@ const ViewAgent = () => {
   const [error, setError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
+  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);  
+  
+  // State for deployment
+  const [deployment, setDeployment] = useState(null);
+  const [isUndeploying, setIsUndeploying] = useState(false);
 
   const isCreationFlow = !agentId;
 
-  const loadAgentData = useCallback(async () => {
+  useEffect(() => {
+    if (agentId) { // Only for existing agents, not during creation flow
+        const fetchDeploymentStatus = async () => {
+            try {
+                const status = await agentService.getDeployment(agentId);
+                setDeployment(status);
+            } catch (err) {
+                // Don't block the page from rendering, just show an auxiliary error
+                const deploymentError = 'Could not fetch deployment status.';
+                setError(prev => prev ? `${prev}\n${deploymentError}` : deploymentError);
+            }
+        };
+        fetchDeploymentStatus();
+    }
+  }, [agentId]);
+
+    const loadAgentData = useCallback(async () => {
     setError(null);
     setLoading(true);
     
@@ -166,6 +188,22 @@ const ViewAgent = () => {
     // On success, isSaving will not be set to false because we navigate away.    
   };
 
+  const handleUndeploy = async () => {
+    if (!agentId) return;
+    setIsUndeploying(true);
+    setError(null);
+    try {
+        await agentService.undeployAgent(agentId);
+        // Update UI immediately to reflect the undeployed state
+        setDeployment({ is_deployed: false });
+    } catch (err) {
+        setError(err.message || 'Failed to undeploy agent.');
+    } finally {
+        setIsUndeploying(false);
+    }
+  };
+
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
@@ -275,6 +313,42 @@ const ViewAgent = () => {
             </AccordionDetails>
         </Accordion>
 
+        {!isCreationFlow && deployment && deployment.is_deployed && (
+            <Accordion>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Typography>Deployments</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                    <Typography variant="subtitle1" gutterBottom>Internal REST Endpoint</Typography>
+                    <Paper variant="outlined" sx={{ p: 2, bgcolor: 'background.paper', fontFamily: 'monospace' }}>
+                        <Typography component="div" gutterBottom>
+                            <Chip label="POST" color="success" size="small" sx={{ mr: 1 }} />
+                            <Typography component="span" sx={{ fontWeight: 'bold' }}>{`/rest/${deployment.friendly_name}`}</Typography>
+                        </Typography>
+                        <Divider sx={{ my: 1 }} />
+                        <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold' }}>Request Body:</Typography>
+                        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0, padding: '8px', backgroundColor: '#2e2e2e', borderRadius: '4px' }}>
+                            {JSON.stringify(agent.inputSchema, null, 2)}
+                        </pre>
+                        <Typography variant="body2" sx={{ mt: 2, fontWeight: 'bold' }}>Success Response (200 OK):</Typography>
+                        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0, padding: '8px', backgroundColor: '#2e2e2e', borderRadius: '4px' }}>
+                            {JSON.stringify(agent.outputSchema, null, 2)}
+                        </pre>
+                    </Paper>
+                    <Button
+                        variant="contained"
+                        color="error"
+                        startIcon={isUndeploying ? <CircularProgress size={20} color="inherit" /> : <DeleteIcon />}
+                        onClick={handleUndeploy}
+                        disabled={isUndeploying}
+                        sx={{ mt: 2 }}
+                    >
+                        {isUndeploying ? 'Undeploying...' : 'Undeploy'}
+                    </Button>
+                </AccordionDetails>
+            </Accordion>
+        )}
+
         <Stack direction="row" spacing={2} justifyContent="flex-end" sx={{mt: 3}}>
             {!isCreationFlow && (
                 <Button
@@ -327,7 +401,7 @@ const ViewAgent = () => {
             </DialogContent>
             <DialogActions>
                 <Button onClick={() => setDeleteConfirmationOpen(false)}>Cancel</Button>
-                <Button onClick={handleUpdateAgent} color="error" variant="contained">
+                <Button onClick={handleDeleteAgent} color="error" variant="contained">
                     Delete
                 </Button>
             </DialogActions>

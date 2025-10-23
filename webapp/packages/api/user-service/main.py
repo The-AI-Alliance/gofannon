@@ -1,5 +1,5 @@
 # webapp/packages/api/user-service/main.py
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Annotated, Optional, Dict, Any, List
@@ -37,7 +37,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 # Import the shared provider configuration
 from config.provider_config import PROVIDER_CONFIG as APP_PROVIDER_CONFIG
-from models.agent import GenerateCodeRequest, GenerateCodeResponse, RunCodeRequest, RunCodeResponse, Agent, CreateAgentRequest
+from models.agent import GenerateCodeRequest, GenerateCodeResponse, RunCodeRequest, RunCodeResponse, Agent, CreateAgentRequest, Deployment
 from agent_factory.remote_mcp_client import RemoteMCPClient
 
 app = FastAPI()
@@ -327,6 +327,72 @@ async def generate_agent_code(request: GenerateCodeRequest, user: dict = Depends
     code = await generate_code_function(request)
     return code
 
+@app.post("/agents/{agent_id}/deploy", status_code=201)
+async def deploy_agent(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Registers an agent for internal REST deployment."""
+    agent_doc = db.get("agents", agent_id)
+    agent = Agent(**agent_doc)
+    friendly_name = agent.friendly_name
+
+    if not friendly_name:
+        raise HTTPException(status_code=400, detail="Agent must have a friendly_name to be deployed.")
+
+    try:
+        # Check if a deployment with this name already exists
+        db.get("deployments", friendly_name)
+        raise HTTPException(status_code=409, detail=f"A deployment with the name '{friendly_name}' already exists.")
+    except HTTPException as e:
+        if e.status_code != 404:
+            raise e
+        # Status 404 is expected, means the name is available.
+
+    deployment_doc = {"agentId": agent_id}
+    db.save("deployments", friendly_name, deployment_doc)
+    return {"message": "Agent deployed successfully", "endpoint": f"/rest/{friendly_name}"}
+
+@app.delete("/agents/{agent_id}/undeploy", status_code=204)
+async def undeploy_agent(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Removes an agent from the internal REST deployment registry."""
+    agent_doc = db.get("agents", agent_id)
+    agent = Agent(**agent_doc)
+    friendly_name = agent.friendly_name
+    if not friendly_name:
+        # Agent doesn't have a friendly name, so it can't be deployed. Nothing to do.
+        return
+
+    try:
+        # This will raise 404 if not found, which we can ignore.
+        db.delete("deployments", friendly_name)
+    except HTTPException as e:
+        if e.status_code == 404:
+            pass # It wasn't deployed, so the goal is achieved.
+        else:
+            raise e # Re-raise other errors
+    return
+
+@app.get("/agents/{agent_id}/deployment")
+async def get_agent_deployment(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Checks if an agent is deployed and returns its public-facing name."""
+    agent_doc = db.get("agents", agent_id)
+    agent = Agent(**agent_doc)
+    friendly_name = agent.friendly_name
+
+    if not friendly_name:
+        return {"is_deployed": False}
+
+    try:
+        deployment_doc = db.get("deployments", friendly_name)
+        # Ensure the deployment record points back to this agent_id
+        if deployment_doc.get("agentId") == agent_id:
+            return {"is_deployed": True, "friendly_name": friendly_name}
+        else:
+            # A different agent is using this friendly_name, so this one is not deployed.
+            return {"is_deployed": False}
+    except HTTPException as e:
+        if e.status_code == 404:
+            return {"is_deployed": False}
+        raise e
+
 
 async def _execute_agent_code(code: str, input_dict: dict, tools: dict, gofannon_agents: List[str], db: DatabaseService):
     """Helper function for recursive execution of agent code."""
@@ -400,6 +466,36 @@ async def run_agent_code(request: RunCodeRequest, user: dict = Depends(get_curre
         print(f"Error running agent code: {tb_str}")
         return JSONResponse(status_code=400, content={"result": None, "error": f"{error_str}\n\n{tb_str}"})
 
+@app.post("/rest/{friendly_name}")
+async def run_deployed_agent(friendly_name: str, request: Request, db: DatabaseService = Depends(get_db)):
+    """Public endpoint to run a deployed agent by its friendly_name."""
+    try:
+        # 1. Find the deployment record by its friendly_name
+        deployment_doc = db.get("deployments", friendly_name)
+        agent_id = deployment_doc["agentId"]
+
+        # 2. Fetch the full agent configuration
+        agent_data = db.get("agents", agent_id)
+        agent = Agent(**agent_data)
+        
+        input_dict = await request.json()
+
+        # 3. Execute the agent's code
+        result = await _execute_agent_code(
+            code=agent.code,
+            input_dict=input_dict,
+            tools=agent.tools,
+            gofannon_agents=agent.gofannon_agents,
+            db=db
+        )
+        return result
+    except HTTPException as e:
+        if e.status_code == 404:
+            raise HTTPException(status_code=404, detail="No deployed agent found with that name.")
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error executing agent: {str(e)}")
+ 
 
 # This is an unseemly hack to adapt FastAPI to Google Cloud Functions.
 # TODO refactor all of this into microservices.

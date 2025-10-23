@@ -68,4 +68,10 @@ class RunCodeResponse(BaseModel):
     result: Optional[Any] = None
     error: Optional[str] = None
 
-
+class Deployment(BaseModel):
+    id: str = Field(..., alias="_id") # This will be the friendly_name
+    agent_id: str = Field(..., alias="agentId")
+    rev: Optional[str] = Field(None, alias="_rev")
+    model_config = ConfigDict(populate_by_name=True)
+ 
+ 

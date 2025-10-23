@@ -11,22 +11,57 @@ import {
   FormControlLabel,
   Radio,
   Divider,
-  Stack, // Import Stack for button layout
+  Stack,
+  CircularProgress,
+  Alert,
 } from '@mui/material';
 import PublishIcon from '@mui/icons-material/Publish';
-import SaveIcon from '@mui/icons-material/Save'; // Import SaveIcon
+import SaveIcon from '@mui/icons-material/Save';
+import { useAgentFlow } from './AgentCreationFlowContext';
+import agentService from '../../services/agentService';
 
 const DeployScreen = () => {
-  const [deploymentType, setDeploymentType] = useState('');
-  const [hostingPlatform, setHostingPlatform] = useState('');
+  const [deploymentType, setDeploymentType] = useState('REST');
+  const [hostingPlatform, setHostingPlatform] = useState('Internally');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
 
   const navigate = useNavigate();
+  const agentFlowContext = useAgentFlow();
 
-  const handleDeploy = () => {
-    // This button is disabled for POC, so this function won't be called initially.
-    console.log('Deploying agent with:', { deploymentType, hostingPlatform });
-    // In a real scenario, this would trigger the deployment process.
-  };
+  const handleDeploy = async () => {
+    setIsLoading(true);
+    setError(null);
+    setSuccess(false);
+    try {
+      // First, save the agent to ensure it has an ID
+      const agentData = {
+        name: agentFlowContext.friendlyName,
+        description: agentFlowContext.description,
+        code: agentFlowContext.generatedCode,
+        docstring: agentFlowContext.docstring,
+        friendlyName: agentFlowContext.friendlyName,
+        tools: agentFlowContext.tools,
+        swaggerSpecs: agentFlowContext.swaggerSpecs,
+        inputSchema: agentFlowContext.inputSchema,
+        outputSchema: agentFlowContext.outputSchema,
+        invokableModels: agentFlowContext.invokableModels,
+        gofannonAgents: (agentFlowContext.gofannonAgents || []).map(agent => agent.id),
+      };
+      const savedAgent = await agentService.saveAgent(agentData);
+      
+      // Then, deploy the newly saved agent
+      await agentService.deployAgent(savedAgent._id);
+      
+      setSuccess(true);
+      setTimeout(() => navigate(`/agent/${savedAgent._id}`), 2000);
+    } catch (err) {
+      setError(err.message || 'An unexpected error occurred during deployment.');
+    } finally {
+      setIsLoading(false);
+    }
+   };
 
   const handleSave = () => {
     navigate('/create-agent/save');
@@ -41,6 +76,17 @@ const DeployScreen = () => {
         Choose how your agent will interact and where it will be hosted. You can save the agent configuration now and deploy it later.
       </Typography>
 
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+      {success && (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          Agent deployed successfully! Redirecting...
+        </Alert>
+      )}
+
       <FormControl component="fieldset" fullWidth sx={{ mb: 3 }}>
         <FormLabel component="legend">Deployment Protocol</FormLabel>
         <RadioGroup
@@ -50,10 +96,10 @@ const DeployScreen = () => {
           value={deploymentType}
           onChange={(e) => setDeploymentType(e.target.value)}
         >
-          <FormControlLabel value="A2A" control={<Radio />} label="Agent-to-Agent (A2A)" />
-          <FormControlLabel value="MCP" control={<Radio />} label="Model Context Protocol (MCP)" />
-          <FormControlLabel value="REST" control={<Radio />} label="REST API" />
-        </RadioGroup>
+          <FormControlLabel value="A2A" disabled control={<Radio />} label="Agent-to-Agent (A2A)" />
+          <FormControlLabel value="MCP" disabled control={<Radio />} label="Model Context Protocol (MCP)" />
+          <FormControlLabel value="REST" control={<Radio checked />} label="REST API" />
+       </RadioGroup>
       </FormControl>
 
       <Divider sx={{ my: 3 }} />
@@ -67,9 +113,10 @@ const DeployScreen = () => {
           value={hostingPlatform}
           onChange={(e) => setHostingPlatform(e.target.value)}
         >
-          <FormControlLabel value="GCPCloudRun" control={<Radio />} label="GCP Cloud Run" />
-          <FormControlLabel value="AWSFargate" control={<Radio />} label="AWS Fargate" />
-          <FormControlLabel value="Docker" control={<Radio />} label="Docker Container" />
+          <FormControlLabel value="Internally" control={<Radio checked />} label="Internally" />
+          <FormControlLabel value="GCPCloudRun" disabled control={<Radio />} label="GCP Cloud Run" />
+          <FormControlLabel value="AWSFargate" disabled control={<Radio />} label="AWS Fargate" />
+          <FormControlLabel value="Docker" disabled control={<Radio />} label="Docker Container" />
         </RadioGroup>
       </FormControl>
 
@@ -86,11 +133,11 @@ const DeployScreen = () => {
         <Button
           variant="contained"
           color="primary"
-          startIcon={<PublishIcon />}
+          startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <PublishIcon />}
           onClick={handleDeploy}
-          disabled // Disabled for POC as per requirement
+          disabled={isLoading || success}
         >
-          Deploy Agent
+          {isLoading ? 'Deploying...' : 'Deploy Agent'}
         </Button>
       </Stack>
     </Paper>
