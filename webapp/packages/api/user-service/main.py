@@ -25,7 +25,6 @@ from services.mcp_client_service import McpClientService, get_mcp_client_service
 from services.observability_service import (
     get_observability_service,
     ObservabilityMiddleware,
-    generic_exception_handler,
     ObservabilityService
 )
 
@@ -43,9 +42,8 @@ if settings.APP_ENV == "firebase":
 
 app = FastAPI()
 
-# Add observability middleware and exception handler
+# Add observability middleware
 app.add_middleware(ObservabilityMiddleware)
-app.add_exception_handler(Exception, generic_exception_handler)
 
 @app.on_event("startup")
 async def startup_event():
@@ -125,6 +123,12 @@ class ListMcpToolsRequest(BaseModel):
     mcp_url: str
     auth_token: Optional[str] = None
 
+class ClientLogPayload(BaseModel):
+    eventType: str
+    message: str
+    level: str = "INFO"
+    metadata: Optional[Dict[str, Any]] = None
+
 
 # Import models after defining local ones to avoid circular dependencies
 from models.chat import ChatResponse, ProviderConfig, SessionData
@@ -201,6 +205,30 @@ def get_available_providers():
 @app.get("/")
 def read_root():
     return {"Hello": "World", "Service": "User-Service"}
+
+@app.post("/log/client", status_code=202)
+async def log_client_event(
+    payload: ClientLogPayload,
+    request: Request,
+    logger: ObservabilityService = Depends(get_logger)
+):
+    """Receives and logs an event from the frontend client."""
+    user_id = getattr(request.state, 'user', {}).get('uid', 'anonymous')
+    
+    # Add client-specific info to metadata
+    metadata = payload.metadata or {}
+    metadata['client_host'] = request.client.host if request.client else "unknown"
+    metadata['user_agent'] = request.headers.get("user-agent")
+
+    logger.log(
+        event_type=payload.eventType,
+        message=payload.message,
+        level=payload.level,
+        service="webui",  # Explicitly set service to webui
+        user_id=user_id,
+        metadata=metadata
+    )
+    return {"status": "logged"}
 
 @app.get("/providers")
 def get_providers():
@@ -456,10 +484,9 @@ async def run_agent_code(
             metadata={"traceback": tb_str, "request": req}
         )
         
-        # Note: The generic_exception_handler will catch this and log it again
-        # if it's not a standard HTTPException, but returning a JSONResponse here
-        # provides more specific context to the user.
-        return JSONResponse(status_code=400, content={"result": None, "error": f"{error_str}\n\n{tb_str}"})
+        # The ObservabilityMiddleware will catch this and return a 500 response.
+        # We re-raise it here so that middleware can do its job.
+        raise e
 
 
 # This is an unseemly hack to adapt FastAPI to Google Cloud Functions.
@@ -556,3 +583,4 @@ def api(req: https_fn.Request):
 
     print(f"Response status: {status_code}, headers: {final_headers}")
     return https_fn.Response(response_body, status=status_code, headers=final_headers)
+    

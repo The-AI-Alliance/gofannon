@@ -23,7 +23,7 @@ class Settings:
     CLOUDWATCH_LOG_GROUP_NAME: str | None = os.getenv("CLOUDWATCH_LOG_GROUP_NAME"
     )
     # Google Cloud Settings
-    GOOGLE_CLOUD_PROJECT: str | None = os.getenv("MY_GOOGLE_CLOUD_PROJECT", "gofannon-dev") 
+    GCP_PROJECT_ID: str | None = os.getenv("GCP_PROJECT_ID")
 
 
 settings = Settings()

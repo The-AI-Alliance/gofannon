@@ -1,4 +1,7 @@
-# Observability &amp; Logging Guide
+The documentation has been updated to use the new `GCP_PROJECT_ID` environment variable and clarifies its relationship with GitHub secrets.
+
+```markdown
+# Observability & Logging Guide
 
 This document explains the pluggable logging system integrated into the Gofannon web application, covering both the frontend (React) and backend (Python API). The system is designed to be extensible, allowing for easy integration with various third-party observability platforms.
 
@@ -42,14 +45,14 @@ Logging providers are enabled and configured via environment variables. The syst
 
 ### 1. Google Cloud Logging
 
--   **Trigger**: The presence of the `GOOGLE_CLOUD_PROJECT` environment variable.
+-   **Trigger**: The presence of the `GCP_PROJECT_ID` environment variable. This name is used to avoid conflicts with the `GOOGLE_CLOUD_PROJECT` variable used by Firebase itself.
 -   **Authentication**: The environment where the API is running must be authenticated with Google Cloud.
     -   **Local Docker**: Run `gcloud auth application-default login` on your host machine. The credentials will be available to the container.
     -   **Firebase/Cloud Functions**: Authentication is handled automatically by the environment.
 -   **Variables**:
     ```ini
     # Enables Google Cloud Logging and other GCP services
-    GOOGLE_CLOUD_PROJECT="your-gcp-project-id"
+    GCP_PROJECT_ID="your-gcp-project-id"
     ```
 
 ### 2. AWS CloudWatch Logs
@@ -68,9 +71,9 @@ Logging providers are enabled and configured via environment variables. The syst
 
 ### For Firebase Deployment
 
-When deploying to Firebase, these variables must be set as secrets for the Cloud Function. If using the provided GitHub Actions workflow, add them as repository secrets in GitHub:
+When deploying to Firebase, these variables must be set as secrets for the Cloud Function. If using the provided GitHub Actions workflow, add them as repository secrets in GitHub. The workflow should map the `FIREBASE_PROJECT_ID` secret to the `GCP_PROJECT_ID` environment variable for the function.
 
--   `GCP_PROJECT_ID` (same as `FIREBASE_PROJECT_ID`)
+-   `GCP_PROJECT_ID` (The CI/CD should set this from the `FIREBASE_PROJECT_ID` secret)
 -   `AWS_ACCESS_KEY_ID`
 -   `AWS_SECRET_ACCESS_KEY`
 -   `AWS_DEFAULT_REGION`
@@ -134,4 +137,32 @@ try {
 } catch (error) {
   observabilityService.logError(error, { context: 'MyApiServiceCall' });
 }
+```
+```
+
+### `webapp/infra/docker/example.env`
+
+The commented-out variable is updated to reflect the new, non-conflicting name.
+
+```ini
+OPENAI_API_KEY=sk-proj-abc123
+GEMINI_API_KEY=abc123
+
+# CouchDB Credentials for local development
+COUCHDB_USER=admin
+COUCHDB_PASSWORD=password
+
+# --- Observability Settings ---
+
+# To enable AWS CloudWatch logging, provide all four AWS variables below.
+# The AWS keys will be used for both S3 (MinIO) and CloudWatch.
+# AWS_ACCESS_KEY_ID=your_aws_access_key
+# AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+# AWS_DEFAULT_REGION=us-east-1
+CLOUDWATCH_LOG_GROUP_NAME=gofannon-local-logs
+
+# To enable Google Cloud Logging, set the project ID and ensure your environment
+# is authenticated (e.g., via `gcloud auth application-default login`).
+# The GCP_PROJECT_ID is also used by Firestore if configured.
+# GCP_PROJECT_ID=your-gcp-project-id
 ```

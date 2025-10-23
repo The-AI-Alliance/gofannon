@@ -89,6 +89,10 @@ class AWSCloudWatchLogsProvider(LogProvider):
             'message': json.dumps(payload, default=str)
         }
 
+        # NOTE: The standard boto3 client is synchronous. This log call will block
+        # the asyncio task that runs it. For high-throughput applications,
+        # consider using a library like 'aioboto3' to make this operation
+        # fully non-blocking.
         try:
             self.client.put_log_events(
                 logGroupName=self.log_group_name,
@@ -132,9 +136,9 @@ class ObservabilityService:
             self.providers.append(ConsoleProvider())
 
         # Google Cloud Logging
-        if settings.GOOGLE_CLOUD_PROJECT:
+        if settings.GCP_PROJECT_ID:
             try:
-                self.providers.append(GoogleCloudLoggingProvider(project_id=settings.GOOGLE_CLOUD_PROJECT))
+                self.providers.append(GoogleCloudLoggingProvider(project_id=settings.GCP_PROJECT_ID))
             except Exception as e:
                 print(f"Skipping Google Cloud Logging provider due to initialization error: {e}")
 
@@ -215,55 +219,52 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
         observability_service = get_observability_service()
         start_time = time.time()
 
+        # Safely get user_id if auth middleware has already run
+        user_id = getattr(request.state, 'user', {}).get('uid')
+
         request_data = {
-            "type": "api_request",
             "method": request.method,
             "path": request.url.path,
             "headers": {k: v for k, v in request.headers.items() if k.lower() not in ['authorization', 'cookie']},
             "client_host": request.client.host if request.client else "unknown",
         }
 
-        observability_service.log(event_type="api_request_start", message="API request started", metadata=request_data, user_id=request_data.get("user_id"))
+        observability_service.log(event_type="api_request_start", message=f"API request started: {request.method} {request.url.path}", metadata=request_data, user_id=user_id)
 
         try:
             response = await call_next(request)
             process_time = time.time() - start_time
+            
+            # The user state might be set during call_next, so we get it again
+            user_id = getattr(request.state, 'user', {}).get('uid', user_id)
+
             response_data = {
                 **request_data,
                 "status_code": response.status_code,
-                "process_time": process_time,
+                "process_time": f"{process_time:.4f}s",
             }
-            observability_service.log(event_type="api_request_end", message="API request finished", metadata=response_data, user_id=response_data.get("user_id"))
-
+            observability_service.log(event_type="api_request_end", message=f"API request finished: {response.status_code}", metadata=response_data, user_id=user_id)
+            return response
+            
         except Exception as e:
             process_time = time.time() - start_time
+            user_id = getattr(request.state, 'user', {}).get('uid', user_id)
+            
             error_data = {
                 **request_data,
-                "process_time": process_time,
+                "process_time": f"{process_time:.4f}s",
                 "error": str(e),
                 "traceback": traceback.format_exc(),
             }
-            observability_service.log(event_type="uncaught_api_exception", message="An uncaught API exception occurred.", level="ERROR", metadata=error_data)
+            observability_service.log(
+                event_type="uncaught_api_exception", 
+                message="An uncaught API exception occurred.", 
+                level="ERROR", 
+                metadata=error_data,
+                user_id=user_id
+            )
             
-            # Re-raise the exception to be handled by FastAPI's default/custom handlers
-            raise e
-
-        return response
-
-
-async def generic_exception_handler(request: Request, exc: Exception):
-    """
-    Catch-all exception handler to log any unhandled exceptions.
-    """
-    observability_service = get_observability_service()
-    error_details = {
-        "type": "api_error",
-        "path": request.url.path,
-        "error": str(exc),
-        "traceback": traceback.format_exc()
-    }
-    observability_service.log(event_type="unhandled_api_exception", message="An unhandled API exception occurred.", level="ERROR", metadata=error_details)
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "An internal server error occurred."}
-    )
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "An internal server error occurred."}
+            )
