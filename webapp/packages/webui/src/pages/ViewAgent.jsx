@@ -93,7 +93,7 @@ const ViewAgent = () => {
           outputSchema: agentFlowContext.outputSchema,
           invokableModels: agentFlowContext.invokableModels,
           docstring: agentFlowContext.docstring,
-          
+          friendlyName: agentFlowContext.friendlyName,
         });
 
       } else {
@@ -140,6 +140,7 @@ const ViewAgent = () => {
       agentFlowContext.setInvokableModels(agent.invokableModels);
       agentFlowContext.setDocstring(agent.docstring);
       agentFlowContext.setGofannonAgents(agent.gofannonAgents);
+      agentFlowContext.setFriendlyName(agent.friendlyName);
       navigate(path);
     
   };
@@ -327,11 +328,11 @@ const ViewAgent = () => {
                         </Typography>
                         <Divider sx={{ my: 1 }} />
                         <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold' }}>Request Body:</Typography>
-                        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0, padding: '8px', backgroundColor: '#2e2e2e', borderRadius: '4px' }}>
+                        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0, padding: '8px', backgroundColor: '#2e2e2e', color: '#dddddd', borderRadius: '4px' }}>
                             {JSON.stringify(agent.inputSchema, null, 2)}
                         </pre>
                         <Typography variant="body2" sx={{ mt: 2, fontWeight: 'bold' }}>Success Response (200 OK):</Typography>
-                        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0, padding: '8px', backgroundColor: '#2e2e2e', borderRadius: '4px' }}>
+                        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0, padding: '8px', backgroundColor: '#2e2e2e', color: '#dddddd', borderRadius: '4px' }}>
                             {JSON.stringify(agent.outputSchema, null, 2)}
                         </pre>
                     </Paper>
