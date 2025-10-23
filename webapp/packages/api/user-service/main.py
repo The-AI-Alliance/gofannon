@@ -25,7 +25,8 @@ from services.mcp_client_service import McpClientService, get_mcp_client_service
 from services.observability_service import (
     get_observability_service,
     ObservabilityMiddleware,
-    ObservabilityService
+    ObservabilityService,
+    get_sanitized_request_data
 )
 
 
@@ -161,7 +162,7 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
         
         model_name = f"{request.provider}/{request.model}" if request.provider not in ["openai", "azure"] else request.model
 
-        logger.log("INFO", "llm_request", f"Initiating LLM call to {model_name}", metadata={"request": req})
+        logger.log("INFO", "llm_request", f"Initiating LLM call to {model_name}", metadata={"request": get_sanitized_request_data(req)})
 
         response = await litellm.acompletion(
             model=model_name,
@@ -182,7 +183,7 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
         db_service.save("tickets", ticket_id, ticket_data)
         
     except Exception as e:
-        logger.log("ERROR", "background_task_failure", f"Chat processing failed for ticket {ticket_id}: {e}", metadata={"traceback": traceback.format_exc(), "request": req})
+        logger.log("ERROR", "background_task_failure", f"Chat processing failed for ticket {ticket_id}: {e}", metadata={"traceback": traceback.format_exc(), "request": get_sanitized_request_data(req)})
         # Update ticket with error
         ticket_data.update({
             "status": "failed",
@@ -344,7 +345,7 @@ async def create_agent(
     
     logger.log(
         "INFO", "user_action", f"Agent '{agent.name}' created.",
-        metadata={"agent_id": agent.id, "agent_name": agent.name, "request": req}
+        metadata={"agent_id": agent.id, "agent_name": agent.name, "request": get_sanitized_request_data(req)}
     )
     return agent
 
@@ -357,7 +358,7 @@ async def list_agents(
 ):
     """Lists all saved agents."""
     all_docs = db.list_all("agents")
-    logger.log("INFO", "user_action", "Listed all agents.", metadata={"request": req})
+    logger.log("INFO", "user_action", "Listed all agents.", metadata={"request": get_sanitized_request_data(req)})
     return [Agent(**doc) for doc in all_docs]
 
 @app.get("/agents/{agent_id}", response_model=Agent)
@@ -377,7 +378,7 @@ async def delete_agent(
     """Deletes an agent by its ID."""
     try:
         db.delete("agents", agent_id)
-        logger.log("INFO", "user_action", f"Agent '{agent_id}' deleted.", metadata={"agent_id": agent_id, "request": req})
+        logger.log("INFO", "user_action", f"Agent '{agent_id}' deleted.", metadata={"agent_id": agent_id, "request": get_sanitized_request_data(req)})
         return
     except HTTPException as e:
         raise e
@@ -462,7 +463,7 @@ async def run_agent_code(
     logger: ObservabilityService = Depends(get_logger)
 ):
     """Executes agent code in a sandboxed environment."""
-    logger.log("INFO", "user_action", "Attempting to run agent code in sandbox.", metadata={"request": req})
+    logger.log("INFO", "user_action", "Attempting to run agent code in sandbox.", metadata={"request": get_sanitized_request_data(req)})
     try:
         result = await _execute_agent_code(
             code=request.code,
@@ -472,7 +473,7 @@ async def run_agent_code(
             db=db
         )
 
-        logger.log("INFO", "sandbox_run", "Agent code executed successfully.", metadata={"request": req})
+        logger.log("INFO", "sandbox_run", "Agent code executed successfully.", metadata={"request": get_sanitized_request_data(req)})
         return RunCodeResponse(result=result)
         
     except Exception as e:
@@ -481,7 +482,7 @@ async def run_agent_code(
         
         logger.log(
             "ERROR", "sandbox_run_failure", f"Error running agent code: {error_str}", 
-            metadata={"traceback": tb_str, "request": req}
+            metadata={"traceback": tb_str, "request": get_sanitized_request_data(req)}
         )
         
         # The ObservabilityMiddleware will catch this and return a 500 response.
@@ -583,4 +584,3 @@ def api(req: https_fn.Request):
 
     print(f"Response status: {status_code}, headers: {final_headers}")
     return https_fn.Response(response_body, status=status_code, headers=final_headers)
-    

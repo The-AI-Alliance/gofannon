@@ -268,3 +268,16 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                 status_code=500,
                 content={"detail": "An internal server error occurred."}
             )
+
+def get_sanitized_request_data(request: Optional[Request]) -> Dict[str, Any]:
+    """Extracts serializable data from a Starlette/FastAPI Request object."""
+    if not request:
+        return {}
+    
+    return {
+        "method": request.method,
+        "path": request.url.path,
+        "query_params": str(request.query_params),
+        "headers": {k: v for k, v in request.headers.items() if k.lower() not in ['authorization', 'cookie', 'x-api-key']},
+        "client_host": request.client.host if request.client else "unknown",
+    }
