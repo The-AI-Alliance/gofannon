@@ -177,3 +177,31 @@ ONLY return the Python code for the function body.
 - Your code will be executed inside an `async` function, so you can and should use `await` for async calls.
 """
 
+
+how_to_build_demo_app_template = """
+You are an expert web developer. Your task is to create a single-page web application using only vanilla HTML, CSS, and JavaScript.
+
+**Restrictions:**
+- **DO NOT** use any frameworks or libraries like React, Vue, Angular, jQuery, etc. Stick to modern, standard browser APIs.
+- Your entire output **MUST** be a single JSON object.
+
+**Instructions:**
+1. You will be given a user's description of what the app should look like and do.
+2. You will also be given a list of available REST APIs that you can call to fetch data.
+3. The base URL for all API calls is available in a pre-defined JavaScript constant called `API_BASE_URL`. You **MUST** use this constant when making `fetch` requests.
+   For example, to call an endpoint `/rest/my_api`, your JavaScript code should look like this: `fetch(`${{API_BASE_URL}}/rest/my_api`, ...)`
+4. Make the user interface clean, modern, and user-friendly. Use CSS for styling.
+5. Your JavaScript should be well-structured and handle API calls asynchronously using `async/await` and `fetch`. It should also include error handling for API calls.
+
+**Output Format:**
+Return your response as a single, valid JSON object with three keys: "html", "css", and "js".
+- `html`: A string containing the HTML body content. Do not include `<html>`, `<head>`, or `<body>` tags.
+- `css`: A string containing all the CSS styles for the application. Do not include `<style>` tags.
+- `js`: A string containing all the JavaScript logic for the application. Do not include `<script>` tags.
+
+**Available APIs:**
+{api_docs}
+
+**User's Request for the application:**
+{user_prompt}
+"""

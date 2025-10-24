@@ -2,13 +2,17 @@ import React, { useContext, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import config from './config';
 import { AuthContext } from './contexts/AuthContext';
-import { AgentCreationFlowProvider } from './pages/AgentCreationFlow/AgentCreationFlowContext'; 
+import { AgentCreationFlowProvider } from './pages/AgentCreationFlow/AgentCreationFlowContext';
+import { DemoCreationFlowProvider } from './pages/DemoCreationFlow/DemoCreationFlowContext';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import ChatPage from './pages/ChatPage';
 import ViewAgent from './pages/ViewAgent';
 import SavedAgentsPage from './pages/SavedAgentsPage';
+import DeployedApisPage from './pages/DeployedApisPage';
+import DemoAppsPage from './pages/DemoAppsPage';
+import ViewDemoAppPage from './pages/ViewDemoAppPage';
 import ToolsScreen from './pages/AgentCreationFlow/ToolsScreen'; 
 import DescriptionScreen from './pages/AgentCreationFlow/DescriptionScreen';
 import SchemasScreen from './pages/AgentCreationFlow/SchemasScreen';
@@ -17,6 +21,11 @@ import DeployScreen from './pages/AgentCreationFlow/DeployScreen';
 import SaveAgentScreen from './pages/AgentCreationFlow/SaveAgentScreen';
 import CircularProgress from '@mui/material/CircularProgress';
 import Box from '@mui/material/Box';
+
+import SelectApisScreen from './pages/DemoCreationFlow/SelectApisScreen';
+import SelectModelScreen from './pages/DemoCreationFlow/SelectModelScreen';
+import CanvasScreen from './pages/DemoCreationFlow/CanvasScreen';
+import SaveDemoScreen from './pages/DemoCreationFlow/SaveDemoScreen';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useContext(AuthContext);
@@ -57,6 +66,30 @@ function App() {
               </Layout>
             </PrivateRoute>
           }
+        />
+        <Route
+          path="/deployed-apis"
+          element={
+            <PrivateRoute>
+              <Layout>
+                <DeployedApisPage />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/demo-apps"
+          element={
+            <PrivateRoute>
+              <Layout>
+                <DemoAppsPage />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/demos/:demoId"
+          element={<ViewDemoAppPage />} // This page is public and renders the app, no layout
         />
         <Route
           path="/chat"
@@ -114,6 +147,24 @@ function App() {
             </PrivateRoute>
           }
         />
+        <Route
+          path="/create-demo/*"
+          element={
+            <PrivateRoute>
+              <Layout>
+                <DemoCreationFlowProvider>
+                  <Routes>
+                    <Route index element={<Navigate to="select-apis" replace />} />
+                    <Route path="select-apis" element={<SelectApisScreen />} />
+                    <Route path="select-model" element={<SelectModelScreen />} />
+                    <Route path="canvas" element={<CanvasScreen />} />
+                    <Route path="save" element={<SaveDemoScreen />} />
+                  </Routes>
+                </DemoCreationFlowProvider>
+              </Layout>
+            </PrivateRoute>
+          }
+        />        
       </Routes>
     </Router>
   );

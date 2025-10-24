@@ -75,3 +75,10 @@ class Deployment(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
  
  
+class DeployedApi(BaseModel):
+    friendly_name: str = Field(..., alias="friendlyName")
+    agent_id: str = Field(..., alias="agentId")
+    description: str
+    input_schema: Dict[str, Any] = Field(..., alias="inputSchema")
+    output_schema: Dict[str, Any] = Field(..., alias="outputSchema")
+    model_config = ConfigDict(populate_by_name=True)

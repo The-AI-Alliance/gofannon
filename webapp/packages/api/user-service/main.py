@@ -37,7 +37,15 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 # Import the shared provider configuration
 from config.provider_config import PROVIDER_CONFIG as APP_PROVIDER_CONFIG
-from models.agent import GenerateCodeRequest, GenerateCodeResponse, RunCodeRequest, RunCodeResponse, Agent, CreateAgentRequest, Deployment
+from models.agent import (
+    GenerateCodeRequest, GenerateCodeResponse, RunCodeRequest, 
+    RunCodeResponse, Agent, CreateAgentRequest, Deployment, DeployedApi
+)
+from models.demo import (
+    GenerateDemoCodeRequest, GenerateDemoCodeResponse,
+    CreateDemoAppRequest, DemoApp
+)
+
 from agent_factory.remote_mcp_client import RemoteMCPClient
 
 app = FastAPI()
@@ -398,6 +406,30 @@ async def get_agent_deployment(agent_id: str, db: DatabaseService = Depends(get_
             return {"is_deployed": False}
         raise e
 
+@app.get("/deployments", response_model=List[DeployedApi])
+async def list_deployments(db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Lists all deployed agents/APIs with their relevant details."""
+    try:
+        all_deployments_docs = db.list_all("deployments")
+        deployment_infos = []
+        for dep_doc in all_deployments_docs:
+            try:
+                agent_doc = db.get("agents", dep_doc["agentId"])
+                agent = Agent(**agent_doc)
+                dep_info = DeployedApi(
+                    friendlyName=dep_doc["_id"],
+                    agentId=dep_doc["agentId"],
+                    description=agent.description,
+                    inputSchema=agent.input_schema,
+                    outputSchema=agent.output_schema
+                )
+                deployment_infos.append(dep_info)
+            except Exception as e:
+                print(f"Skipping deployment '{dep_doc['_id']}' due to error fetching agent '{dep_doc['agentId']}': {e}")
+                continue
+        return deployment_infos
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def _execute_agent_code(code: str, input_dict: dict, tools: dict, gofannon_agents: List[str], db: DatabaseService):
     """Helper function for recursive execution of agent code."""
@@ -500,7 +532,58 @@ async def run_deployed_agent(friendly_name: str, request: Request, db: DatabaseS
         raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error executing agent: {str(e)}")
- 
+
+# --- Demo App Endpoints ---
+
+@app.post("/demos/generate-code", response_model=GenerateDemoCodeResponse)
+async def generate_demo_app_code(request: GenerateDemoCodeRequest, user: dict = Depends(get_current_user)):
+    """
+    Generates HTML/CSS/JS for a demo app based on a prompt and selected APIs.
+    """
+    from agent_factory.demo_factory import generate_demo_code
+    try:
+        code_response = await generate_demo_code(request)
+        return code_response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating demo code: {e}")
+
+@app.post("/demos", response_model=DemoApp, status_code=201)
+async def create_demo_app(request: CreateDemoAppRequest, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Saves a new demo app configuration."""
+    demo_app_data = request.model_dump(by_alias=True)
+    demo_app = DemoApp(**demo_app_data)
+    saved_doc_data = demo_app.model_dump(by_alias=True)
+    saved_doc = db.save("demos", demo_app.id, saved_doc_data)
+    demo_app.rev = saved_doc.get("rev")
+    return demo_app
+
+@app.get("/demos", response_model=List[DemoApp])
+async def list_demo_apps(db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Lists all saved demo apps."""
+    all_docs = db.list_all("demos")
+    return [DemoApp(**doc) for doc in all_docs]
+
+@app.get("/demos/{demo_id}", response_model=DemoApp)
+async def get_demo_app(demo_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Retrieves a specific demo app."""
+    doc = db.get("demos", demo_id)
+    return DemoApp(**doc)
+
+@app.put("/demos/{demo_id}", response_model=DemoApp)
+async def update_demo_app(demo_id: str, request: CreateDemoAppRequest, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Updates an existing demo app."""
+    demo_app_data = request.model_dump(by_alias=True)
+    updated_model = DemoApp(_id=demo_id, **demo_app_data)
+    saved_doc_data = updated_model.model_dump(by_alias=True)
+    saved_doc = db.save("demos", demo_id, saved_doc_data)
+    updated_model.rev = saved_doc.get("rev")
+    return updated_model
+
+@app.delete("/demos/{demo_id}", status_code=204)
+async def delete_demo_app(demo_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Deletes a demo app."""
+    db.delete("demos", demo_id)
+    return 
 
 # This is an unseemly hack to adapt FastAPI to Google Cloud Functions.
 # TODO refactor all of this into microservices.

@@ -187,7 +187,25 @@ class AgentService {
       throw error;
     }
   }    
-
+  
+  async getDeployments() {
+    try {
+      const authHeaders = await this._getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/deployments`, {
+        headers: { 
+          'Accept': 'application/json',
+          ...authHeaders 
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch deployments.');
+      }
+      return await response.json(); // Returns a list of deployed APIs
+    } catch (error) {
+      console.error('[AgentService] Error fetching deployments:', error);
+      throw error;
+    }
+  } 
 
   async deployAgent(agentId) {
     try {
