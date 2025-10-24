@@ -282,7 +282,7 @@ async def create_agent(request: CreateAgentRequest, db: DatabaseService = Depend
     # Use by_alias=True to serialize the Agent model into a dictionary
     # with camelCase keys (e.g., inputSchema, swaggerSpecs, _id, _rev)
     # matching the common external representation and CouchDB's _id/_rev.
-    saved_doc_data = agent.model_dump(by_alias=True)
+    saved_doc_data = agent.model_dump(by_alias=True, mode="json")
     saved_doc = db.save("agents", agent.id, saved_doc_data)
     
     agent.rev = saved_doc.get("rev") # Add revision from DB response
@@ -552,7 +552,7 @@ async def create_demo_app(request: CreateDemoAppRequest, db: DatabaseService = D
     """Saves a new demo app configuration."""
     demo_app_data = request.model_dump(by_alias=True)
     demo_app = DemoApp(**demo_app_data)
-    saved_doc_data = demo_app.model_dump(by_alias=True)
+    saved_doc_data = demo_app.model_dump(by_alias=True, mode="json")
     saved_doc = db.save("demos", demo_app.id, saved_doc_data)
     demo_app.rev = saved_doc.get("rev")
     return demo_app
@@ -574,7 +574,7 @@ async def update_demo_app(demo_id: str, request: CreateDemoAppRequest, db: Datab
     """Updates an existing demo app."""
     demo_app_data = request.model_dump(by_alias=True)
     updated_model = DemoApp(_id=demo_id, **demo_app_data)
-    saved_doc_data = updated_model.model_dump(by_alias=True)
+    saved_doc_data = updated_model.model_dump(by_alias=True, mode="json")
     saved_doc = db.save("demos", demo_id, saved_doc_data)
     updated_model.rev = saved_doc.get("rev")
     return updated_model

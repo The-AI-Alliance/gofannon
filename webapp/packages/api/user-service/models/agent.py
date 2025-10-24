@@ -51,8 +51,8 @@ class CreateAgentRequest(BaseModel):
 class Agent(CreateAgentRequest):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), alias="_id")
     rev: Optional[str] = Field(None, alias="_rev")
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     # model_config = ConfigDict(populate_by_name=True) # model_config is inherited from CreateAgentRequest
         
