@@ -113,7 +113,7 @@ function App() {
         />
         <Route
           path="/demos/:demoId"
-          element={<ViewDemoAppPage />} // This page is public and renders the app, no layout
+          element={<PrivateRoute><ViewDemoAppPage /></PrivateRoute>} // This page renders the app, no layout
         />
         <Route
           path="/chat"
