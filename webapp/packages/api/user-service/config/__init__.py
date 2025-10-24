@@ -19,9 +19,11 @@ class Settings:
     COUCHDB_URL: str | None = os.getenv("COUCHDB_URL")
     COUCHDB_USER: str | None = os.getenv("COUCHDB_USER")
     COUCHDB_PASSWORD: str | None = os.getenv("COUCHDB_PASSWORD")
-    
+    # AWS CloudWatch Logging Settings
+    CLOUDWATCH_LOG_GROUP_NAME: str | None = os.getenv("CLOUDWATCH_LOG_GROUP_NAME"
+    )
     # Google Cloud Settings
-    GOOGLE_CLOUD_PROJECT: str | None = os.getenv("GOOGLE_CLOUD_PROJECT", "gofannon-dev") 
+    GCP_PROJECT_ID: str | None = os.getenv("GCP_PROJECT_ID")
 
 
 settings = Settings()

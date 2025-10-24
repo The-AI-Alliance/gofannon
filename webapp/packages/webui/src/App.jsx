@@ -4,6 +4,9 @@ import config from './config';
 import { AuthContext } from './contexts/AuthContext';
 import { AgentCreationFlowProvider } from './pages/AgentCreationFlow/AgentCreationFlowContext';
 import { DemoCreationFlowProvider } from './pages/DemoCreationFlow/DemoCreationFlowContext';
+import { useLocation } from 'react-router-dom';
+import ErrorBoundary from './components/ErrorBoundary';
+import observabilityService from './services/observabilityService';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
@@ -22,10 +25,29 @@ import SaveAgentScreen from './pages/AgentCreationFlow/SaveAgentScreen';
 import CircularProgress from '@mui/material/CircularProgress';
 import Box from '@mui/material/Box';
 
+
 import SelectApisScreen from './pages/DemoCreationFlow/SelectApisScreen';
 import SelectModelScreen from './pages/DemoCreationFlow/SelectModelScreen';
 import CanvasScreen from './pages/DemoCreationFlow/CanvasScreen';
 import SaveDemoScreen from './pages/DemoCreationFlow/SaveDemoScreen';
+
+const RouteChangeTracker = () => {
+  const location = useLocation();
+  const { user } = useContext(AuthContext);
+
+  useEffect(() => {
+    observabilityService.log({
+      eventType: 'navigation',
+      message: `User navigated to ${location.pathname}`,
+      metadata: {
+        path: location.pathname,
+        userId: user?.uid,
+      },
+    });
+  }, [location, user]);
+
+  return null;
+};
 
 function PrivateRoute({ children }) {
   const { user, loading } = useContext(AuthContext);
@@ -44,7 +66,9 @@ function App() {
     document.title = config?.app?.name || 'Gofannon: Web UI';
   }, []);  
   return (
+    <ErrorBoundary>
     <Router>
+      <RouteChangeTracker />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route
@@ -166,7 +190,9 @@ function App() {
           }
         />        
       </Routes>
+
     </Router>
+    </ErrorBoundary>
   );
 }
 

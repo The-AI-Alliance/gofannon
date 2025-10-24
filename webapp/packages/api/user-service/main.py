@@ -21,6 +21,14 @@ from fastapi.security import OAuth2PasswordBearer
 from services.database_service import get_database_service, DatabaseService
 from config import settings
 from services.mcp_client_service import McpClientService, get_mcp_client_service
+# New imports for observability
+from services.observability_service import (
+    get_observability_service,
+    ObservabilityMiddleware,
+    ObservabilityService,
+    get_sanitized_request_data
+)
+
 
 # --- Firebase Admin SDK Initialization ---
 if settings.APP_ENV == "firebase":
@@ -32,6 +40,22 @@ if settings.APP_ENV == "firebase":
         print("Firebase Admin SDK initialized successfully.")
     except Exception as e:
         print(f"Error initializing Firebase Admin SDK: {e}")
+
+app = FastAPI()
+
+# Add observability middleware
+app.add_middleware(ObservabilityMiddleware)
+
+@app.on_event("startup")
+async def startup_event():
+    """Log application startup event."""
+    logger = get_observability_service()
+    logger.log(
+        level="INFO",
+        event_type="lifecycle",
+        message="Application startup complete."
+    )
+
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
@@ -48,7 +72,6 @@ from models.demo import (
 
 from agent_factory.remote_mcp_client import RemoteMCPClient
 
-app = FastAPI()
 
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
@@ -65,20 +88,30 @@ app.add_middleware(
 )
 
 # --- Security Dependency ---
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    """Dependency to verify Firebase ID token and get user info."""
+async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)):
+    """
+    Dependency to verify Firebase ID token and get user info.
+    Attaches the user object to request.state for observability.
+    """
     if settings.APP_ENV != "firebase":
         # In non-firebase environments (like 'local'), skip authentication.
-        return {"uid": "local-dev-user"}
+        user = {"uid": "local-dev-user"}
+        request.state.user = user # Attach user to state
+        return user
 
     if not token:
+        # Set a default anonymous user for observability before raising
+        request.state.user = {"uid": "anonymous"}
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
         decoded_token = auth.verify_id_token(token)
+        request.state.user = decoded_token # Attach user to state
         return decoded_token
     except auth.InvalidIdTokenError:
+        request.state.user = {"uid": "invalid-token"}
         raise HTTPException(status_code=401, detail="Invalid authentication token")
     except Exception as e:
+        request.state.user = {"uid": "auth-error"}
         raise HTTPException(status_code=500, detail=f"Authentication error: {e}")
  
 
@@ -99,20 +132,30 @@ class ListMcpToolsRequest(BaseModel):
     mcp_url: str
     auth_token: Optional[str] = None
 
+class ClientLogPayload(BaseModel):
+    eventType: str
+    message: str
+    level: str = "INFO"
+    metadata: Optional[Dict[str, Any]] = None
+
 
 # Import models after defining local ones to avoid circular dependencies
 from models.chat import ChatResponse, ProviderConfig, SessionData
 
 
-# Database service dependency
+# --- Dependencies ---
 def get_db() -> DatabaseService:
     yield get_database_service(settings)
 
+def get_logger() -> ObservabilityService:
+    """Dependency to get the observability service instance."""
+    return get_observability_service()
 
 # Background task for LLM processing
-async def process_chat(ticket_id: str, request: ChatRequest):
-    # Background tasks don't have access to dependency injection, so we get a service instance directly
+async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Request):
+    # Background tasks don't have access to dependency injection, so we get service instances directly
     db_service = get_database_service(settings)
+    logger = get_observability_service()
     try:
         # Update ticket status
         ticket_data = {
@@ -125,13 +168,10 @@ async def process_chat(ticket_id: str, request: ChatRequest):
         # Convert messages to format expected by litellm
         messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
         
-        # Prepare litellm parameters
-        # Adjust model name for non-OpenAI providers if needed by litellm,
-        # otherwise litellm typically handles "provider/model" format automatically.
-        # The frontend sends "openai" as provider, "gpt-3.5-turbo" as model, which litellm handles directly.
-        # For others, it will be "anthropic/claude-3-opus", "ollama/llama2".
         model_name = f"{request.provider}/{request.model}" if request.provider not in ["openai", "azure"] else request.model
-        
+
+        logger.log("INFO", "llm_request", f"Initiating LLM call to {model_name}", metadata={"request": get_sanitized_request_data(req)})
+
         response = await litellm.acompletion(
             model=model_name,
             messages=messages,
@@ -151,6 +191,7 @@ async def process_chat(ticket_id: str, request: ChatRequest):
         db_service.save("tickets", ticket_id, ticket_data)
         
     except Exception as e:
+        logger.log("ERROR", "background_task_failure", f"Chat processing failed for ticket {ticket_id}: {e}", metadata={"traceback": traceback.format_exc(), "request": get_sanitized_request_data(req)})
         # Update ticket with error
         ticket_data.update({
             "status": "failed",
@@ -169,10 +210,34 @@ def get_available_providers():
             available_providers[provider] = config
     return available_providers
 
-# Routes
+# --- Routes ---
 @app.get("/")
 def read_root():
     return {"Hello": "World", "Service": "User-Service"}
+
+@app.post("/log/client", status_code=202)
+async def log_client_event(
+    payload: ClientLogPayload,
+    request: Request,
+    logger: ObservabilityService = Depends(get_logger)
+):
+    """Receives and logs an event from the frontend client."""
+    user_id = getattr(request.state, 'user', {}).get('uid', 'anonymous')
+    
+    # Add client-specific info to metadata
+    metadata = payload.metadata or {}
+    metadata['client_host'] = request.client.host if request.client else "unknown"
+    metadata['user_agent'] = request.headers.get("user-agent")
+
+    logger.log(
+        event_type=payload.eventType,
+        message=payload.message,
+        level=payload.level,
+        service="webui",  # Explicitly set service to webui
+        user_id=user_id,
+        metadata=metadata
+    )
+    return {"status": "logged"}
 
 @app.get("/providers")
 def get_providers():
@@ -206,12 +271,12 @@ def get_model_config(provider: str, model: str):
     return available_providers[provider]["models"][model]
 
 @app.post("/chat")
-async def chat(request: ChatRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
+async def chat(request: ChatRequest, req: Request, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
     """Submit a chat request and get a ticket ID"""
     ticket_id = str(uuid.uuid4())
     
-    # Start processing in background
-    background_tasks.add_task(process_chat, ticket_id, request)
+    # Start processing in background, passing user context
+    background_tasks.add_task(process_chat, ticket_id, request, user, req)
     
     return ChatResponse(
         ticket_id=ticket_id,
@@ -270,11 +335,14 @@ def health_check():
 
 
 @app.post("/agents", response_model=Agent, status_code=201)
-async def create_agent(request: CreateAgentRequest, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
+async def create_agent(
+    request: CreateAgentRequest,
+    req: Request,
+    db: DatabaseService = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    logger: ObservabilityService = Depends(get_logger)
+):
     """Saves a new agent configuration to the database."""
-    # Instantiate Agent model from CreateAgentRequest data.
-    # Convert request data to a dictionary using internal field names (snake_case)
-    # for robust instantiation of the Agent model.
     agent_data_internal_names = request.model_dump(by_alias=True)
     agent = Agent(**agent_data_internal_names)
 
@@ -285,17 +353,25 @@ async def create_agent(request: CreateAgentRequest, db: DatabaseService = Depend
     saved_doc_data = agent.model_dump(by_alias=True, mode="json")
     saved_doc = db.save("agents", agent.id, saved_doc_data)
     
-    agent.rev = saved_doc.get("rev") # Add revision from DB response
+    agent.rev = saved_doc.get("rev")
+    
+    logger.log(
+        "INFO", "user_action", f"Agent '{agent.name}' created.",
+        metadata={"agent_id": agent.id, "agent_name": agent.name, "request": get_sanitized_request_data(req)}
+    )
     return agent
 
 @app.get("/agents", response_model=List[Agent])
-async def list_agents(db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
+async def list_agents(
+    req: Request,
+    db: DatabaseService = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    logger: ObservabilityService = Depends(get_logger)
+):
     """Lists all saved agents."""
-    # This simple query returns all documents. A more advanced implementation
-    # might use views for sorting or filtering.
     all_docs = db.list_all("agents")
+    logger.log("INFO", "user_action", "Listed all agents.", metadata={"request": get_sanitized_request_data(req)})
     return [Agent(**doc) for doc in all_docs]
-    # return all_docs
 
 @app.get("/agents/{agent_id}", response_model=Agent)
 async def get_agent(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
@@ -304,10 +380,17 @@ async def get_agent(agent_id: str, db: DatabaseService = Depends(get_db), user: 
     return Agent(**agent_doc)
 
 @app.delete("/agents/{agent_id}", status_code=204)
-async def delete_agent(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
+async def delete_agent(
+    agent_id: str, 
+    req: Request,
+    db: DatabaseService = Depends(get_db), 
+    user: dict = Depends(get_current_user),
+    logger: ObservabilityService = Depends(get_logger)
+):
     """Deletes an agent by its ID."""
     try:
         db.delete("agents", agent_id)
+        logger.log("INFO", "user_action", f"Agent '{agent_id}' deleted.", metadata={"agent_id": agent_id, "request": get_sanitized_request_data(req)})
         return
     except HTTPException as e:
         raise e
@@ -319,18 +402,13 @@ async def list_mcp_tools(
     mcp_service: McpClientService = Depends(get_mcp_client_service),
     user: dict = Depends(get_current_user)
 ):
-    """
-    Connects to a remote MCP server and lists its available tools.
-    """
-    print(f"Received request to list tools for MCP server: {request.mcp_url}")
+    """Connects to a remote MCP server and lists its available tools."""
     tools = await mcp_service.list_tools_for_server(request.mcp_url, request.auth_token)
     return {"mcp_url": request.mcp_url, "tools": tools}
 
 @app.post("/agents/generate-code", response_model=GenerateCodeResponse)
 async def generate_agent_code(request: GenerateCodeRequest, user: dict = Depends(get_current_user)):
-    """
-    Generates agent code based on the provided configuration.
-    """
+    """Generates agent code based on the provided configuration."""
     from agent_factory import generate_agent_code as generate_code_function
     code = await generate_code_function(request)
     return code
@@ -484,8 +562,15 @@ async def _execute_agent_code(code: str, input_dict: dict, tools: dict, gofannon
     return result
 
 @app.post("/agents/run-code", response_model=RunCodeResponse)
-async def run_agent_code(request: RunCodeRequest, user: dict = Depends(get_current_user), db: DatabaseService = Depends(get_db)):
+async def run_agent_code(
+    request: RunCodeRequest,
+    req: Request,
+    user: dict = Depends(get_current_user),
+    db: DatabaseService = Depends(get_db),
+    logger: ObservabilityService = Depends(get_logger)
+):
     """Executes agent code in a sandboxed environment."""
+    logger.log("INFO", "user_action", "Attempting to run agent code in sandbox.", metadata={"request": get_sanitized_request_data(req)})
     try:
         result = await _execute_agent_code(
             code=request.code,
@@ -494,14 +579,22 @@ async def run_agent_code(request: RunCodeRequest, user: dict = Depends(get_curre
             gofannon_agents=request.gofannon_agents,
             db=db
         )
-        
+
+        logger.log("INFO", "sandbox_run", "Agent code executed successfully.", metadata={"request": get_sanitized_request_data(req)})
         return RunCodeResponse(result=result)
         
     except Exception as e:
         error_str = f"{type(e).__name__}: {e}"
         tb_str = traceback.format_exc()
-        print(f"Error running agent code: {tb_str}")
-        return JSONResponse(status_code=400, content={"result": None, "error": f"{error_str}\n\n{tb_str}"})
+        
+        logger.log(
+            "ERROR", "sandbox_run_failure", f"Error running agent code: {error_str}", 
+            metadata={"traceback": tb_str, "request": get_sanitized_request_data(req)}
+        )
+        
+        # The ObservabilityMiddleware will catch this and return a 500 response.
+        # We re-raise it here so that middleware can do its job.
+        raise e
 
 @app.post("/rest/{friendly_name}")
 async def run_deployed_agent(friendly_name: str, request: Request, db: DatabaseService = Depends(get_db)):
@@ -679,5 +772,3 @@ def api(req: https_fn.Request):
 
     print(f"Response status: {status_code}, headers: {final_headers}")
     return https_fn.Response(response_body, status=status_code, headers=final_headers)
-
-

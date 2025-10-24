@@ -95,6 +95,7 @@ The Python API (Cloud Function) requires environment variables for API keys.
     
     OPENAI_API_KEY="sk-..."
     GEMINI_API_KEY="..."
+    
 
     ANTHROPIC_API_KEY="..."
     ```
@@ -190,6 +191,7 @@ A workflow is included to automate deployment when you push to the `main` branch
         *   `FIREBASE_PROJECT_ID`: Your Firebase Project ID.
         *   `OPENAI_API_KEY`: Your OpenAI API key.
         *   `GEMINI_API_KEY`: Your Gemini API key.
+        *   `CLOUDWATCH_LOG_GROUP_NAME`: (Optional) The name of the log group for AWS CloudWatch Logs.
 
 ### 4.2. Triggering the Workflow
 
