@@ -17,6 +17,8 @@ export const DemoCreationFlowProvider = ({ children }) => {
     const [modelConfig, setModelConfig] = useState(null);
     const [userPrompt, setUserPrompt] = useState('');
     const [generatedCode, setGeneratedCode] = useState({ html: '', css: '', js: '' });
+    const [appName, setAppName] = useState('');
+    const [description, setDescription] = useState('');
 
     const value = {
         selectedApis,
@@ -26,7 +28,11 @@ export const DemoCreationFlowProvider = ({ children }) => {
         userPrompt,
         setUserPrompt,
         generatedCode,
-        setGeneratedCode
+        setGeneratedCode,
+        appName,
+        setAppName,
+        description,
+        setDescription,       
     };
 
     return (

@@ -53,6 +53,10 @@ const apiClient = {
     return this.request(endpoint, { ...options, method: 'POST', body: JSON.stringify(body) });
   },
   
+  put(endpoint, body, options) {
+    return this.request(endpoint, { ...options, method: 'PUT', body: JSON.stringify(body) });
+  },
+  
   delete(endpoint, options) {
     return this.request(endpoint, { ...options, method: 'DELETE' });
   }

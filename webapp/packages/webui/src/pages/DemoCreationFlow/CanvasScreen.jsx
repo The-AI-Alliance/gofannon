@@ -1,6 +1,6 @@
 // webapp/packages/webui/src/pages/DemoCreationFlow/CanvasScreen.jsx
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDemoFlow } from './DemoCreationFlowContext';
 import demoService from '../../services/demoService';
 import config from '../../config';
@@ -22,23 +22,60 @@ import SaveIcon from '@mui/icons-material/Save';
 const CanvasScreen = () => {
   const {
     selectedApis,
+    setSelectedApis,
     modelConfig,
+    setModelConfig,
     userPrompt,
     setUserPrompt,
     generatedCode,
     setGeneratedCode,
+    appName,
+    setAppName,
+    description,
+    setDescription,
   } = useDemoFlow();
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [iframeSrcDoc, setIframeSrcDoc] = useState('');
+  const [isEditLoading, setIsEditLoading] = useState(false);
+  const [editLoaded, setEditLoaded] = useState(false);
 
   useEffect(() => {
-    if (!modelConfig || selectedApis.length === 0) {
+    const editDemoId = searchParams.get('edit');
+    if (editDemoId && !editLoaded) {
+      const loadDemoForEditing = async () => {
+        setIsEditLoading(true);
+        setError(null);
+        try {
+          const demoData = await demoService.getDemo(editDemoId);
+          // Populate the context
+          setSelectedApis(demoData.selectedApis);
+          setModelConfig(demoData.modelConfig);
+          setUserPrompt(demoData.userPrompt);
+          setGeneratedCode(demoData.generatedCode);
+          setAppName(demoData.name);
+          setDescription(demoData.description);
+          setEditLoaded(true); // Mark as loaded
+        } catch (err) {
+          setError(err.message || 'Failed to load demo for editing.');
+        } finally {
+          setIsEditLoading(false);
+        }
+      };
+      loadDemoForEditing();
+    } else {
+        setIsEditLoading(false);
+    }
+  }, [searchParams, editLoaded, setSelectedApis, setModelConfig, setUserPrompt, setGeneratedCode, setAppName, setDescription]);
+   
+  useEffect(() => {
+    if (!isEditLoading && !modelConfig && selectedApis.length === 0 && !searchParams.get('edit')) {
       navigate('/create-demo/select-apis');
     }
-  }, [modelConfig, selectedApis, navigate]);
+  }, [modelConfig, selectedApis, navigate, isEditLoading, searchParams]);
 
   const generateIframeContent = (code) => {
     const { html, css, js } = code;
@@ -98,7 +135,12 @@ const CanvasScreen = () => {
   };
 
   const handleSave = () => {
-    navigate('/create-demo/save');
+    const editDemoId = searchParams.get('edit');
+    if (editDemoId) {
+        navigate(`/create-demo/save?edit=${editDemoId}`);
+    } else {
+        navigate('/create-demo/save');
+    }
   };
 
   return (

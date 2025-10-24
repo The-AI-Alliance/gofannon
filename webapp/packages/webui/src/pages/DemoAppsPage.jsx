@@ -53,6 +53,11 @@ const DemoAppsPage = () => {
     fetchApps();
   }, []);
 
+  const handleEdit = (appId, event) => {
+    event.stopPropagation();
+    navigate(`/create-demo/canvas?edit=${appId}`);
+  };
+  
   const handleDeleteClick = (appId, appName, event) => {
     event.stopPropagation();
     setDeleteConfirmation({ open: true, appId, appName });
@@ -109,9 +114,9 @@ const DemoAppsPage = () => {
                             size="small"
                             onClick={() => handleViewApp(app._id)}
                         >
-                            View App
+                            View
                         </Button>
-                        <IconButton disabled edge="end" aria-label="edit">
+                        <IconButton edge="end" aria-label="edit" onClick={(e) => handleEdit(app._id, e)}>
                           <EditIcon />
                         </IconButton>
                         <IconButton edge="end" aria-label="delete" onClick={(e) => handleDeleteClick(app._id, app.name, e)}>

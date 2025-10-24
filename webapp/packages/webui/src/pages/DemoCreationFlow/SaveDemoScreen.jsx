@@ -1,6 +1,6 @@
 // webapp/packages/webui/src/pages/DemoCreationFlow/SaveDemoScreen.jsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -16,10 +16,11 @@ import demoService from '../../services/demoService';
 
 const SaveDemoScreen = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editDemoId = searchParams.get('edit');  
   const demoFlowContext = useDemoFlow();
   
-  const [appName, setAppName] = useState('');
-  const [description, setDescription] = useState('');
+  const { appName, setAppName, description, setDescription } = demoFlowContext;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -43,7 +44,11 @@ const SaveDemoScreen = () => {
     };
 
     try {
-      await demoService.saveDemo(demoData);
+      if (editDemoId) {
+        await demoService.updateDemo(editDemoId, demoData);
+      } else {
+        await demoService.saveDemo(demoData);
+      }
       setSuccess(true);
       setTimeout(() => navigate('/demo-apps'), 1500);
     } catch (err) {
@@ -55,12 +60,10 @@ const SaveDemoScreen = () => {
 
   return (
     <Paper sx={{ p: 3, maxWidth: 600, margin: 'auto', mt: 4 }}>
-      <Typography variant="h5" component="h2" gutterBottom>
-        Save Your Demo App
-      </Typography>
+      <Typography variant="h5" component="h2" gutterBottom> {editDemoId ? 'Update Your Demo App' : 'Save Your Demo App'} </Typography>
       
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
-      {success && <Alert severity="success" sx={{ mb: 2 }}>App saved! Redirecting...</Alert>}
+      {success && <Alert severity="success" sx={{ mb: 2 }}>{`App ${editDemoId ? 'updated' : 'saved'}! Redirecting...`}</Alert>}
 
       <TextField
         fullWidth
@@ -88,7 +91,7 @@ const SaveDemoScreen = () => {
         disabled={isLoading || !appName.trim()}
         startIcon={isLoading ? <CircularProgress size={20} /> : <SaveIcon />}
       >
-        {isLoading ? 'Saving...' : 'Save App'}
+        {isLoading ? 'Saving...' : (editDemoId ? 'Update App' : 'Save App')}
       </Button>
     </Paper>
   );
