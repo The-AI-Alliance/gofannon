@@ -21,6 +21,7 @@ import {
   DialogActions,
   DialogContent,
   DialogContentText,
+  IconButton,
   DialogTitle,  
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -30,12 +31,14 @@ import SaveIcon from '@mui/icons-material/Save';
 import WebIcon from '@mui/icons-material/Web';
 import ArticleIcon from '@mui/icons-material/Article';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import DeleteIcon from '@mui/icons-material/Delete';
 import Divider from '@mui/material/Divider';
 
 import { useAgentFlow } from './AgentCreationFlow/AgentCreationFlowContext';
 import agentService from '../services/agentService';
 import CodeEditor from '../components/CodeEditor';
+import SpecViewerModal from '../components/SpecViewerModal';
 
 const ViewAgent = () => {
   const { agentId } = useParams();
@@ -48,6 +51,7 @@ const ViewAgent = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);  
+  const [viewingSpec, setViewingSpec] = useState({ open: false, name: '', content: '' });
   
   // State for deployment
   const [deployment, setDeployment] = useState(null);
@@ -128,6 +132,10 @@ const ViewAgent = () => {
   const handleFieldChange = (field, value) => {
     setAgent(prev => ({...prev, [field]: value}));
   };
+
+  const handleViewSpec = (spec) => {
+    setViewingSpec({ open: true, name: spec.name, content: spec.content });
+};
 
   const updateContextAndNavigate = (path) => {
       // Update the context with the current agent state before navigating
@@ -258,7 +266,14 @@ const ViewAgent = () => {
                 {agent.swaggerSpecs.length > 0 ? (
                 <List dense>
                     {agent.swaggerSpecs.map(spec => (
-                        <ListItem key={spec.name}>
+                        <ListItem
+                            key={spec.name}
+                            secondaryAction={
+                                <IconButton edge="end" aria-label="view" onClick={() => handleViewSpec(spec)}>
+                                    <VisibilityIcon />
+                                </IconButton>
+                            }
+                        >
                             <ListItemIcon><ArticleIcon /></ListItemIcon>
                             <ListItemText primary={spec.name} />
                         </ListItem>
@@ -415,7 +430,13 @@ const ViewAgent = () => {
                     Delete
                 </Button>
             </DialogActions>
-        </Dialog>        
+        </Dialog> 
+        <SpecViewerModal
+            open={viewingSpec.open}
+            onClose={() => setViewingSpec({ open: false, name: '', content: '' })}
+            specName={viewingSpec.name}
+            specContent={viewingSpec.content}
+        />       
     </Paper>
   );
 };

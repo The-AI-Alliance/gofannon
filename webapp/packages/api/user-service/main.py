@@ -14,6 +14,7 @@ import litellm
 import traceback
 import httpx
 import firebase_admin
+import yaml
 from firebase_admin import credentials, auth
 from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
@@ -138,6 +139,8 @@ class ClientLogPayload(BaseModel):
     level: str = "INFO"
     metadata: Optional[Dict[str, Any]] = None
 
+class FetchSpecRequest(BaseModel):
+    url: str
 
 # Import models after defining local ones to avoid circular dependencies
 from models.chat import ChatResponse, ProviderConfig, SessionData
@@ -412,6 +415,36 @@ async def generate_agent_code(request: GenerateCodeRequest, user: dict = Depends
     from agent_factory import generate_agent_code as generate_code_function
     code = await generate_code_function(request)
     return code
+
+@app.post("/specs/fetch")
+async def fetch_spec_from_url(request: FetchSpecRequest, user: dict = Depends(get_current_user)):
+    """Fetches OpenAPI/Swagger spec content from a public URL."""
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(request.url)
+            response.raise_for_status() # Raises an exception for 4xx/5xx responses
+            
+            # Basic validation: Try to parse as JSON or YAML
+            content = response.text
+            try:
+                json.loads(content)
+            except json.JSONDecodeError:
+                try:
+                    yaml.safe_load(content)
+                except yaml.YAMLError:
+                    raise HTTPException(status_code=400, detail="Content from URL is not valid JSON or YAML.")
+
+            # Create a name from the URL path
+            from urllib.parse import urlparse
+            path = urlparse(str(request.url)).path
+            name = path.split('/')[-1] if path else "spec_from_url.json"
+            if not name:
+                name = "spec_from_url.json"
+
+            return {"name": name, "content": content}
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=400, detail=f"Error fetching from URL: {e}")
+
 
 @app.post("/agents/{agent_id}/deploy", status_code=201)
 async def deploy_agent(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
