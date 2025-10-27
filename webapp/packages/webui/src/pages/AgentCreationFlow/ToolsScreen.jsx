@@ -271,7 +271,8 @@ const ToolsScreen = () => {
       )}
 
       {tabIndex === 1 && (
-        <Box>+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        <Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Upload a Swagger or OpenAPI specification file (JSON or YAML) or provide a URL.
           </Typography>
           <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
