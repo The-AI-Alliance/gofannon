@@ -1,3 +1,4 @@
+// webapp/packages/webui/src/components/ModelConfigDialog.jsx
 import React from 'react';
 import PropTypes from 'prop-types';
 import {
@@ -17,6 +18,9 @@ import {
   TextField,
   CircularProgress,
   Alert,
+  FormGroup, // Import FormGroup
+  Checkbox, // Import Checkbox
+  FormControlLabel, // Import FormControlLabel
 } from '@mui/material';
 
 const ModelConfigDialog = ({
@@ -109,15 +113,51 @@ const ModelConfigDialog = ({
         <FormControl fullWidth key={paramName} sx={{ mb: 2 }}>
           <InputLabel>{paramConfig.description || paramName}</InputLabel>
           <Select
-            value={controlledValue}
+            value={controlledValue} // controlledValue will now be the string choice
             label={paramConfig.description || paramName}
             onChange={(e) => handleParamChange(paramName, e.target.value)}
           >
-            {paramConfig.choices.map((choice, index) => (
-              <MenuItem key={index} value={index}>{choice}</MenuItem>
+            {paramConfig.choices.map((choice) => ( // Iterate over choices directly
+              <MenuItem key={choice} value={choice}>{choice}</MenuItem> // Value is the choice string
             ))}
           </Select>
         </FormControl>
+      );
+    }
+
+    if (paramConfig.type === 'list_choice') { // New rendering for list_choice
+      const selectedChoices = new Set(Array.isArray(controlledValue) ? controlledValue : []);
+      
+      const handleToggleChoice = (choice) => {
+        const newSelected = new Set(selectedChoices);
+        if (newSelected.has(choice)) {
+          newSelected.delete(choice);
+        } else {
+          newSelected.add(choice);
+        }
+        handleParamChange(paramName, Array.from(newSelected)); // Update with array of selected strings
+      };
+
+      return (
+        <Box key={paramName} sx={{ mb: 2 }}>
+          <Typography gutterBottom variant="body2" color="text.secondary">
+            {paramConfig.description || paramName}
+          </Typography>
+          <FormGroup>
+            {paramConfig.choices.map((choice) => (
+              <FormControlLabel
+                key={choice}
+                control={
+                  <Checkbox
+                    checked={selectedChoices.has(choice)}
+                    onChange={() => handleToggleChoice(choice)}
+                  />
+                }
+                label={choice}
+              />
+            ))}
+          </FormGroup>
+        </Box>
       );
     }
 

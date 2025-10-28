@@ -1,3 +1,4 @@
+# webapp/packages/api/user-service/agent_factory/__init__.py
 from .remote_mcp_client import RemoteMCPClient
 from .prompts import how_to_use_tools, \
     how_to_use_litellm, \
@@ -107,13 +108,26 @@ result = await gofannon_client.call(agent_name='{agent.name}', input_dict={{...}
     model = request.composer_model_config.model
     provider = request.composer_model_config.provider
     
+    config = request.composer_model_config.parameters.copy() # Make a copy to avoid modifying the original request object
+    
+    # --- Special handling for Gemini tools ---
+    if provider == "gemini" and "tools" in config:
+        selected_gemini_tools = config["tools"]
+        if isinstance(selected_gemini_tools, list) and all(isinstance(t, str) for t in selected_gemini_tools):
+            # Transform ["toolName"] to [{"toolName": {}}]
+            config["tools"] = [{tool_name: {}} for tool_name in selected_gemini_tools]
+        else:
+            # If it's not the expected list of strings, log a warning
+            print(f"Warning: Gemini tools parameter has unexpected format: {selected_gemini_tools}. Skipping transformation.")
+            # Optionally, remove it if it's malformed to prevent errors in litellm
+            # del config["tools"]
+
     # ---- Code Generation Task ----
     code_gen_messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": request.description},
     ]
     
-    config = request.composer_model_config.parameters
     code_gen_task = acompletion(
                 model=f"{provider}/{model}",
                 messages=code_gen_messages,
@@ -203,4 +217,4 @@ async def run(input_dict, tools):
         docstring = f"Could not parse docstring from LLM response:\n{name_doc_content}"
 
     return GenerateCodeResponse(code=full_code, friendly_name=friendly_name, docstring=docstring)
-
+    

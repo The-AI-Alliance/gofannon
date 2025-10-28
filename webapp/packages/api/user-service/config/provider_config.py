@@ -1,4 +1,6 @@
 
+from .gemini import models as gemini_models
+
 PROVIDER_CONFIG = {
     "openai": {
         "api_key_env_var": "OPENAI_API_KEY",
@@ -81,17 +83,7 @@ PROVIDER_CONFIG = {
     },
     "gemini": {
         "api_key_env_var": "GEMINI_API_KEY",
-        "models": {
-            "gemini-2.5-pro": {
-                "parameters": {
-                    "reasoning_effort": {
-                        "type": "choice", 
-                        "default": 0,
-                        "choices": ["disable", "low", "medium", "high"],
-                    }
-                }
-            }
-        }
+        "models": gemini_models
     },
     "anthropic": {
         "api_key_env_var": "ANTHROPIC_API_KEY",
