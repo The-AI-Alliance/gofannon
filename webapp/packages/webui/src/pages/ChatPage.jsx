@@ -20,6 +20,12 @@ import {
   Person as PersonIcon,
   SmartToy as BotIcon,
 } from '@mui/icons-material';
+import {
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+} from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import chatService from '../services/chatService';
 import ModelConfigDialog from '../components/ModelConfigDialog';
 
@@ -38,6 +44,7 @@ const ChatPage = () => {
   const [selectedModel, setSelectedModel] = useState('');
   const [modelParamSchema, setModelParamSchema] = useState({});
   const [currentModelParams, setCurrentModelParams] = useState({});
+  const [selectedBuiltInTool, setSelectedBuiltInTool] = useState('');
   const [loadingProviders, setLoadingProviders] = useState(true);
   const [providersError, setProvidersError] = useState(null);
 
@@ -80,6 +87,7 @@ const ChatPage = () => {
               defaultParams[key] = modelParams[key].default;
             });
             setCurrentModelParams(defaultParams);
+            setSelectedBuiltInTool(''); // Reset tool on provider change
             defaultProviderSet = true;
             break; // exit after finding the first valid provider/model
           }
@@ -123,13 +131,16 @@ const ChatPage = () => {
         {
           provider: selectedProvider,
           model: selectedModel,
-          config: currentModelParams,
+          // config: currentModelParams,
+          parameters: currentModelParams,
+          builtInTool: selectedBuiltInTool,          
         }
       );
 
       const assistantMessage = {
         role: 'assistant',
         content: response.content,
+        thoughts: response.thoughts,
         timestamp: new Date().toISOString(),
       };
 
@@ -204,8 +215,20 @@ const ChatPage = () => {
                 <ListItemText
                   primary={<Typography sx={{ whiteSpace: 'pre-wrap' }}>{message.content}</Typography>}
                   secondary={new Date(message.timestamp).toLocaleTimeString()}
-                  sx={{ color: message.role === 'user' ? 'primary.contrastText' : 'text.secondary' }}
+                  sx={{ color: message.role === 'user' ? 'primary.contrastText' : 'text.secondary', mb: message.thoughts ? 1 : 0 }}
                 />
+                {message.thoughts && (
+                  <Accordion sx={{ boxShadow: 'none', '&:before': { display: 'none' }, bgcolor: 'transparent', color: 'inherit' }}>
+                    <AccordionSummary expandIcon={<ExpandMoreIcon sx={{ color: message.role === 'user' ? 'primary.contrastText' : 'text.primary' }} />} sx={{ p: 0 }}>
+                      <Typography variant="caption">Show Thoughts</Typography>
+                    </AccordionSummary>
+                    <AccordionDetails sx={{ p: 0 }}>
+                      <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: '0.8rem', margin: 0 }}>
+                        {JSON.stringify(message.thoughts, null, 2)}
+                      </pre>
+                    </AccordionDetails>
+                  </Accordion>
+                )}
               </Paper>
             </ListItem>
           ))}
@@ -256,6 +279,8 @@ const ChatPage = () => {
         setModelParamSchema={setModelParamSchema}
         currentModelParams={currentModelParams}
         setCurrentModelParams={setCurrentModelParams}
+        selectedBuiltInTool={selectedBuiltInTool}
+        setSelectedBuiltInTool={setSelectedBuiltInTool}
         loadingProviders={loadingProviders}
         providersError={providersError}
       />

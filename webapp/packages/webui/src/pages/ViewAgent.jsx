@@ -39,6 +39,7 @@ import { useAgentFlow } from './AgentCreationFlow/AgentCreationFlowContext';
 import agentService from '../services/agentService';
 import CodeEditor from '../components/CodeEditor';
 import SpecViewerModal from '../components/SpecViewerModal';
+import CodeIcon from '@mui/icons-material/Code';
 
 const ViewAgent = () => {
   const { agentId } = useParams();
@@ -326,6 +327,21 @@ const ViewAgent = () => {
             </Accordion>
         )}
 
+        {agent.composerThoughts && (
+            <Accordion>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Typography>Composer Thoughts</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                    <Paper variant="outlined" sx={{ p: 2, bgcolor: 'background.paper', overflowX: 'auto', border: '1px solid #444', maxHeight: '300px' }}>
+                        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0 }}>
+                            {JSON.stringify(agent.composerThoughts, null, 2)}
+                        </pre>
+                    </Paper>
+                </AccordionDetails>
+            </Accordion>
+        )}
+        
         <Accordion defaultExpanded>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Typography>Agent Code</Typography>

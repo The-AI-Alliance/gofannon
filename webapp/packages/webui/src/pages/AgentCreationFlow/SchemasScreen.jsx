@@ -38,7 +38,10 @@ const SchemasScreen = () => {
     setDocstring, 
     invokableModels, 
     setInvokableModels,
-    gofannonAgents } = useAgentFlow();
+    gofannonAgents,
+    composerBuiltInTool, 
+    setComposerBuiltInTool
+  } = useAgentFlow();
   const navigate = useNavigate();
 
   // State for Model Configuration
@@ -127,6 +130,7 @@ const SchemasScreen = () => {
         provider: selectedProvider,
         model: selectedModel,
         parameters: currentModelParams,
+        builtInTool: composerBuiltInTool,
       },
     };
     
@@ -315,6 +319,8 @@ const SchemasScreen = () => {
         setModelParamSchema={setModelParamSchema}
         currentModelParams={currentModelParams}
         setCurrentModelParams={setCurrentModelParams}
+        selectedBuiltInTool={composerBuiltInTool}
+        setSelectedBuiltInTool={setComposerBuiltInTool}
         loadingProviders={loadingProviders}
         providersError={providersError}
       />

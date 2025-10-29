@@ -14,7 +14,6 @@ const ActionCard = ({ icon, title, description, buttonText, buttonColor, iconCol
         flexDirection: 'row',
         alignItems: 'center',
         gap: 2,
-        height: '100%',
         cursor: 'pointer',
         
         transition: 'box-shadow 0.3s, background-color 0.3s',

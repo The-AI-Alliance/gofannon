@@ -22,13 +22,28 @@ from fastapi.security import OAuth2PasswordBearer
 from services.database_service import get_database_service, DatabaseService
 from config import settings
 from services.mcp_client_service import McpClientService, get_mcp_client_service
-# New imports for observability
+
 from services.observability_service import (
     get_observability_service,
     ObservabilityMiddleware,
     ObservabilityService,
     get_sanitized_request_data
 )
+
+from services.llm_service import call_llm
+
+# Import the shared provider configuration
+from config.provider_config import PROVIDER_CONFIG as APP_PROVIDER_CONFIG
+from models.agent import (
+    GenerateCodeRequest, GenerateCodeResponse, RunCodeRequest, 
+    RunCodeResponse, Agent, CreateAgentRequest, Deployment, DeployedApi
+)
+from models.demo import (
+    GenerateDemoCodeRequest, GenerateDemoCodeResponse,
+    CreateDemoAppRequest, DemoApp
+)
+
+from agent_factory.remote_mcp_client import RemoteMCPClient
 
 
 # --- Firebase Admin SDK Initialization ---
@@ -60,18 +75,6 @@ async def startup_event():
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
-# Import the shared provider configuration
-from config.provider_config import PROVIDER_CONFIG as APP_PROVIDER_CONFIG
-from models.agent import (
-    GenerateCodeRequest, GenerateCodeResponse, RunCodeRequest, 
-    RunCodeResponse, Agent, CreateAgentRequest, Deployment, DeployedApi
-)
-from models.demo import (
-    GenerateDemoCodeRequest, GenerateDemoCodeResponse,
-    CreateDemoAppRequest, DemoApp
-)
-
-from agent_factory.remote_mcp_client import RemoteMCPClient
 
 
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
@@ -164,21 +167,31 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
         ticket_data = {
             "status": "processing",
             "created_at": datetime.utcnow().isoformat(), # Use isoformat for JSON serialization
-            "request": request.dict()
+            "request": request.dict(by_alias=True)
         }
         db_service.save("tickets", ticket_id, ticket_data)
         
         # Convert messages to format expected by litellm
         messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
         
-        model_name = f"{request.provider}/{request.model}" if request.provider not in ["openai", "azure"] else request.model
+        # Build tools list from config
+        built_in_tools = []
+        model_tool_config = APP_PROVIDER_CONFIG.get(request.provider, {}).get("models", {}).get(request.model, {}).get("built_in_tools", [])
+        if request.built_in_tools:
+            for tool_id in request.built_in_tools:
+                tool_conf = next((t for t in model_tool_config if t["id"] == tool_id), None)
+                if tool_conf:
+                    built_in_tools.append(tool_conf["tool_config"])
 
-        logger.log("INFO", "llm_request", f"Initiating LLM call to {model_name}", metadata={"request": get_sanitized_request_data(req)})
 
-        response = await litellm.acompletion(
-            model=model_name,
+        logger.log("INFO", "llm_request", f"Initiating LLM call to {request.provider}/{request.model}", metadata={"request": get_sanitized_request_data(req)})
+
+        content, thoughts = await call_llm(
+            provider=request.provider,
+            model=request.model,
             messages=messages,
-            **request.parameters
+            parameters=request.parameters,
+            tools=built_in_tools if built_in_tools else None
         )
         
         # Update ticket with success
@@ -186,9 +199,10 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
             "status": "completed",
             "completed_at": datetime.utcnow().isoformat(),
             "result": {
-                "content": response.choices[0].message.content,
-                "model": response.model,
-                "usage": response.usage.dict() if response.usage else None
+                "content": content,
+                "thoughts": thoughts,
+                "model": f"{request.provider}/{request.model}",
+                # Usage data is not consistently available across both litellm APIs, so omitting for now
             }
         })
         db_service.save("tickets", ticket_id, ticket_data)
@@ -736,7 +750,7 @@ def build_cors_headers(req, *, origin_override=None):
         # "access-control-allow-credentials": "true",
     }
 
-@https_fn.on_request(memory=1024)
+@https_fn.on_request(memory=2048, timeout_sec=540)
 def api(req: https_fn.Request):
     """
     An HTTPS Cloud Function that wraps the FastAPI application.

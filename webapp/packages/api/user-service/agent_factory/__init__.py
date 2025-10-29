@@ -1,3 +1,4 @@
+# webapp/packages/api/user-service/agent_factory/__init__.py
 from .remote_mcp_client import RemoteMCPClient
 from .prompts import how_to_use_tools, \
     how_to_use_litellm, \
@@ -10,7 +11,9 @@ import json
 import asyncio
 
 from services.database_service import get_database_service
+from services.llm_service import call_llm
 from config import settings
+from config.provider_config import PROVIDER_CONFIG
 
 async def generate_agent_code(request: GenerateCodeRequest):
     """
@@ -112,13 +115,26 @@ result = await gofannon_client.call(agent_name='{agent.name}', input_dict={{...}
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": request.description},
     ]
+
+    # Build tools list from config
+    built_in_tools = []
+    model_tool_config = PROVIDER_CONFIG.get(provider, {}).get("models", {}).get(model, {}).get("built_in_tools", [])
+    if request.built_in_tools:
+        for tool_id in request.built_in_tools:
+            tool_conf = next((t for t in model_tool_config if t["id"] == tool_id), None)
+            if tool_conf:
+                built_in_tools.append(tool_conf["tool_config"])
     
     config = request.composer_model_config.parameters
-    code_gen_task = acompletion(
-                model=f"{provider}/{model}",
-                messages=code_gen_messages,
-                **config
-            )
+    
+    async def code_gen_with_thoughts():
+        return await call_llm(
+            provider=provider,
+            model=model,
+            messages=code_gen_messages,
+            parameters=config,
+            tools=built_in_tools if built_in_tools else None,
+        )
 
     # ---- Friendly Name and Docstring Generation Task ----
     name_doc_prompt = f"""
@@ -157,15 +173,12 @@ Do not include any other text or markdown formatting around the JSON object.
     )
     
     # ---- Run tasks concurrently ----
-    code_response, name_doc_response = await asyncio.gather(
-        code_gen_task,
+    (code_body, thoughts), name_doc_response = await asyncio.gather(
+        code_gen_with_thoughts(),
         name_doc_gen_task
     )
 
     # ---- Process Code Generation Response ----
-    code_body = code_response.choices[0].message.content
- 
-
     # Clean up potential markdown formatting from the response
     if code_body.strip().startswith("```python"):
         code_body = code_body.strip()[len("```python"):].strip()
@@ -202,5 +215,4 @@ async def run(input_dict, tools):
         friendly_name = "parsing_error_function"
         docstring = f"Could not parse docstring from LLM response:\n{name_doc_content}"
 
-    return GenerateCodeResponse(code=full_code, friendly_name=friendly_name, docstring=docstring)
-
+    return GenerateCodeResponse(code=full_code, friendly_name=friendly_name, docstring=docstring, thoughts=thoughts)

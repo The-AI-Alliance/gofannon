@@ -1,4 +1,5 @@
-from pydantic import BaseModel, Field
+# webapp/packages/api/user-service/models/chat.py
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Dict, Any, List
 from enum import Enum
 from datetime import datetime
@@ -19,6 +20,9 @@ class ChatRequest(BaseModel):
     model: str = "gpt-3.5-turbo"
     parameters: Dict[str, Any] = {} # Renamed from 'config' to 'parameters'
     stream: bool = False
+    built_in_tools: Optional[List[str]] = Field(default_factory=list, alias="builtInTools")
+    model_config = ConfigDict(populate_by_name=True)
+
 
 class ChatResponse(BaseModel):
     ticket_id: str

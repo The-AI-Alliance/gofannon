@@ -69,7 +69,7 @@ const CanvasScreen = () => {
   // State for API Selection Dialog
   const [isApiSelectionDialogOpen, setIsApiSelectionDialogOpen] = useState(false);
 
-
+  const [generationThoughts, setGenerationThoughts] = useState(null);
   // Effect to load demo for editing
   useEffect(() => {
     const editDemoId = searchParams.get('edit');
@@ -218,6 +218,7 @@ const CanvasScreen = () => {
         modelConfig,
       });
       setGeneratedCode(code);
+      setGenerationThoughts(response.thoughts);
       setActiveTab('canvas'); // Switch to canvas view after generation
     } catch (err) {
       setError(err.message || "Failed to generate code.");
@@ -362,6 +363,7 @@ const CanvasScreen = () => {
           <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)} aria-label="canvas-code tabs" sx={{ borderBottom: 1, borderColor: 'divider' }}>
             <Tab value="canvas" label="Canvas" />
             <Tab value="code" label="Code" />
+            {generationThoughts && <Tab value="thoughts" label="Thoughts" />}
           </Tabs>
 
           <Box sx={{ flexGrow: 1, p: 1, overflow: 'auto' }}>
@@ -411,6 +413,13 @@ const CanvasScreen = () => {
                   }}
                 />
               </Stack>
+            )}
+             {activeTab === 'thoughts' && (
+                <Paper variant="outlined" sx={{ p: 2, bgcolor: 'background.paper', height: '100%' }}>
+                    <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0 }}>
+                        {JSON.stringify(generationThoughts, null, 2)}
+                    </pre>
+                </Paper>
             )}
           </Box>
         </Box>
