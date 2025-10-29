@@ -119,19 +119,6 @@ async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)
         raise HTTPException(status_code=500, detail=f"Authentication error: {e}")
  
 
-# Models
-class ChatMessage(BaseModel):
-    role: str = Field(..., pattern="^(user|assistant|system)$")
-    content: str
-
-class ChatRequest(BaseModel):
-    messages: List[ChatMessage]
-    provider: str = "openai"
-    model: str = "gpt-3.5-turbo"
-    parameters: Dict[str, Any] = {}
-    stream: bool = False
-
-
 class ListMcpToolsRequest(BaseModel):
     mcp_url: str
     auth_token: Optional[str] = None
@@ -146,7 +133,7 @@ class FetchSpecRequest(BaseModel):
     url: str
 
 # Import models after defining local ones to avoid circular dependencies
-from models.chat import ChatResponse, ProviderConfig, SessionData
+from models.chat import ChatRequest, ChatMessage, ChatResponse, ProviderConfig, SessionData
 
 
 # --- Dependencies ---

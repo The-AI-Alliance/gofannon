@@ -120,7 +120,7 @@ PROVIDER_CONFIG = {
                     {
                         "id": "google_search",
                         "description": "Performs a Google search.",
-                        "tool_config": {"type": "google_search"}
+                        "tool_config": {"google_search": {}}
                     }
                 ]
             }
@@ -164,10 +164,7 @@ PROVIDER_CONFIG = {
                     {
                         "id": "web_search",
                         "description": "Performs a web search.",
-                        "tool_config": {
-                            "type": "tool",
-                            "name": "web_search"
-                        }
+                        "tool_config": {"name": "web_search"}
                     }
                 ]
             },

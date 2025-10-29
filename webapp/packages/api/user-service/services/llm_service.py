@@ -47,15 +47,15 @@ async def call_llm(
                     break
             
             if final_response:
-                # Based on the user's example, output[0] is thoughts and output[1] is the final content
+                
                 if len(final_response.output) > 0 and final_response.output[0]:
                     thoughts = final_response.output[0].model_dump()
                 
                 if len(final_response.output) > 1 and final_response.output[1] and final_response.output[1].content:
-                    content = final_response.output[1].content[0].get("text", "")
+                    content = final_response.output[1].content[0].text
                 elif len(final_response.output) > 0 and final_response.output[0] and final_response.output[0].content:
                      # Fallback if there's only one output block
-                    content = final_response.output[0].content[0].get("text", "No final content block found.")
+                    content = final_response.output[0].content[0].text
             else:
                 raise Exception("Polling for OpenAI Responses API timed out.")
 
