@@ -23,6 +23,7 @@ const SelectModelScreen = () => {
   const [selectedModel, setSelectedModel] = useState('');
   const [modelParamSchema, setModelParamSchema] = useState({});
   const [currentModelParams, setCurrentModelParams] = useState({});
+  const [selectedBuiltInTool, setSelectedBuiltInTool] = useState('');
   const [loadingProviders, setLoadingProviders] = useState(true);
   const [providersError, setProvidersError] = useState(null);
 
@@ -44,6 +45,7 @@ const SelectModelScreen = () => {
               Object.entries(params).map(([key, val]) => [key, val.default])
             );
             setCurrentModelParams(defaults);
+            setSelectedBuiltInTool('');
           }
         }
       } catch (err) {
@@ -60,6 +62,7 @@ const SelectModelScreen = () => {
       provider: selectedProvider,
       model: selectedModel,
       parameters: currentModelParams,
+      builtInTool: selectedBuiltInTool,
     });
     setDialogOpen(false);
     navigate('/create-demo/canvas');
@@ -100,6 +103,8 @@ const SelectModelScreen = () => {
         setModelParamSchema={setModelParamSchema}
         currentModelParams={currentModelParams}
         setCurrentModelParams={setCurrentModelParams}
+        selectedBuiltInTool={selectedBuiltInTool}
+        setSelectedBuiltInTool={setSelectedBuiltInTool}
         loadingProviders={loadingProviders}
         providersError={providersError}
       />

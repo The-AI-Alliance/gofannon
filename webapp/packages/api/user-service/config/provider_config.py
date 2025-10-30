@@ -54,6 +54,32 @@ PROVIDER_CONFIG = {
                     }
                 }
             },
+            "gpt-4.1-mini": {
+                "api_style": "responses",
+                "parameters": {
+                    "temperature": {
+                        "type": "float",
+                        "default": 0.7,
+                        "min": 0.0,
+                        "max": 2.0,
+                        "description": "Controls randomness"
+                    },
+                    "max_tokens": {
+                        "type": "integer",
+                        "default": 2048,
+                        "min": 1,
+                        "max": 4096,
+                        "description": "Maximum tokens in response"
+                    }
+                },
+                "built_in_tools": [
+                    {
+                        "id": "web_search",
+                        "description": "Performs a web search.",
+                        "tool_config": {"type": "web_search_preview", "search_context_size": "low"}
+                    }
+                ]
+            },
             "gpt-4.1-nano": {
                 "parameters": {
                     "temperature": {
@@ -83,7 +109,24 @@ PROVIDER_CONFIG = {
     },
     "gemini": {
         "api_key_env_var": "GEMINI_API_KEY",
-        "models": gemini_models
+        "models": {
+            "gemini-2.5-pro": {
+                "parameters": {
+                    "reasoning_effort": {
+                        "type": "choice", 
+                        "default": 0,
+                        "choices": ["disable", "low", "medium", "high"],
+                    }
+                },
+                "built_in_tools": [
+                    {
+                        "id": "google_search",
+                        "description": "Performs a Google search.",
+                        "tool_config": {"google_search": {}}
+                    }
+                ]
+            }
+        }
     },
     "anthropic": {
         "api_key_env_var": "ANTHROPIC_API_KEY",
@@ -118,7 +161,14 @@ PROVIDER_CONFIG = {
                         "max": 100,
                         "description": "Top-k sampling"
                     }
-                }
+                },
+                "built_in_tools": [
+                    {
+                        "id": "web_search",
+                        "description": "Performs a web search.",
+                        "tool_config": {"name": "web_search"}
+                    }
+                ]
             },
             "claude-3-sonnet": {
                 "parameters": {

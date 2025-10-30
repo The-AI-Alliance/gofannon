@@ -23,6 +23,9 @@ export const AgentCreationFlowProvider = ({ children }) => {
     const [invokableModels, setInvokableModels] = useState([]);
     const [gofannonAgents, setGofannonAgents] = useState([]); // {id, name}
 
+    // State for the composer model's built-in tool
+    const [composerBuiltInTool, setComposerBuiltInTool] = useState('');    
+
     const value = {
         tools,
         setTools,
@@ -44,6 +47,8 @@ export const AgentCreationFlowProvider = ({ children }) => {
         setInvokableModels,
         gofannonAgents,
         setGofannonAgents,
+        composerBuiltInTool,
+        setComposerBuiltInTool,       
     };
 
     return (

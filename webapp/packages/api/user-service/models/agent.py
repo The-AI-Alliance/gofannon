@@ -1,3 +1,4 @@
+ # webapp/packages/api/user-service/models/agent.py
 from pydantic import BaseModel, Field
 from pydantic.config import ConfigDict
 from pydantic.alias_generators import to_camel
@@ -21,12 +22,15 @@ class GenerateCodeRequest(BaseModel):
     invokable_models: Optional[List[ProviderConfig]] = Field(None, alias="invokableModels")
     swagger_specs: Optional[List[SwaggerSpec]] = Field(None, alias="swaggerSpecs")
     gofannon_agents: Optional[List[str]] = Field(None, alias="gofannonAgents")
+    built_in_tools: Optional[List[str]] = Field(default_factory=list, alias="builtInTools")
     model_config = ConfigDict(populate_by_name=True)
 
 class GenerateCodeResponse(BaseModel):
     code: str
     friendly_name: str = Field(..., alias="friendlyName")
     docstring: str
+    thoughts: Optional[Any] = None
+
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -42,6 +46,8 @@ class CreateAgentRequest(BaseModel):
     output_schema: Optional[Dict[str, Any]] = Field(..., alias="outputSchema")
     invokable_models: Optional[List[ProviderConfig]] = Field(None, alias="invokableModels")
     gofannon_agents: Optional[List[str]] = Field(default_factory=list, alias="gofannonAgents")
+    composer_thoughts: Optional[Any] = Field(None, alias="composerThoughts")
+
 
     model_config = ConfigDict(
         populate_by_name=True,   
@@ -82,3 +88,4 @@ class DeployedApi(BaseModel):
     input_schema: Dict[str, Any] = Field(..., alias="inputSchema")
     output_schema: Dict[str, Any] = Field(..., alias="outputSchema")
     model_config = ConfigDict(populate_by_name=True)
+    

@@ -46,6 +46,29 @@ class AgentService {
     }
   }
 
+  async fetchSpecFromUrl(url) {
+    try {
+      const authHeaders = await this._getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/specs/fetch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify({ url }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to fetch spec from URL.');
+      }
+      return data; // returns { name: string, content: string }
+    } catch (error) {
+      console.error('[AgentService] Error fetching spec from URL:', error);
+      throw error;
+    }
+  }
   async runCodeInSandbox(code, inputDict, tools, gofannonAgents) {
     
     const requestBody = {
@@ -265,5 +288,6 @@ class AgentService {
     }
   }  
 }
+
 
 export default new AgentService();

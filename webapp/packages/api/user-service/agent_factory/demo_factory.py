@@ -1,8 +1,10 @@
 # webapp/packages/api/user-service/agent_factory/demo_factory.py
 from .prompts import how_to_build_demo_app_template
-from litellm import acompletion
 from models.demo import GenerateDemoCodeRequest, GenerateDemoCodeResponse, DeployedApi
 import json
+
+from services.llm_service import call_llm
+from config.provider_config import PROVIDER_CONFIG
 
 def _format_api_docs(apis: list[DeployedApi]) -> str:
     """Formats the API information into a markdown string for the prompt."""
@@ -55,13 +57,23 @@ async def generate_demo_code(request: GenerateDemoCodeRequest) -> GenerateDemoCo
     if provider == "openai":
         config['response_format'] = { "type": "json_object" }
 
-    response = await acompletion(
-        model=f"{provider}/{model}",
+    # Build tools list from config
+    built_in_tools = []
+    model_tool_config = PROVIDER_CONFIG.get(provider, {}).get("models", {}).get(model, {}).get("built_in_tools", [])
+    if request.built_in_tools:
+        for tool_id in request.built_in_tools:
+            tool_conf = next((t for t in model_tool_config if t["id"] == tool_id), None)
+            if tool_conf:
+                built_in_tools.append(tool_conf["tool_config"])
+
+    response_content, thoughts = await call_llm(
+        provider=provider,
+        model=model,
         messages=messages,
-        **config
+        parameters=config,
+        tools=built_in_tools if built_in_tools else None
     )
 
-    response_content = response.choices[0].message.content
     try:
         # Clean up potential markdown
         if response_content.strip().startswith("```json"):
@@ -70,7 +82,11 @@ async def generate_demo_code(request: GenerateDemoCodeRequest) -> GenerateDemoCo
             response_content = response_content.strip()[:-len("```")].strip()
             
         code_json = json.loads(response_content)
-        return GenerateDemoCodeResponse(**code_json)
+        
+        # Ensure the response includes the thoughts
+        response_obj = GenerateDemoCodeResponse(**code_json)
+        response_obj.thoughts = thoughts
+        return response_obj
     except (json.JSONDecodeError, TypeError) as e:
         print(f"Error parsing demo code JSON from LLM: {e}")
         print(f"LLM response was: {response_content}")

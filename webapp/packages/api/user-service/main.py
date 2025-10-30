@@ -14,6 +14,7 @@ import litellm
 import traceback
 import httpx
 import firebase_admin
+import yaml
 from firebase_admin import credentials, auth
 from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
@@ -21,13 +22,28 @@ from fastapi.security import OAuth2PasswordBearer
 from services.database_service import get_database_service, DatabaseService
 from config import settings
 from services.mcp_client_service import McpClientService, get_mcp_client_service
-# New imports for observability
+
 from services.observability_service import (
     get_observability_service,
     ObservabilityMiddleware,
     ObservabilityService,
     get_sanitized_request_data
 )
+
+from services.llm_service import call_llm
+
+# Import the shared provider configuration
+from config.provider_config import PROVIDER_CONFIG as APP_PROVIDER_CONFIG
+from models.agent import (
+    GenerateCodeRequest, GenerateCodeResponse, RunCodeRequest, 
+    RunCodeResponse, Agent, CreateAgentRequest, Deployment, DeployedApi
+)
+from models.demo import (
+    GenerateDemoCodeRequest, GenerateDemoCodeResponse,
+    CreateDemoAppRequest, DemoApp
+)
+
+from agent_factory.remote_mcp_client import RemoteMCPClient
 
 
 # --- Firebase Admin SDK Initialization ---
@@ -59,18 +75,6 @@ async def startup_event():
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
-# Import the shared provider configuration
-from config.provider_config import PROVIDER_CONFIG as APP_PROVIDER_CONFIG
-from models.agent import (
-    GenerateCodeRequest, GenerateCodeResponse, RunCodeRequest, 
-    RunCodeResponse, Agent, CreateAgentRequest, Deployment, DeployedApi
-)
-from models.demo import (
-    GenerateDemoCodeRequest, GenerateDemoCodeResponse,
-    CreateDemoAppRequest, DemoApp
-)
-
-from agent_factory.remote_mcp_client import RemoteMCPClient
 
 
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
@@ -115,19 +119,6 @@ async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)
         raise HTTPException(status_code=500, detail=f"Authentication error: {e}")
  
 
-# Models
-class ChatMessage(BaseModel):
-    role: str = Field(..., pattern="^(user|assistant|system)$")
-    content: str
-
-class ChatRequest(BaseModel):
-    messages: List[ChatMessage]
-    provider: str = "openai"
-    model: str = "gpt-3.5-turbo"
-    parameters: Dict[str, Any] = {}
-    stream: bool = False
-
-
 class ListMcpToolsRequest(BaseModel):
     mcp_url: str
     auth_token: Optional[str] = None
@@ -138,9 +129,11 @@ class ClientLogPayload(BaseModel):
     level: str = "INFO"
     metadata: Optional[Dict[str, Any]] = None
 
+class FetchSpecRequest(BaseModel):
+    url: str
 
 # Import models after defining local ones to avoid circular dependencies
-from models.chat import ChatResponse, ProviderConfig, SessionData
+from models.chat import ChatRequest, ChatMessage, ChatResponse, ProviderConfig, SessionData
 
 
 # --- Dependencies ---
@@ -161,21 +154,31 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
         ticket_data = {
             "status": "processing",
             "created_at": datetime.utcnow().isoformat(), # Use isoformat for JSON serialization
-            "request": request.dict()
+            "request": request.dict(by_alias=True)
         }
         db_service.save("tickets", ticket_id, ticket_data)
         
         # Convert messages to format expected by litellm
         messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
         
-        model_name = f"{request.provider}/{request.model}" if request.provider not in ["openai", "azure"] else request.model
+        # Build tools list from config
+        built_in_tools = []
+        model_tool_config = APP_PROVIDER_CONFIG.get(request.provider, {}).get("models", {}).get(request.model, {}).get("built_in_tools", [])
+        if request.built_in_tools:
+            for tool_id in request.built_in_tools:
+                tool_conf = next((t for t in model_tool_config if t["id"] == tool_id), None)
+                if tool_conf:
+                    built_in_tools.append(tool_conf["tool_config"])
 
-        logger.log("INFO", "llm_request", f"Initiating LLM call to {model_name}", metadata={"request": get_sanitized_request_data(req)})
 
-        response = await litellm.acompletion(
-            model=model_name,
+        logger.log("INFO", "llm_request", f"Initiating LLM call to {request.provider}/{request.model}", metadata={"request": get_sanitized_request_data(req)})
+
+        content, thoughts = await call_llm(
+            provider=request.provider,
+            model=request.model,
             messages=messages,
-            **request.parameters
+            parameters=request.parameters,
+            tools=built_in_tools if built_in_tools else None
         )
         
         # Update ticket with success
@@ -183,9 +186,10 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
             "status": "completed",
             "completed_at": datetime.utcnow().isoformat(),
             "result": {
-                "content": response.choices[0].message.content,
-                "model": response.model,
-                "usage": response.usage.dict() if response.usage else None
+                "content": content,
+                "thoughts": thoughts,
+                "model": f"{request.provider}/{request.model}",
+                # Usage data is not consistently available across both litellm APIs, so omitting for now
             }
         })
         db_service.save("tickets", ticket_id, ticket_data)
@@ -412,6 +416,36 @@ async def generate_agent_code(request: GenerateCodeRequest, user: dict = Depends
     from agent_factory import generate_agent_code as generate_code_function
     code = await generate_code_function(request)
     return code
+
+@app.post("/specs/fetch")
+async def fetch_spec_from_url(request: FetchSpecRequest, user: dict = Depends(get_current_user)):
+    """Fetches OpenAPI/Swagger spec content from a public URL."""
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(request.url)
+            response.raise_for_status() # Raises an exception for 4xx/5xx responses
+            
+            # Basic validation: Try to parse as JSON or YAML
+            content = response.text
+            try:
+                json.loads(content)
+            except json.JSONDecodeError:
+                try:
+                    yaml.safe_load(content)
+                except yaml.YAMLError:
+                    raise HTTPException(status_code=400, detail="Content from URL is not valid JSON or YAML.")
+
+            # Create a name from the URL path
+            from urllib.parse import urlparse
+            path = urlparse(str(request.url)).path
+            name = path.split('/')[-1] if path else "spec_from_url.json"
+            if not name:
+                name = "spec_from_url.json"
+
+            return {"name": name, "content": content}
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=400, detail=f"Error fetching from URL: {e}")
+
 
 @app.post("/agents/{agent_id}/deploy", status_code=201)
 async def deploy_agent(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
@@ -703,7 +737,7 @@ def build_cors_headers(req, *, origin_override=None):
         # "access-control-allow-credentials": "true",
     }
 
-@https_fn.on_request(memory=1024)
+@https_fn.on_request(memory=2048, timeout_sec=540)
 def api(req: https_fn.Request):
     """
     An HTTPS Cloud Function that wraps the FastAPI application.

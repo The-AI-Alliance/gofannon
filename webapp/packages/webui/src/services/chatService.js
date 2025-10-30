@@ -67,10 +67,15 @@ class ChatService {
       messages: messages,
       provider: chatSettings.provider,
       model: chatSettings.model,
-      parameters: chatSettings.config,
-      stream: false
+      parameters: chatSettings.parameters,
+      stream: false,
     };
     
+    if (chatSettings.builtInTool) {
+      // The backend expects an array of tool IDs.
+      requestBody.builtInTools = [chatSettings.builtInTool];
+    }
+
     const authHeaders = await this._getAuthHeaders();
     const response = await fetch(`${API_BASE_URL}/chat`, { 
       method: 'POST',

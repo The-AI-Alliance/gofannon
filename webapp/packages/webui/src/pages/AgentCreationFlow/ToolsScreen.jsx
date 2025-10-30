@@ -8,6 +8,7 @@ import {
   List,
   ListItem,
   ListItemText,
+  Divider,
   IconButton,
   Paper,
   Alert,
@@ -23,10 +24,13 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import BuildIcon from '@mui/icons-material/Build';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import { useAgentFlow } from './AgentCreationFlowContext';
 import agentService from '../../services/agentService';
 import ToolsSelectionDialog from './ToolsSelectionDialog'; 
+import SpecViewerModal from '../../components/SpecViewerModal';
+ 
 
 
 const ToolsScreen = () => {
@@ -36,6 +40,10 @@ const ToolsScreen = () => {
   const navigate = useNavigate();
   const [toolsDialog, setToolsDialog] = useState({ open: false, mcpUrl: '', existingSelectedTools: [] });
   const [tabIndex, setTabIndex] = useState(0);
+  const [specUrl, setSpecUrl] = useState('');
+  const [isFetchingSpec, setIsFetchingSpec] = useState(false);
+  const [viewingSpec, setViewingSpec] = useState({ open: false, name: '', content: '' });
+ 
 
   // State for Gofannon Agents tab
   const [availableAgents, setAvailableAgents] = useState([]);
@@ -73,6 +81,28 @@ const ToolsScreen = () => {
     setError(null);
   };
 
+  const handleFetchSpec = async () => {
+    if (!specUrl.trim()) {
+      setError('Spec URL cannot be empty.');
+      return;
+    }
+    setIsFetchingSpec(true);
+    setError(null);
+    try {
+      const specData = await agentService.fetchSpecFromUrl(specUrl);
+      if (swaggerSpecs.some(spec => spec.name === specData.name)) {
+        setError(`A spec with the name "${specData.name}" already exists.`);
+      } else {
+        setSwaggerSpecs(prev => [...prev, specData]);
+        setSpecUrl('');
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to fetch spec from URL.');
+    } finally {
+      setIsFetchingSpec(false);
+    }
+   };
+
   const handleDeleteTool = (urlToDelete) => {
     setTools(prev => {
       const newTools = { ...prev };
@@ -81,6 +111,10 @@ const ToolsScreen = () => {
     });
     setError(null);
   };
+
+  const handleViewSpec = (spec) => {
+    setViewingSpec({ open: true, name: spec.name, content: spec.content });
+   };
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
@@ -239,7 +273,25 @@ const ToolsScreen = () => {
       {tabIndex === 1 && (
         <Box>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Upload a Swagger or OpenAPI specification file (JSON or YAML). All endpoints will be exposed as tools.
+            Upload a Swagger or OpenAPI specification file (JSON or YAML) or provide a URL.
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+            <TextField
+              fullWidth
+              label="Fetch Spec from URL"
+              variant="outlined"
+              value={specUrl}
+              onChange={(e) => setSpecUrl(e.target.value)}
+              disabled={isFetchingSpec}
+            />
+            <Button variant="contained" onClick={handleFetchSpec} disabled={isFetchingSpec}>
+              {isFetchingSpec ? <CircularProgress size={24} /> : 'Fetch'}
+            </Button>
+          </Box>
+          <Divider sx={{ my: 2 }}>OR</Divider>
+
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {/* Upload a Swagger or OpenAPI specification file (JSON or YAML). All endpoints will be exposed as tools. */}
           </Typography>
           <Button
             variant="outlined"
@@ -248,7 +300,7 @@ const ToolsScreen = () => {
             startIcon={<UploadFileIcon />}
             sx={{ mb: 2 }}
           >
-            Upload Spec File
+            Upload Spec File From Disk
             <input type="file" hidden accept=".json,.yaml,.yml" onChange={handleFileChange} />
           </Button>
           {swaggerSpecs.length > 0 && (
@@ -257,9 +309,15 @@ const ToolsScreen = () => {
                 <ListItem
                   key={spec.name}
                   secondaryAction={
-                    <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteSpec(spec.name)}>
-                      <DeleteIcon />
-                    </IconButton>
+                    <>
+                      <IconButton edge="end" aria-label="view" onClick={() => handleViewSpec(spec)} sx={{ mr: 1 }}>
+                        <VisibilityIcon />
+                      </IconButton>
+                      <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteSpec(spec.name)}>
+                        <DeleteIcon />
+                      </IconButton>
+                    </>
+
                   }
                 >
                   <ListItemText primary={spec.name} />
@@ -328,6 +386,12 @@ const ToolsScreen = () => {
         existingSelectedTools={toolsDialog.existingSelectedTools}
         onSaveSelectedTools={handleSaveSelectedTools}
       />
+      <SpecViewerModal
+        open={viewingSpec.open}
+        onClose={() => setViewingSpec({ open: false, name: '', content: '' })}
+        specName={viewingSpec.name}
+        specContent={viewingSpec.content}
+      />      
       <Button
         variant="contained"
         color="primary"

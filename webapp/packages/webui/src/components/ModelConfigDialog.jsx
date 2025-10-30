@@ -37,6 +37,8 @@ const ModelConfigDialog = ({
   setModelParamSchema,
   currentModelParams,
   setCurrentModelParams,
+  selectedBuiltInTool,
+  setSelectedBuiltInTool,
   loadingProviders,
   providersError,
 }) => {
@@ -62,6 +64,8 @@ const ModelConfigDialog = ({
       setModelParamSchema({});
       setCurrentModelParams({});
     }
+    // Reset built-in tool selection when provider changes
+    if (setSelectedBuiltInTool) setSelectedBuiltInTool('');
   };
 
   const handleModelChange = (e) => {
@@ -69,6 +73,7 @@ const ModelConfigDialog = ({
     setSelectedModel(model);
     
     const modelParams = providers[selectedProvider].models[model].parameters; 
+
     setModelParamSchema(modelParams);
     
     const defaultParams = {};
@@ -76,6 +81,8 @@ const ModelConfigDialog = ({
       defaultParams[key] = modelParams[key].default;
     });
     setCurrentModelParams(defaultParams);
+    // Reset built-in tool selection when model changes
+    if (setSelectedBuiltInTool) setSelectedBuiltInTool('');
   };
 
   const handleParamChange = (paramName, value) => {
@@ -84,6 +91,9 @@ const ModelConfigDialog = ({
       [paramName]: value,
     }));
   };
+
+  const builtInToolsForModel =
+  providers?.[selectedProvider]?.models?.[selectedModel]?.built_in_tools || [];
 
   const renderParamControl = (paramName, paramConfig) => {
     const value = currentModelParams[paramName];
@@ -224,6 +234,42 @@ const ModelConfigDialog = ({
               </FormControl>
             )}
 
+            {Array.isArray(builtInToolsForModel) &&
+                builtInToolsForModel.length > 0 && (
+                  <FormControl fullWidth sx={{ mb: 3 }}>
+                    <InputLabel>Built-in Tool (Optional)</InputLabel>
+                    <Select
+                      value={selectedBuiltInTool || ''}
+                      onChange={(e) =>
+                        setSelectedBuiltInTool
+                          ? setSelectedBuiltInTool(e.target.value)
+                          : null
+                      }
+                      label="Built-in Tool (Optional)"
+                    >
+                      <MenuItem value="">
+                        <em>None</em>
+                      </MenuItem>
+                      {builtInToolsForModel.map((tool) => (
+                        <MenuItem key={tool.id} value={tool.id}>
+                          {/* Show id and description for clarity */}
+                          <Box>
+                            <Typography variant="body2">{tool.id}</Typography>
+                            {tool.description && (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                {tool.description}
+                              </Typography>
+                            )}
+                          </Box>
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                )}
+
             <Divider sx={{ my: 2 }} />
             
             <Typography variant="h6" gutterBottom>
@@ -261,6 +307,8 @@ ModelConfigDialog.propTypes = {
   setModelParamSchema: PropTypes.func.isRequired,
   currentModelParams: PropTypes.object.isRequired,
   setCurrentModelParams: PropTypes.func.isRequired,
+  selectedBuiltInTool: PropTypes.string,
+  setSelectedBuiltInTool: PropTypes.func,
   loadingProviders: PropTypes.bool.isRequired,
   providersError: PropTypes.string,
 };
@@ -268,6 +316,8 @@ ModelConfigDialog.propTypes = {
 ModelConfigDialog.defaultProps = {
   providersError: null,
   onSave: null,
+  selectedBuiltInTool: '',
+  setSelectedBuiltInTool: () => {},
 };
 
 export default ModelConfigDialog;
