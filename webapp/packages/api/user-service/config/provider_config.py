@@ -6,8 +6,23 @@ PROVIDER_CONFIG = {
         "api_key_env_var": "OPENAI_API_KEY",
         "models": {
             "gpt-5-mini-2025-08-07": {
+                "api_style": "responses",
+                "returns_thoughts": True,
                 "parameters": {
-                }
+                    "reasoning_effort": {
+                        "type": "choice",
+                        "default": "disable",
+                        "choices": ["disable", "low", "medium", "high"],
+                        "description": "Controls the reasoning effort of the model."
+                    }
+                },
+                "built_in_tools": [
+                    {
+                        "id": "web_search",
+                        "description": "Performs a web search.",
+                        "tool_config": {"type": "web_search_preview", "search_context_size": "low"}
+                    }
+                ]
             }, 
             "gpt-4": {
                 "parameters": {
@@ -109,30 +124,20 @@ PROVIDER_CONFIG = {
     },
     "gemini": {
         "api_key_env_var": "GEMINI_API_KEY",
-        "models": {
-            "gemini-2.5-pro": {
-                "parameters": {
-                    "reasoning_effort": {
-                        "type": "choice", 
-                        "default": 0,
-                        "choices": ["disable", "low", "medium", "high"],
-                    }
-                },
-                "built_in_tools": [
-                    {
-                        "id": "google_search",
-                        "description": "Performs a Google search.",
-                        "tool_config": {"google_search": {}}
-                    }
-                ]
-            }
-        }
+        "models":  gemini_models,
     },
     "anthropic": {
         "api_key_env_var": "ANTHROPIC_API_KEY",
         "models": {
             "claude-3-opus": {
+                "returns_thoughts": True,
                 "parameters": {
+                    "reasoning_effort": {
+                        "type": "choice",
+                        "default": "disable",
+                        "choices": ["disable", "low", "medium", "high"],
+                        "description": "Controls the reasoning effort of the model."
+                    },
                     "temperature": {
                         "type": "float",
                         "default": 0.7,
@@ -171,7 +176,14 @@ PROVIDER_CONFIG = {
                 ]
             },
             "claude-3-sonnet": {
+                "returns_thoughts": True,
                 "parameters": {
+                    "reasoning_effort": {
+                        "type": "choice",
+                        "default": "disable",
+                        "choices": ["disable", "low", "medium", "high"],
+                        "description": "Controls the reasoning effort of the model."
+                    },
                     "temperature": {
                         "type": "float",
                         "default": 0.7,
