@@ -94,6 +94,35 @@ const ModelConfigDialog = ({
 
   const builtInToolsForModel =
   providers?.[selectedProvider]?.models?.[selectedModel]?.built_in_tools || [];
+  const renderSchemaParamControls = () => {
+    if (!modelParamSchema || Object.keys(modelParamSchema).length === 0) {
+        return <Typography color="text.secondary">This agent has no configurable input parameters.</Typography>;
+    }
+
+    const fields = Object.entries(modelParamSchema).map(([paramName, paramConfig]) => {
+      // Don't render a field for inputText, as it comes from the main chat input
+      if (paramName === 'inputText') {
+        return null;
+      }
+      const value = currentModelParams[paramName];
+      const controlledValue = value !== undefined ? value : (paramConfig.default || '');
+      
+      return (
+        <TextField
+          key={paramName}
+          fullWidth
+          label={paramConfig.description || paramName}
+          value={controlledValue}
+          onChange={(e) => handleParamChange(paramName, e.target.value)}
+          sx={{ mb: 2 }}
+          type={paramConfig.type === 'integer' || paramConfig.type === 'float' ? 'number' : 'text'}
+          helperText={`Type: ${paramConfig.type}`}
+        />
+      );
+    }).filter(Boolean); // remove nulls
+
+    return fields.length > 0 ? fields : <Typography color="text.secondary">The primary input for this agent is the chat message. It has no other configurable parameters.</Typography>;
+  };
 
   const renderParamControl = (paramName, paramConfig) => {
     const value = currentModelParams[paramName];
@@ -273,11 +302,15 @@ const ModelConfigDialog = ({
             <Divider sx={{ my: 2 }} />
             
             <Typography variant="h6" gutterBottom>
-              Model Parameters
+              {selectedProvider === 'gofannon' ? 'Agent Input Parameters' : 'Model Parameters'}
             </Typography>
             
-            {selectedModel && Object.keys(modelParamSchema).map(paramName => 
-              renderParamControl(paramName, modelParamSchema[paramName])
+            {selectedModel && (
+              selectedProvider === 'gofannon'
+                ? renderSchemaParamControls()
+                : Object.keys(modelParamSchema).map(paramName =>
+                    renderParamControl(paramName, modelParamSchema[paramName])
+                  )
             )}
           </>
         )}

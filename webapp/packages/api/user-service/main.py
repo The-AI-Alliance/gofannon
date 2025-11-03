@@ -158,28 +158,67 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
         }
         db_service.save("tickets", ticket_id, ticket_data)
         
-        # Convert messages to format expected by litellm
         messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
         
-        # Build tools list from config
-        built_in_tools = []
-        model_tool_config = APP_PROVIDER_CONFIG.get(request.provider, {}).get("models", {}).get(request.model, {}).get("built_in_tools", [])
-        if request.built_in_tools:
-            for tool_id in request.built_in_tools:
-                tool_conf = next((t for t in model_tool_config if t["id"] == tool_id), None)
-                if tool_conf:
-                    built_in_tools.append(tool_conf["tool_config"])
+        content = ""
+        thoughts = None
+
+        if request.provider == "gofannon":
+            logger.log("INFO", "agent_chat_request", f"Initiating Agent call to {request.model}", metadata={"request": get_sanitized_request_data(req)})
+            agent_friendly_name = request.model
+            
+            try:
+                deployment_doc = db_service.get("deployments", agent_friendly_name)
+                agent_id = deployment_doc["agentId"]
+                agent_data = db_service.get("agents", agent_id)
+                agent = Agent(**agent_data)
+            except Exception:
+                raise ValueError(f"Could not find a deployed agent with name '{agent_friendly_name}'")
+
+            last_user_message = next((msg for msg in reversed(messages) if msg["role"] == "user"), None)
+            if not last_user_message:
+                raise ValueError("No user message found to run the agent with.")
+
+            input_dict = request.parameters.copy()
+            # The user query is always mapped to 'inputText'
+            input_dict["inputText"] = last_user_message["content"]
+            
+            result = await _execute_agent_code(
+                code=agent.code,
+                input_dict=input_dict,
+                tools=agent.tools,
+                gofannon_agents=agent.gofannon_agents,
+                db=db_service
+            )
+            
+            if isinstance(result, dict):
+                # The response is always from 'outputText'
+                content = result.get("outputText", json.dumps(result))
+                thoughts = result
+            else:
+                content = str(result)
+                thoughts = {"raw_output": content}
+
+        else:
+            # Build tools list from config
+            built_in_tools = []
+            model_tool_config = APP_PROVIDER_CONFIG.get(request.provider, {}).get("models", {}).get(request.model, {}).get("built_in_tools", [])
+            if request.built_in_tools:
+                for tool_id in request.built_in_tools:
+                    tool_conf = next((t for t in model_tool_config if t["id"] == tool_id), None)
+                    if tool_conf:
+                        built_in_tools.append(tool_conf["tool_config"])
 
 
-        logger.log("INFO", "llm_request", f"Initiating LLM call to {request.provider}/{request.model}", metadata={"request": get_sanitized_request_data(req)})
+            logger.log("INFO", "llm_request", f"Initiating LLM call to {request.provider}/{request.model}", metadata={"request": get_sanitized_request_data(req)})
 
-        content, thoughts = await call_llm(
-            provider=request.provider,
-            model=request.model,
-            messages=messages,
-            parameters=request.parameters,
-            tools=built_in_tools if built_in_tools else None
-        )
+            content, thoughts = await call_llm(
+                provider=request.provider,
+                model=request.model,
+                messages=messages,
+                parameters=request.parameters,
+                tools=built_in_tools if built_in_tools else None
+            )        
         
         # Update ticket with success
         ticket_data.update({
@@ -196,6 +235,10 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
         
     except Exception as e:
         logger.log("ERROR", "background_task_failure", f"Chat processing failed for ticket {ticket_id}: {e}", metadata={"traceback": traceback.format_exc(), "request": get_sanitized_request_data(req)})
+        # Ensure ticket_data is defined for error update
+        if 'ticket_data' not in locals():
+             ticket_data = db_service.get("tickets", ticket_id)
+
         # Update ticket with error
         ticket_data.update({
             "status": "failed",
@@ -206,12 +249,54 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
 
 # Helper function to filter providers based on environment variables
 def get_available_providers():
+    db_service = get_database_service(settings)
     available_providers = {}
     for provider, config in APP_PROVIDER_CONFIG.items():
         api_key_env_var = config.get("api_key_env_var")
         # Include provider if api_key_env_var is not specified, or if it is specified and the env var is set.
         if not api_key_env_var or os.getenv(api_key_env_var):
             available_providers[provider] = config
+    
+    # ---- Add Gofannon agents as a virtual provider ----
+    try:
+        all_deployments = db_service.list_all("deployments")
+        gofannon_models = {}
+        for deployment_doc in all_deployments:
+            try:
+                agent_id = deployment_doc["agentId"]
+                agent_doc = db_service.get("agents", agent_id)
+                agent = Agent(**agent_doc)
+
+                friendly_name = deployment_doc["_id"]
+
+                parameters = agent.input_schema
+                input_schema_foo = agent.input_schema
+                print(f"Agent '{friendly_name}' input schema: {input_schema_foo}")
+                print(f"Loading deployed Gofannon agent '{friendly_name}' with parameters: {parameters.keys()}")
+                formatted_params = {}
+                for name, schema in parameters.items():
+                    formatted_params[name] = {
+                        "type": schema,
+                        "description": name,
+                        "default": ""
+                    }
+
+                gofannon_models[friendly_name] = {
+                    "id": agent.id,
+                    "description": agent.description,
+                    "parameters": formatted_params,
+                }
+            except Exception as agent_load_e:
+                print(f"Skipping deployed agent '{deployment_doc.get('_id')}' due to error: {agent_load_e}")
+
+        if gofannon_models:
+            available_providers["gofannon"] = {
+                "models": gofannon_models
+            }
+            
+    except Exception as e:
+        print(f"Could not load Gofannon agents as a provider: {e}")
+            
     return available_providers
 
 # --- Routes ---
