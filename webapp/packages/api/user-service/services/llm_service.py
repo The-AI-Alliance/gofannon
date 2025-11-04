@@ -41,8 +41,16 @@ async def call_llm(
             kwargs['reasoning'] = {'effort': reasoning_effort, 'summary': 'auto'}
 
         try:
-            # Note: The 'input' for aresponses is different from 'messages'
-            input_text = next((msg["content"] for msg in reversed(messages) if msg["role"] == "user"), "")
+            # For 'responses' API style, system prompt is 'instructions' and user prompt is 'input'
+            system_prompts = [msg["content"] for msg in messages if msg["role"] == "system"]
+            other_messages = [msg for msg in messages if msg["role"] != "system"]
+
+            if system_prompts:
+                kwargs["instructions"] = "\n\n".join(system_prompts)
+
+            # Note: The 'input' for aresponses is the last user message. Conversation history is not directly supported.
+            input_text = next((msg["content"] for msg in reversed(other_messages) if msg["role"] == "user"), "")
+            
             response_obj = await litellm.aresponses(input=input_text, **kwargs)
             
             final_response = None

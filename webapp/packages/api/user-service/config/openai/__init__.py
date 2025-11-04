@@ -7,17 +7,13 @@ models = {
         "api_style": "responses",
         "returns_thoughts": True,  # reasoning traces supported by GPT-5/o-series
         "parameters": {
-            "reasoning": {
-                "type": "object",
-                "properties": {
-                    "effort": {
-                        "type": "choice",
-                        "default": "medium",
-                        "choices": ["low", "medium", "high"],
-                        "description": "Controls model’s internal reasoning effort"
-                    }
-                }
-            }
+             "reasoning_effort": {
+                "type": "choice", 
+                "default": "disable", 
+                "choices": ["disable", "low", "medium", "high"],
+                "description": "Reasoning Effort: Effort level for reasoning during generation" 
+
+            },
         },
         "built_in_tools": [
             {"id": "web_search", "description": "Performs a web search.", "tool_config": {"type": "web_search", "search_context_size": "auto"}},
@@ -29,17 +25,13 @@ models = {
         "api_style": "responses",
         "returns_thoughts": True,
         "parameters": {
-            "reasoning": {
-                "type": "object",
-                "properties": {
-                    "effort": {
-                        "type": "choice",
-                        "default": "low",
-                        "choices": ["disable", "low", "medium", "high"],
-                        "description": "Reasoning effort (can be disabled)"
-                    }
-                }
-            }
+            "reasoning_effort": {
+                "type": "choice", 
+                "default": "disable", 
+                "choices": ["disable", "low", "medium", "high"],
+                "description": "Reasoning Effort: Effort level for reasoning during generation" 
+
+            },
         },
         "built_in_tools": [
             {"id": "web_search", "description": "Performs a web search.", "tool_config": {"type": "web_search", "search_context_size": "auto"}},
@@ -64,12 +56,12 @@ models = {
         "returns_thoughts": True,
         "parameters": {
             "temperature": {"type": "float", "default": 0.6, "min": 0.0, "max": 2.0},
-            
-            "reasoning": {
-                "type": "object",
-                "properties": {
-                    "effort": {"type": "choice", "default": "medium", "choices": ["low", "medium", "high"]}
-                }
+
+            "reasoning_effort": {
+                "type": "choice",
+                "default": "medium",
+                "choices": ["low", "medium", "high"],
+                "description": "Reasoning Effort: Effort level for reasoning during generation"
             }
         },
         "built_in_tools": [
@@ -82,12 +74,13 @@ models = {
         "returns_thoughts": True,
         "parameters": {
             "temperature": {"type": "float", "default": 0.6, "min": 0.0, "max": 2.0},
-            "reasoning": {
-                "type": "object",
-                "properties": {
-                    "effort": {"type": "choice", "default": "low", "choices": ["low", "medium", "high"]}
-                }
-            }
+            "reasoning_effort": {
+                "type": "choice", 
+                "default": "disable", 
+                "choices": ["disable", "low", "medium", "high"],
+                "description": "Reasoning Effort: Effort level for reasoning during generation" 
+
+            },
         },
         "built_in_tools": [
             {"id": "web_search", "description": "Performs a web search.", "tool_config": {"type": "web_search", "search_context_size": "auto"}},

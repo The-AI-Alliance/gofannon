@@ -9,7 +9,14 @@ models = {
                 "max": 2.0,
                 "description": "Temperature - Controls the randomness of the output."
             },
-        },
+             "reasoning_effort": {
+                "type": "choice", 
+                "default": "disable", 
+                "choices": ["disable", "low", "medium", "high"],
+                "description": "Reasoning Effort: Effort level for reasoning during generation" 
+
+            },
+        },          
         "built_in_tools": [
             {
                 "id": "google_search",
@@ -36,6 +43,13 @@ models = {
                 "min": 0.0,
                 "max": 2.0,
                 "description": "Temperature - Controls the randomness of the output."
+            },
+            "reasoning_effort": {
+                "type": "choice", 
+                "default": "disable", 
+                "choices": ["disable", "low", "medium", "high"],
+                "description": "Reasoning Effort: Effort level for reasoning during generation" 
+
             },
         },
         "built_in_tools": [
@@ -64,6 +78,13 @@ models = {
                 "min": 0.0,
                 "max": 2.0,
                 "description": "Temperature - Controls the randomness of the output."
+            },
+            "reasoning_effort": {
+                "type": "choice", 
+                "default": "disable", 
+                "choices": ["disable", "low", "medium", "high"],
+                "description": "Reasoning Effort: Effort level for reasoning during generation" 
+
             },
         },
         "built_in_tools": [
