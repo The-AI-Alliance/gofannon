@@ -1,5 +1,5 @@
 # webapp/packages/api/user-service/main.py
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, BackgroundTasks, Request
+from fastapi import APIRouter, FastAPI, UploadFile, File, Depends, HTTPException, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Annotated, Optional, Dict, Any, List
@@ -16,7 +16,6 @@ import httpx
 import firebase_admin
 import yaml
 from firebase_admin import credentials, auth
-from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 
 from services.database_service import get_database_service, DatabaseService
@@ -34,6 +33,7 @@ from services.llm_service import call_llm
 
 # Import the shared provider configuration
 from config.provider_config import PROVIDER_CONFIG as APP_PROVIDER_CONFIG
+from config.routes_config import load_route_registrars
 from models.agent import (
     GenerateCodeRequest, GenerateCodeResponse, RunCodeRequest, 
     RunCodeResponse, Agent, CreateAgentRequest, Deployment, DeployedApi
@@ -58,6 +58,7 @@ if settings.APP_ENV == "firebase":
         print(f"Error initializing Firebase Admin SDK: {e}")
 
 app = FastAPI()
+router = APIRouter()
 
 # Add observability middleware
 app.add_middleware(ObservabilityMiddleware)
@@ -300,11 +301,11 @@ def get_available_providers():
     return available_providers
 
 # --- Routes ---
-@app.get("/")
+@router.get("/")
 def read_root():
     return {"Hello": "World", "Service": "User-Service"}
 
-@app.post("/log/client", status_code=202)
+@router.post("/log/client", status_code=202)
 async def log_client_event(
     payload: ClientLogPayload,
     request: Request,
@@ -328,12 +329,12 @@ async def log_client_event(
     )
     return {"status": "logged"}
 
-@app.get("/providers")
+@router.get("/providers")
 def get_providers():
     """Get all available providers and their configurations"""
     return get_available_providers()
 
-@app.get("/providers/{provider}")
+@router.get("/providers/{provider}")
 def get_provider_config_route(provider: str):
     """Get configuration for a specific provider"""
     available_providers = get_available_providers()
@@ -341,7 +342,7 @@ def get_provider_config_route(provider: str):
         raise HTTPException(status_code=404, detail="Provider not found or not configured")
     return available_providers[provider]
 
-@app.get("/providers/{provider}/models")
+@router.get("/providers/{provider}/models")
 def get_provider_models(provider: str):
     """Get available models for a provider"""
     available_providers = get_available_providers()
@@ -349,7 +350,7 @@ def get_provider_models(provider: str):
         raise HTTPException(status_code=404, detail="Provider not found or not configured")
     return list(available_providers[provider]["models"].keys())
 
-@app.get("/providers/{provider}/models/{model}")
+@router.get("/providers/{provider}/models/{model}")
 def get_model_config(provider: str, model: str):
     """Get configuration for a specific model"""
     available_providers = get_available_providers()
@@ -359,7 +360,7 @@ def get_model_config(provider: str, model: str):
         raise HTTPException(status_code=404, detail="Model not found")
     return available_providers[provider]["models"][model]
 
-@app.post("/chat")
+@router.post("/chat")
 async def chat(request: ChatRequest, req: Request, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
     """Submit a chat request and get a ticket ID"""
     ticket_id = str(uuid.uuid4())
@@ -372,7 +373,7 @@ async def chat(request: ChatRequest, req: Request, background_tasks: BackgroundT
         status="pending"
     )
 
-@app.get("/chat/{ticket_id}")
+@router.get("/chat/{ticket_id}")
 async def get_chat_status(ticket_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Get the status and result of a chat request"""
     try:
@@ -388,7 +389,7 @@ async def get_chat_status(ticket_id: str, db: DatabaseService = Depends(get_db),
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/sessions/{session_id}/config")
+@router.post("/sessions/{session_id}/config")
 async def update_session_config(session_id: str, config: ProviderConfig, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Update session configuration"""
     try:
@@ -405,25 +406,25 @@ async def update_session_config(session_id: str, config: ProviderConfig, db: Dat
     db.save("sessions", session_id, session_doc)
     return {"message": "Configuration updated", "session_id": session_id}
 
-@app.get("/sessions/{session_id}/config")
+@router.get("/sessions/{session_id}/config")
 async def get_session_config(session_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Get session configuration"""
     session_doc = db.get("sessions", session_id)
     return session_doc.get("provider_config")
 
-@app.delete("/sessions/{session_id}")
+@router.delete("/sessions/{session_id}")
 async def delete_session(session_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Delete a session"""
     db.delete("sessions", session_id)
     return {"message": "Session deleted"}
 
 # Health check
-@app.get("/health")
+@router.get("/health")
 def health_check():
     return {"status": "healthy", "service": "user-service"}
 
 
-@app.post("/agents", response_model=Agent, status_code=201)
+@router.post("/agents", response_model=Agent, status_code=201)
 async def create_agent(
     request: CreateAgentRequest,
     req: Request,
@@ -450,7 +451,7 @@ async def create_agent(
     )
     return agent
 
-@app.get("/agents", response_model=List[Agent])
+@router.get("/agents", response_model=List[Agent])
 async def list_agents(
     req: Request,
     db: DatabaseService = Depends(get_db),
@@ -462,13 +463,13 @@ async def list_agents(
     logger.log("INFO", "user_action", "Listed all agents.", metadata={"request": get_sanitized_request_data(req)})
     return [Agent(**doc) for doc in all_docs]
 
-@app.get("/agents/{agent_id}", response_model=Agent)
+@router.get("/agents/{agent_id}", response_model=Agent)
 async def get_agent(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Retrieves a specific agent by its ID."""
     agent_doc = db.get("agents", agent_id)
     return Agent(**agent_doc)
 
-@app.delete("/agents/{agent_id}", status_code=204)
+@router.delete("/agents/{agent_id}", status_code=204)
 async def delete_agent(
     agent_id: str, 
     req: Request,
@@ -485,7 +486,7 @@ async def delete_agent(
         raise e
 
 
-@app.post("/mcp/tools")
+@router.post("/mcp/tools")
 async def list_mcp_tools(
     request: ListMcpToolsRequest,
     mcp_service: McpClientService = Depends(get_mcp_client_service),
@@ -495,14 +496,14 @@ async def list_mcp_tools(
     tools = await mcp_service.list_tools_for_server(request.mcp_url, request.auth_token)
     return {"mcp_url": request.mcp_url, "tools": tools}
 
-@app.post("/agents/generate-code", response_model=GenerateCodeResponse)
+@router.post("/agents/generate-code", response_model=GenerateCodeResponse)
 async def generate_agent_code(request: GenerateCodeRequest, user: dict = Depends(get_current_user)):
     """Generates agent code based on the provided configuration."""
     from agent_factory import generate_agent_code as generate_code_function
     code = await generate_code_function(request)
     return code
 
-@app.post("/specs/fetch")
+@router.post("/specs/fetch")
 async def fetch_spec_from_url(request: FetchSpecRequest, user: dict = Depends(get_current_user)):
     """Fetches OpenAPI/Swagger spec content from a public URL."""
     async with httpx.AsyncClient() as client:
@@ -532,7 +533,7 @@ async def fetch_spec_from_url(request: FetchSpecRequest, user: dict = Depends(ge
             raise HTTPException(status_code=400, detail=f"Error fetching from URL: {e}")
 
 
-@app.post("/agents/{agent_id}/deploy", status_code=201)
+@router.post("/agents/{agent_id}/deploy", status_code=201)
 async def deploy_agent(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Registers an agent for internal REST deployment."""
     agent_doc = db.get("agents", agent_id)
@@ -560,7 +561,7 @@ async def deploy_agent(agent_id: str, db: DatabaseService = Depends(get_db), use
         else:
             raise e
 
-@app.delete("/agents/{agent_id}/undeploy", status_code=204)
+@router.delete("/agents/{agent_id}/undeploy", status_code=204)
 async def undeploy_agent(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Removes an agent from the internal REST deployment registry."""
     agent_doc = db.get("agents", agent_id)
@@ -580,7 +581,7 @@ async def undeploy_agent(agent_id: str, db: DatabaseService = Depends(get_db), u
             raise e # Re-raise other errors
     return
 
-@app.get("/agents/{agent_id}/deployment")
+@router.get("/agents/{agent_id}/deployment")
 async def get_agent_deployment(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Checks if an agent is deployed and returns its public-facing name."""
     agent_doc = db.get("agents", agent_id)
@@ -603,7 +604,7 @@ async def get_agent_deployment(agent_id: str, db: DatabaseService = Depends(get_
             return {"is_deployed": False}
         raise e
 
-@app.get("/deployments", response_model=List[DeployedApi])
+@router.get("/deployments", response_model=List[DeployedApi])
 async def list_deployments(db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Lists all deployed agents/APIs with their relevant details."""
     try:
@@ -680,7 +681,7 @@ async def _execute_agent_code(code: str, input_dict: dict, tools: dict, gofannon
     result = await run_function(input_dict=input_dict, tools=tools)
     return result
 
-@app.post("/agents/run-code", response_model=RunCodeResponse)
+@router.post("/agents/run-code", response_model=RunCodeResponse)
 async def run_agent_code(
     request: RunCodeRequest,
     req: Request,
@@ -715,7 +716,7 @@ async def run_agent_code(
         # We re-raise it here so that middleware can do its job.
         raise e
 
-@app.post("/rest/{friendly_name}")
+@router.post("/rest/{friendly_name}")
 async def run_deployed_agent(friendly_name: str, request: Request, db: DatabaseService = Depends(get_db)):
     """Public endpoint to run a deployed agent by its friendly_name."""
     try:
@@ -747,7 +748,7 @@ async def run_deployed_agent(friendly_name: str, request: Request, db: DatabaseS
 
 # --- Demo App Endpoints ---
 
-@app.post("/demos/generate-code", response_model=GenerateDemoCodeResponse)
+@router.post("/demos/generate-code", response_model=GenerateDemoCodeResponse)
 async def generate_demo_app_code(request: GenerateDemoCodeRequest, user: dict = Depends(get_current_user)):
     """
     Generates HTML/CSS/JS for a demo app based on a prompt and selected APIs.
@@ -759,7 +760,7 @@ async def generate_demo_app_code(request: GenerateDemoCodeRequest, user: dict = 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating demo code: {e}")
 
-@app.post("/demos", response_model=DemoApp, status_code=201)
+@router.post("/demos", response_model=DemoApp, status_code=201)
 async def create_demo_app(request: CreateDemoAppRequest, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Saves a new demo app configuration."""
     demo_app_data = request.model_dump(by_alias=True)
@@ -769,19 +770,19 @@ async def create_demo_app(request: CreateDemoAppRequest, db: DatabaseService = D
     demo_app.rev = saved_doc.get("rev")
     return demo_app
 
-@app.get("/demos", response_model=List[DemoApp])
+@router.get("/demos", response_model=List[DemoApp])
 async def list_demo_apps(db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Lists all saved demo apps."""
     all_docs = db.list_all("demos")
     return [DemoApp(**doc) for doc in all_docs]
 
-@app.get("/demos/{demo_id}", response_model=DemoApp)
+@router.get("/demos/{demo_id}", response_model=DemoApp)
 async def get_demo_app(demo_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Retrieves a specific demo app."""
     doc = db.get("demos", demo_id)
     return DemoApp(**doc)
 
-@app.put("/demos/{demo_id}", response_model=DemoApp)
+@router.put("/demos/{demo_id}", response_model=DemoApp)
 async def update_demo_app(demo_id: str, request: CreateDemoAppRequest, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Updates an existing demo app."""
     demo_app_data = request.model_dump(by_alias=True)
@@ -791,11 +792,25 @@ async def update_demo_app(demo_id: str, request: CreateDemoAppRequest, db: Datab
     updated_model.rev = saved_doc.get("rev")
     return updated_model
 
-@app.delete("/demos/{demo_id}", status_code=204)
+@router.delete("/demos/{demo_id}", status_code=204)
 async def delete_demo_app(demo_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Deletes a demo app."""
     db.delete("demos", demo_id)
-    return 
+    return
+
+def register_builtin_routes(app_instance: FastAPI):
+    app_instance.include_router(router)
+
+
+def apply_route_registrars(app_instance: FastAPI):
+    for registrar in load_route_registrars():
+        try:
+            registrar(app_instance)
+        except Exception as error:  # pragma: no cover - defensive guard
+            print(f"Failed to apply route registrar {registrar}: {error}")
+
+
+apply_route_registrars(app)
 
 # This is an unseemly hack to adapt FastAPI to Google Cloud Functions.
 # TODO refactor all of this into microservices.
