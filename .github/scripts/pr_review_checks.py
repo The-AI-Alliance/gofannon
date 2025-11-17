@@ -1,2 +1,0 @@
-from checks.general_review import GeneralReviewCheck
-from checks.schema_validation import SchemaValidationCheck

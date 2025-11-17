@@ -1,9 +1,0 @@
-{
-  "bug": 250,
-  "cowboy": -500,
-  "docs": 100,
-  "example": 300,
-  "framework": 2500,
-  "infra": 200,
-  "tool": 500
-}

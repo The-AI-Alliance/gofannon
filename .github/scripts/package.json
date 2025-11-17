@@ -1,9 +1,0 @@
-{
-  "name": "leaderboard-script",
-  "version": "1.0.0",
-  "description": "Leaderboard calculation script",
-  "main": "calculate_leaderboard.js",
-  "dependencies": {
-    "@octokit/rest": "^19.0.7"
-  }
-}
