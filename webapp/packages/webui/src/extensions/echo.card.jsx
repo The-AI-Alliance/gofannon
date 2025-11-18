@@ -1,25 +1,12 @@
-import React from 'react';
-import { Button, Card, CardActions, CardContent, Typography } from '@mui/material';
-import { Link } from 'react-router-dom';
+import CampaignIcon from '@mui/icons-material/Campaign';
 
-const EchoCard = () => {
-  return (
-    <Card>
-      <CardContent>
-        <Typography variant="h5" component="div">
-          Echo Extension
-        </Typography>
-        <Typography sx={{ mt: 1.5 }} color="text.secondary">
-          An example of a custom card that links to a new page and API.
-        </Typography>
-      </CardContent>
-      <CardActions>
-        <Button component={Link} to="/echo" size="small">
-          Try It
-        </Button>
-      </CardActions>
-    </Card>
-  );
+export const card = {
+  id: 'echo',
+  title: 'Echo Chamber',
+  description: 'A simple page that echoes back what you type.',
+  buttonText: 'Go',
+  icon: <CampaignIcon />,
+  iconColor: 'primary.main',
+  defaultOrder: 99,
+  onAction: ({ navigate }) => navigate('/echo'),
 };
-
-export default EchoCard;

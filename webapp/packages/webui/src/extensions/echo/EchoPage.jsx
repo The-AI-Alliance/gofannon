@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Box, Button, Stack, TextField, Typography } from '@mui/material';
-// import config from '../config';
+import config from '../../config';
 
 const EchoPage = () => {
   const [value, setValue] = useState('');
@@ -8,18 +8,18 @@ const EchoPage = () => {
   const [isSending, setIsSending] = useState(false);
 
   const sendEcho = async () => {
-    // setIsSending(true);
-    // try {
-    //   const response = await fetch(`${config.api.baseUrl}/extensions/echo`, {
-    //     method: 'POST',
-    //     headers: { 'Content-Type': 'application/json' },
-    //     body: JSON.stringify({ message: value }),
-    //   });
-    //   const payload = await response.json();
-    //   setEcho(payload.echo ?? '');
-    // } finally {
-    //   setIsSending(false);
-    // }
+    setIsSending(true);
+    try {
+      const response = await fetch(`${config.api.baseUrl}/extensions/echo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: value }),
+      });
+      const payload = await response.json();
+      setEcho(payload.echo ?? '');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (

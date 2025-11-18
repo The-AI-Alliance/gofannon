@@ -13,7 +13,7 @@ import { loadRoutesConfig } from './config/routesConfig';
 const RouteChangeTracker = () => {
   const location = useLocation();
   const { user } = useContext(AuthContext);
-
+  console.log("App.jsx")
   useEffect(() => {
     observabilityService.log({
       eventType: 'navigation',

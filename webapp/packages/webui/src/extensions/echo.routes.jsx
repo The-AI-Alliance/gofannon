@@ -1,4 +1,5 @@
-import EchoPage from "../pages/EchoPage"
+import React from 'react';
+import EchoPage from './echo/EchoPage';
 
 export const route = {
     path: '/echo',

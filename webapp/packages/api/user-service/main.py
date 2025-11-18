@@ -13,9 +13,7 @@ import asyncio
 import litellm
 import traceback
 import httpx
-import firebase_admin
 import yaml
-from firebase_admin import credentials, auth
 from fastapi.security import OAuth2PasswordBearer
 
 from services.database_service import get_database_service, DatabaseService
@@ -45,17 +43,6 @@ from models.demo import (
 
 from agent_factory.remote_mcp_client import RemoteMCPClient
 
-
-# --- Firebase Admin SDK Initialization ---
-if settings.APP_ENV == "firebase":
-    try:
-        # In a Cloud Function environment, GOOGLE_APPLICATION_CREDENTIALS is set automatically.
-        # For local emulation, you'd need to set this env var to your service account key file.
-        cred = credentials.ApplicationDefault()
-        firebase_admin.initialize_app(cred)
-        print("Firebase Admin SDK initialized successfully.")
-    except Exception as e:
-        print(f"Error initializing Firebase Admin SDK: {e}")
 
 app = FastAPI()
 router = APIRouter()
@@ -804,7 +791,6 @@ for router_config in resolve_router_configs([RouterConfig(router=router)]):
 
 # This is an unseemly hack to adapt FastAPI to Google Cloud Functions.
 # TODO refactor all of this into microservices.
-from firebase_functions import https_fn, options
 from a2wsgi import ASGIMiddleware
 
 wsgi_app = ASGIMiddleware(app)

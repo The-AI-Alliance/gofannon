@@ -9,7 +9,19 @@ const HomePage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   
-  const cards = useMemo(() => extensionCards, []);
+  const cards = useMemo(() => {
+    const seen = new Set();
+
+    return extensionCards
+      .filter((card) => {
+        if (!card?.id || seen.has(card.id)) {
+          return false;
+        }
+        seen.add(card.id);
+        return card.enabled !== false;
+      })
+      .sort((a, b) => (a.defaultOrder ?? Number.MAX_SAFE_INTEGER) - (b.defaultOrder ?? Number.MAX_SAFE_INTEGER));
+  }, []);
 
   return (
     <Box sx={{ flexGrow: 1, p: 3 }}>

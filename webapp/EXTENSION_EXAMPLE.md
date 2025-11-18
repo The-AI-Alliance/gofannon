@@ -54,7 +54,7 @@ Create `webapp/packages/webui/src/extensions/echo/EchoPage.jsx`:
 ```jsx
 import React, { useState } from 'react';
 import { Box, Button, Stack, TextField, Typography } from '@mui/material';
-import config from '../config';
+import config from '../../config';
 
 const EchoPage = () => {
   const [value, setValue] = useState('');
@@ -111,26 +111,18 @@ Also add the EchoCard.
 Create `webapp/packages/webui/src/extensions/echo/EchoCard.jsx`:
 ```jsx
 // webapp/packages/webui/src/extensions/echo/EchoCard.jsx
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import ActionCard from '../../components/ActionCard';
 import CampaignIcon from '@mui/icons-material/Campaign';
 
-const EchoCard = () => {
-    const navigate = useNavigate();
-
-    return (
-        <ActionCard
-            icon={<CampaignIcon />}
-            title="Echo Chamber"
-            description="A simple page that echoes back what you type. A demonstration of the extension system."
-            buttonText="Go"
-            onClick={() => navigate('/echo')}
-        />
-    );
+export const card = {
+  id: 'echo',
+  title: 'Echo Chamber',
+  description: 'An example of a custom card that links to a new page and API.',
+  buttonText: 'Try It',
+  icon: <CampaignIcon />,
+  iconColor: 'primary.main',
+  onAction: ({ navigate }) => navigate('/echo'),
 };
 
-export default EchoCard;
 ```
 
 ## 3) Extend the frontend routes
