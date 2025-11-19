@@ -28,7 +28,7 @@ This monorepo contains the complete scaffolding for the Gofannon web application
     pnpm install
     ```
 
-### Running Locally
+### Running Locally (Docker Compose)
 
 1.  Start all services using Docker Compose:
     ```bash
