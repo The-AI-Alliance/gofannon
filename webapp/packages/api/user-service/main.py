@@ -15,6 +15,7 @@ import traceback
 import httpx
 import yaml
 from fastapi.security import OAuth2PasswordBearer
+from contextlib import asynccontextmanager
 
 from services.database_service import get_database_service, DatabaseService
 from config import settings
@@ -44,22 +45,23 @@ from models.demo import (
 from agent_factory.remote_mcp_client import RemoteMCPClient
 
 
-app = FastAPI()
-router = APIRouter()
-
-# Add observability middleware
-app.add_middleware(ObservabilityMiddleware)
-
-@app.on_event("startup")
-async def startup_event():
-    """Log application startup event."""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan handler."""
     logger = get_observability_service()
     logger.log(
         level="INFO",
         event_type="lifecycle",
         message="Application startup complete."
     )
+    yield
 
+
+app = FastAPI(lifespan=lifespan)
+router = APIRouter()
+
+# Add observability middleware
+app.add_middleware(ObservabilityMiddleware)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
