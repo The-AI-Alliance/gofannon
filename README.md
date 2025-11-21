@@ -7,23 +7,22 @@
 
 # `gofannon`  
   
-**[gofannon](https://the-ai-alliance.github.io/gofannon/)** is a collection of tools designed to enhance the capabilities of 
-function-calling-enabled language models/agents. These tools provide additional
-functionality for various tasks.  
+**[gofannon](https://the-ai-alliance.github.io/gofannon/)** is now a web app that helps subject matter experts rapidly prototype AI agents and the web UIs that wrap them. Build flows, preview interactions, and share working agent-driven experiences without having to become a framework specialist.
 
+Professional support and advisory services are available from **AtA Systems**—learn more at [ramenata.ai](https://ramenata.ai).
 
-## 🌟🌟 Features 🌟🌟 
+## 🌟🌟 What you can do 🌟🌟
+1. **Prototype agents fast**
+   - Compose tools, data sources, and decision paths through a guided interface.
+   - Preview responses and iterate with real-time feedback.
+2. **Design lightweight web UIs**
+   - Pair your agents with forms, chat surfaces, and dashboards to validate user journeys quickly.
+   - Export or embed prototypes to share with stakeholders.
+3. **Stay flexible**
+   - Keep using your preferred AI stack—gofannon focuses on prototyping and handoff, not lock-in.
+4. **Get expert help when you need it**
+   - AtA Systems offers professional support, integration help, and custom extensions for teams building on gofannon.
 
-1. Cross-Framework Compatibility (Import From/Export To Multiple Frameworks)
-   - **Current:** `smolagents`, LangChain, AWS Bedrock, Google ADK
-   - **Currently Being Developed:** [Up To Date List](https://github.com/The-AI-Alliance/gofannon/issues?q=is%3Aissue%20state%3Aopen%20label%3Aframework%20assignee:*)
-   - **In The Roadmap:** [Up To Date List](https://github.com/The-AI-Alliance/gofannon/issues?q=is%3Aissue%20state%3Aopen%20label%3Aframework%20no%3Aassignee)
-2. A Robust Collection of Tools
-   - List [Here](https://github.com/The-AI-Alliance/gofannon/pulls?q=is%3Apr+is%3Aclosed+label%3Atool)
-   - New Tools being added daily
-3. New Contributor Friendly
-   - [Curated contribution pathways](https://the-ai-alliance.github.io/gofannon/developers/) 
-   - [Gamified Contributor Process](https://the-ai-alliance.github.io/gofannon/leaderboard.html)
 ## 🎓🎓 Why the name `gofannon`? 🎓🎓
 
 See [`why_the_name_gofannon`](https://the-ai-alliance.github.io/gofannon/about/the_name_gofannon/) for the rich story on why we chose to honor this Celtic Diety
@@ -31,18 +30,10 @@ See [`why_the_name_gofannon`](https://the-ai-alliance.github.io/gofannon/about/t
 ## ⚡️⚡️Quickstart ⚡️⚡️
 
 ```bash  
-pip install gofannon  
+git clone https://github.com/The-AI-Alliance/gofannon.git
+cd gofannon/webapp/docker/infra
+docker compose up --build
 ```
-
-gofannon is an ambitious upstart, things are happening fast. We have a git
-action that deploys to PyPi every Monday morning, so `pip install gofannon`
-will get you pretty close to the tip of the spear. But if you absolutely _must_
-have the latest and greatest, this will work too:
-
-```bash
-git+https://github.com/The-AI-Alliance/gofannon.git@main
-```
-
 For more information, see our [quickstart guide](https://github.com/The-AI-Alliance/gofannon/blob/main/docs/quickstart.md).
 
 ## 🏆🏆 Acknowledgments 🏆🏆
