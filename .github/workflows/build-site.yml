@@ -12,9 +12,8 @@ concurrency:
 
 jobs:
   build:
-    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    if: github.repository == 'The-AI-Alliance/gofannon'
+    if: github.repository == 'The-AI-Alliance/gofannon' && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
