@@ -3,6 +3,18 @@
 
 models = {
     # === GPT-5 family ===
+    "gpt-5.1-2025-11-13": {
+        "api_style": "responses",
+        "returns_thoughts": True,
+        "parameters": {
+            "reasoning_effort": {
+                "type": "choice", 
+                "default": "disable", 
+                "choices": ["disable", "low", "medium", "high"],
+                "description": "Reasoning Effort: Effort level for reasoning during generation" 
+            },
+        }
+    }
     "gpt-5": {
         "api_style": "responses",
         "returns_thoughts": True,  # reasoning traces supported by GPT-5/o-series
