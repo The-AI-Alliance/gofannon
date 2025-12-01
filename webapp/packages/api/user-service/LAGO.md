@@ -44,7 +44,7 @@ The repo's `webapp/infra/docker/docker-compose.yml` now includes a Lago stack th
 
 ### Example `.env` snippet for local Lago + LiteLLM
 
-Place these values in `webapp/infra/docker/.env` (same folder as `docker-compose.yml`) before starting the `lago` profile:
+Place these values in `webapp/infra/docker/.env` (same folder as `docker-compose.yml`) before starting the `lago` profile. Keep the RSA keypair in files (multi-line PEMs do not serialize well into `.env`); see the note after the table for how to load them:
 
 ```ini
 # Lago application secrets (used by the Lago containers)
@@ -52,9 +52,6 @@ LAGO_SECRET_KEY_BASE=<output of `docker compose --profile lago run --rm lago-api
 LAGO_ENCRYPTION_PRIMARY_KEY=<32-byte hex from `openssl rand -hex 32`>
 LAGO_ENCRYPTION_DETERMINISTIC_KEY=<32-byte hex from `openssl rand -hex 32`>
 LAGO_ENCRYPTION_KEY_DERIVATION_SALT=<32-byte hex from `openssl rand -hex 32`>
-LAGO_RSA_PRIVATE_KEY=<PEM from `openssl genrsa -out lago_rsa_private.pem 2048`>
-LAGO_RSA_PUBLIC_KEY=<PEM from `openssl rsa -in lago_rsa_private.pem -pubout -out lago_rsa_public.pem`>
-
 # LiteLLM → Lago wiring (used by the user-service when it sends usage events)
 LAGO_API_BASE=http://localhost:3000
 LAGO_API_KEY=<API key from Lago UI: Settings → Developers → API Keys → Create API key>
@@ -66,6 +63,15 @@ How to obtain the values:
 
 - `LAGO_SECRET_KEY_BASE`: in the compose directory, run `docker compose --profile lago run --rm --no-deps lago-api bundle exec rails secret` (the `--no-deps` flag skips `lago-migrate`, which can fail before you have secrets/DB ready).
 - `LAGO_ENCRYPTION_*`: generate three 32-byte hex strings: `openssl rand -hex 32` (run three times).
-- `LAGO_RSA_PRIVATE_KEY` and `LAGO_RSA_PUBLIC_KEY`: generate a keypair with `openssl genrsa -out lago_rsa_private.pem 2048` and `openssl rsa -in lago_rsa_private.pem -pubout -out lago_rsa_public.pem`; paste the PEM contents into the `.env` variables.
+- `LAGO_RSA_PRIVATE_KEY` and `LAGO_RSA_PUBLIC_KEY`: generate a keypair with `openssl genrsa -out lago_rsa_private.pem 2048` and `openssl rsa -in lago_rsa_private.pem -pubout -out lago_rsa_public.pem`. Because PEMs are multi-line, keep them as files and load them into environment variables when you run compose:
+
+  ```bash
+  # Run in webapp/infra/docker
+  export LAGO_RSA_PRIVATE_KEY="$(cat lago_rsa_private.pem)"
+  export LAGO_RSA_PUBLIC_KEY="$(cat lago_rsa_public.pem)"
+  docker compose --profile lago up -d
+  ```
+
+  You can keep all the other keys (API base/key, event code, encryption secrets) in `.env`; just export the two PEMs from files so Docker Compose receives the exact newline-delimited values Lago expects.
 - `LAGO_API_KEY`: once the Lago UI is up (`http://localhost:4000`), go to **Settings → Developers → API Keys**, click **Create API key**, and copy the value.
 - `LAGO_API_EVENT_CODE`: in the Lago UI, create or open a **Billable Metric** (e.g., "LiteLLM Calls") and copy its **Event code** field; this must match `LAGO_API_EVENT_CODE` so incoming events are accepted.
