@@ -65,4 +65,10 @@ def build_litellm_metadata(user_id: Optional[str]) -> dict:
     Falls back to an "anonymous" identifier so LagoLogger always
     receives an external customer id.
     """
-    return {"user_api_key_user_id": user_id or "anonymous"}
+    customer_id = user_id or "anonymous"
+    # Include both keys so deployments can charge by either `user_id` (recommended)
+    # or the older `user_api_key_user_id` metadata without losing attribution.
+    return {
+        "user_id": customer_id,
+        "user_api_key_user_id": customer_id,
+    }

@@ -23,7 +23,7 @@ services:
       context: ../../
       dockerfile: infra/docker/Dockerfile.webui
     ports:
-      - "3000:80"
+      - "3001:80"
     environment:
       - VITE_APP_ENV=local
     depends_on:
