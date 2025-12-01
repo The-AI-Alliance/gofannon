@@ -32,3 +32,12 @@ Notes:
 4. Check Lago's Events list — each model call should arrive with the event code you supplied and a `properties` payload containing the model id and token usage.
 
 If anything fails during registration, the backend will log an `lago_logging_error` event with details so you can correct the configuration and retry.
+
+## Optional: spin up Lago locally with docker compose
+
+The repo's `webapp/infra/docker/docker-compose.yml` now includes a Lago stack that runs under the `lago` profile so it does not interfere with the default services.
+
+1. Export the Lago secrets (at minimum: `LAGO_SECRET_KEY_BASE`, `LAGO_RSA_PRIVATE_KEY`, and the encryption keys above).
+2. Start everything: `cd webapp/infra/docker && docker compose --profile lago up -d`.
+3. Browse the Lago UI at `http://localhost:4000` (API on `http://localhost:3000`).
+4. Point `LAGO_API_BASE=http://localhost:3000` in your `.env` to wire LiteLLM events into the local Lago workspace.

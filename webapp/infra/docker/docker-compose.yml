@@ -1,4 +1,21 @@
+---
 # webapp/infra/docker/docker-compose.yml
+
+x-lago-backend-env: &lago-backend-env
+  DATABASE_URL: postgresql://${LAGO_POSTGRES_USER:-lago}:${LAGO_POSTGRES_PASSWORD:-changeme}@${LAGO_POSTGRES_HOST:-lago-db}:${LAGO_POSTGRES_PORT:-5432}/${LAGO_POSTGRES_DB:-lago}?search_path=${LAGO_POSTGRES_SCHEMA:-public}
+  REDIS_URL: redis://${LAGO_REDIS_HOST:-lago-redis}:${LAGO_REDIS_PORT:-6379}
+  SECRET_KEY_BASE: ${LAGO_SECRET_KEY_BASE:-your-secret-key-base-hex-64}
+  RAILS_ENV: production
+  RAILS_LOG_TO_STDOUT: "true"
+  LAGO_RSA_PRIVATE_KEY: ${LAGO_RSA_PRIVATE_KEY:-}
+  LAGO_ENCRYPTION_PRIMARY_KEY: ${LAGO_ENCRYPTION_PRIMARY_KEY:-your-encryption-primary-key}
+  LAGO_ENCRYPTION_DETERMINISTIC_KEY: ${LAGO_ENCRYPTION_DETERMINISTIC_KEY:-your-encryption-deterministic-key}
+  LAGO_ENCRYPTION_KEY_DERIVATION_SALT: ${LAGO_ENCRYPTION_KEY_DERIVATION_SALT:-your-encryption-derivation-salt}
+  LAGO_API_URL: ${LAGO_API_URL:-http://localhost:3000}
+  LAGO_FRONT_URL: ${LAGO_FRONT_URL:-http://localhost}
+  LAGO_PDF_URL: http://lago-pdf:3000
+  LAGO_SIDEKIQ_WEB: "true"
+
 services:
   webui:
     build:
@@ -89,6 +106,172 @@ services:
       - gofannon-net
     command: /app/couchdb-init.sh # Execute the initialization script
 
+  # Optional Lago billing stack (enable with `docker compose --profile lago up`)
+  lago-db:
+    image: postgres:14-alpine
+    container_name: lago-db
+    profiles: [lago]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${LAGO_POSTGRES_DB:-lago}
+      POSTGRES_USER: ${LAGO_POSTGRES_USER:-lago}
+      POSTGRES_PASSWORD: ${LAGO_POSTGRES_PASSWORD:-changeme}
+      PGDATA: /data/postgres
+      PGPORT: ${LAGO_POSTGRES_PORT:-5432}
+      POSTGRES_SCHEMA: ${LAGO_POSTGRES_SCHEMA:-public}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${LAGO_POSTGRES_USER:-lago} -d ${LAGO_POSTGRES_DB:-lago} -h localhost -p ${LAGO_POSTGRES_PORT:-5432}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - lago_postgres_data:/data/postgres
+    ports:
+      - "${LAGO_POSTGRES_PORT:-5432}:${LAGO_POSTGRES_PORT:-5432}"
+    networks:
+      - gofannon-net
+
+  lago-redis:
+    image: redis:6-alpine
+    container_name: lago-redis
+    profiles: [lago]
+    restart: unless-stopped
+    command: --port ${LAGO_REDIS_PORT:-6379}
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "${LAGO_REDIS_PORT:-6379}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - lago_redis_data:/data
+    ports:
+      - "${LAGO_REDIS_PORT:-6379}:${LAGO_REDIS_PORT:-6379}"
+    networks:
+      - gofannon-net
+
+  lago-migrate:
+    image: getlago/api:v1.36.0
+    container_name: lago-migrate
+    profiles: [lago]
+    depends_on:
+      lago-db:
+        condition: service_healthy
+        restart: true
+    command: ["./scripts/migrate.sh"]
+    environment:
+      <<: *lago-backend-env
+    networks:
+      - gofannon-net
+
+  lago-api:
+    image: getlago/api:v1.36.0
+    container_name: lago-api
+    profiles: [lago]
+    restart: unless-stopped
+    depends_on:
+      lago-migrate:
+        condition: service_completed_successfully
+      lago-db:
+        condition: service_healthy
+        restart: true
+      lago-redis:
+        condition: service_healthy
+        restart: true
+    command: ["./scripts/start.api.sh"]
+    healthcheck:
+      test: curl -f http://localhost:3000/health || exit 1
+      interval: 10s
+      start_period: 30s
+      timeout: 60s
+      start_interval: 2s
+    environment:
+      <<: *lago-backend-env
+    volumes:
+      - lago_storage_data:/app/storage
+    ports:
+      - "${LAGO_API_PORT:-3000}:3000"
+    networks:
+      - gofannon-net
+
+  lago-front:
+    image: getlago/front:v1.36.0
+    container_name: lago-front
+    profiles: [lago]
+    restart: unless-stopped
+    depends_on:
+      lago-api:
+        condition: service_healthy
+        restart: true
+    environment:
+      API_URL: ${LAGO_API_URL:-http://localhost:3000}
+      APP_ENV: production
+      LAGO_FRONT_URL: ${LAGO_FRONT_URL:-http://localhost}
+      LAGO_API_URL: ${LAGO_API_URL:-http://localhost:3000}
+    ports:
+      - "${LAGO_FRONT_PORT:-4000}:80"
+    networks:
+      - gofannon-net
+
+  lago-worker:
+    image: getlago/api:v1.36.0
+    container_name: lago-worker
+    profiles: [lago]
+    restart: unless-stopped
+    depends_on:
+      lago-migrate:
+        condition: service_completed_successfully
+      lago-db:
+        condition: service_healthy
+        restart: true
+      lago-redis:
+        condition: service_healthy
+        restart: true
+    command: ["./scripts/start.worker.sh"]
+    healthcheck:
+      test: curl -f http://localhost:8080 || exit 1
+      interval: 10s
+      start_period: 30s
+      timeout: 60s
+      start_interval: 2s
+    environment:
+      <<: *lago-backend-env
+    volumes:
+      - lago_storage_data:/app/storage
+    networks:
+      - gofannon-net
+
+  lago-clock:
+    image: getlago/api:v1.36.0
+    container_name: lago-clock
+    profiles: [lago]
+    restart: unless-stopped
+    depends_on:
+      lago-migrate:
+        condition: service_completed_successfully
+      lago-db:
+        condition: service_healthy
+        restart: true
+      lago-redis:
+        condition: service_healthy
+        restart: true
+    command: ["./scripts/start.clock.sh"]
+    environment:
+      <<: *lago-backend-env
+    networks:
+      - gofannon-net
+
+  lago-pdf:
+    image: getlago/lago-gotenberg:7.8.2
+    container_name: lago-pdf
+    profiles: [lago]
+    restart: unless-stopped
+    networks:
+      - gofannon-net
+
 networks:
   gofannon-net:
     driver: bridge
@@ -96,3 +279,6 @@ networks:
 volumes:
   minio-data:
   couchdb-data:
+  lago_postgres_data:
+  lago_redis_data:
+  lago_storage_data:
