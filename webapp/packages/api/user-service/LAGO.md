@@ -63,7 +63,7 @@ How to obtain the values:
 
 - `LAGO_SECRET_KEY_BASE`: in the compose directory, run `docker compose --profile lago run --rm --no-deps lago-api bundle exec rails secret` (the `--no-deps` flag skips `lago-migrate`, which can fail before you have secrets/DB ready).
 - `LAGO_ENCRYPTION_*`: generate three 32-byte hex strings: `openssl rand -hex 32` (run three times).
-- `LAGO_RSA_PRIVATE_KEY` and `LAGO_RSA_PUBLIC_KEY`: generate a keypair with `openssl genrsa -out lago_rsa_private.pem 2048` and `openssl rsa -in lago_rsa_private.pem -pubout -out lago_rsa_public.pem`. Because PEMs are multi-line, keep them as files and load them into environment variables when you run compose:
+- `LAGO_RSA_PRIVATE_KEY` and `LAGO_RSA_PUBLIC_KEY` (both are required for migrations to boot): generate a keypair with `openssl genrsa -out lago_rsa_private.pem 2048` and `openssl rsa -in lago_rsa_private.pem -pubout -out lago_rsa_public.pem`. Because PEMs are multi-line, keep them as files and load them into environment variables when you run compose:
 
   ```bash
   # Run in webapp/infra/docker
@@ -75,3 +75,14 @@ How to obtain the values:
   You can keep all the other keys (API base/key, event code, encryption secrets) in `.env`; just export the two PEMs from files so Docker Compose receives the exact newline-delimited values Lago expects.
 - `LAGO_API_KEY`: once the Lago UI is up (`http://localhost:4000`), go to **Settings → Developers → API Keys**, click **Create API key**, and copy the value.
 - `LAGO_API_EVENT_CODE`: in the Lago UI, create or open a **Billable Metric** (e.g., "LiteLLM Calls") and copy its **Event code** field; this must match `LAGO_API_EVENT_CODE` so incoming events are accepted.
+
+### Troubleshooting `lago-migrate`
+
+- If `lago-migrate` exits immediately, confirm both RSA env vars (`LAGO_RSA_PRIVATE_KEY` **and** `LAGO_RSA_PUBLIC_KEY`) are exported — the migrate/start scripts require both keys at boot.
+- Check container logs with `docker compose --profile lago logs lago-migrate`.
+- After fixing secrets, rerun the migration step directly to verify it succeeds before bringing the rest of the stack up:
+
+  ```bash
+  docker compose --profile lago run --rm --no-deps lago-migrate ./scripts/migrate.sh
+  docker compose --profile lago up -d
+  ```
