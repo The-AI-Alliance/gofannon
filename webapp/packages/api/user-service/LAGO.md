@@ -72,7 +72,23 @@ How to obtain the values:
   docker compose --profile lago up -d
   ```
 
-  You can keep all the other keys (API base/key, event code, encryption secrets) in `.env`; just export the two PEMs from files so Docker Compose receives the exact newline-delimited values Lago expects.
+  Alternatively, base64 the PEMs once and store those single-line strings safely in `.env`; the compose commands decode them into the format Lago expects:
+
+  ```bash
+  # One-time conversions to populate .env
+  LAGO_RSA_PRIVATE_KEY_BASE64=$(base64 -w0 lago_rsa_private.pem)
+  LAGO_RSA_PUBLIC_KEY_BASE64=$(base64 -w0 lago_rsa_public.pem)
+  echo "LAGO_RSA_PRIVATE_KEY_BASE64=$LAGO_RSA_PRIVATE_KEY_BASE64" >> .env
+  echo "LAGO_RSA_PUBLIC_KEY_BASE64=$LAGO_RSA_PUBLIC_KEY_BASE64" >> .env
+
+  # Or export ad hoc from files if you prefer not to write them to disk
+  export LAGO_RSA_PRIVATE_KEY="$(base64 -w0 lago_rsa_private.pem)"
+  export LAGO_RSA_PUBLIC_KEY="$(base64 -w0 lago_rsa_public.pem)"
+  docker compose --profile lago run --rm --no-deps lago-migrate ./scripts/migrate.sh
+  docker compose --profile lago up -d
+  ```
+
+  Either approach works; the compose commands now decode `LAGO_RSA_PRIVATE_KEY_BASE64`/`LAGO_RSA_PUBLIC_KEY_BASE64` into the exact newline-delimited variables the Lago containers need. You can keep all the other keys (API base/key, event code, encryption secrets) in `.env`.
 - `LAGO_API_KEY`: once the Lago UI is up (`http://localhost:4000`), go to **Settings → Developers → API Keys**, click **Create API key**, and copy the value.
 - `LAGO_API_EVENT_CODE`: in the Lago UI, create or open a **Billable Metric** (e.g., "LiteLLM Calls") and copy its **Event code** field; this must match `LAGO_API_EVENT_CODE` so incoming events are accepted.
 
