@@ -64,7 +64,7 @@ LAGO_API_CHARGE_BY=user_id
 
 How to obtain the values:
 
-- `LAGO_SECRET_KEY_BASE`: in the compose directory, run `docker compose --profile lago run --rm lago-api bundle exec rake secret` (note the service name uses a dash, matching `lago-api` in `docker-compose.yml`).
+- `LAGO_SECRET_KEY_BASE`: in the compose directory, run `docker compose --profile lago run --rm --no-deps lago-api bundle exec rake secret` (the `--no-deps` flag skips `lago-migrate`, which can fail before you have secrets/DB ready).
 - `LAGO_ENCRYPTION_*`: generate three 32-byte hex strings: `openssl rand -hex 32` (run three times).
 - `LAGO_RSA_PRIVATE_KEY` and `LAGO_RSA_PUBLIC_KEY`: generate a keypair with `openssl genrsa -out lago_rsa_private.pem 2048` and `openssl rsa -in lago_rsa_private.pem -pubout -out lago_rsa_public.pem`; paste the PEM contents into the `.env` variables.
 - `LAGO_API_KEY`: once the Lago UI is up (`http://localhost:4000`), go to **Settings → Developers → API Keys**, click **Create API key**, and copy the value.
