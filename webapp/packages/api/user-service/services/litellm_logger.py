@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Any
 
 import litellm
@@ -13,6 +14,7 @@ class ObservabilityLiteLLMLogger(CustomLogger):
     def __init__(self) -> None:
         super().__init__()
         self.observability = get_observability_service()
+        self.logging_mode = _get_logging_mode()
 
     async def async_log_success_event(self, kwargs, response_obj, start_time, end_time):
         await self._log_standard_payload(kwargs, level="INFO")
@@ -21,6 +23,9 @@ class ObservabilityLiteLLMLogger(CustomLogger):
         await self._log_standard_payload(kwargs, level="ERROR")
 
     async def _log_standard_payload(self, kwargs: Any, level: str) -> None:
+        if self.logging_mode == "NONE":
+            return
+
         payload = kwargs.get("standard_logging_object") if isinstance(kwargs, dict) else None
         if payload is None:
             return
@@ -30,7 +35,14 @@ class ObservabilityLiteLLMLogger(CustomLogger):
         except Exception:
             serialized_payload = {"error": "Failed to serialize StandardLoggingPayload"}
 
-        status = serialized_payload.get("status", "unknown")
+        status = serialized_payload.get("status", "unknown") if serialized_payload else "unknown"
+
+        if self.logging_mode == "COST_ONLY":
+            serialized_payload = {
+                key: serialized_payload.get(key)
+                for key in ("response_cost", "cost_breakdown")
+                if serialized_payload.get(key) is not None
+            }
         message = f"LiteLLM call completed with status: {status}"
 
         self.observability.log(
@@ -44,10 +56,15 @@ class ObservabilityLiteLLMLogger(CustomLogger):
 _configured_logger = False
 
 
+def _get_logging_mode() -> str:
+    mode = os.getenv("LITELLM_LOGGING_MODE", "NONE").upper()
+    return mode if mode in {"NONE", "ALL", "COST_ONLY"} else "NONE"
+
+
 def ensure_litellm_logging() -> None:
     """Attach the observability logger to LiteLLM callbacks if not already set."""
     global _configured_logger
-    if _configured_logger:
+    if _configured_logger or _get_logging_mode() == "NONE":
         return
 
     callbacks = getattr(litellm, "callbacks", [])
