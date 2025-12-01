@@ -44,7 +44,7 @@ The repo's `webapp/infra/docker/docker-compose.yml` now includes a Lago stack th
 
 ### Example `.env` snippet for local Lago + LiteLLM
 
-Place these values in `webapp/infra/docker/.env` (same folder as `docker-compose.yml`) before starting the `lago` profile. Keep the RSA keypair in files (multi-line PEMs do not serialize well into `.env`); see the note after the table for how to load them:
+Place these values in `webapp/infra/docker/.env` (same folder as `docker-compose.yml`) before starting the `lago` profile. The Lago services load this file automatically, so you will not see "variable is not set" warnings when the base64 values are present. Keep the RSA keypair in files (multi-line PEMs do not serialize well into `.env`); see the note after the table for how to load them:
 
 ```ini
 # Lago application secrets (used by the Lago containers)
