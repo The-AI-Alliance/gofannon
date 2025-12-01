@@ -1,8 +1,12 @@
-import litellm
 import asyncio
 import json
 from config.provider_config import PROVIDER_CONFIG
 from typing import Any, Dict, List, Tuple, Optional
+import litellm
+
+from services.litellm_logger import ensure_litellm_logging
+
+ensure_litellm_logging()
 
 async def call_llm(
     provider: str,

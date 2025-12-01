@@ -12,8 +12,11 @@ import asyncio
 
 from services.database_service import get_database_service
 from services.llm_service import call_llm
+from services.litellm_logger import ensure_litellm_logging
 from config import settings
 from config.provider_config import PROVIDER_CONFIG
+
+ensure_litellm_logging()
 
 async def generate_agent_code(request: GenerateCodeRequest):
     """

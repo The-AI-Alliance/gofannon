@@ -7,6 +7,10 @@ import asyncio
 from litellm import acompletion, ModelResponse
 import litellm
 
+from services.litellm_logger import ensure_litellm_logging
+
+ensure_litellm_logging()
+
 # Configure litellm
 litellm.drop_params = True
 litellm.set_verbose = False
