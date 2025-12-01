@@ -41,3 +41,31 @@ The repo's `webapp/infra/docker/docker-compose.yml` now includes a Lago stack th
 2. Start everything: `cd webapp/infra/docker && docker compose --profile lago up -d`.
 3. Browse the Lago UI at `http://localhost:4000` (API on `http://localhost:3000`).
 4. Point `LAGO_API_BASE=http://localhost:3000` in your `.env` to wire LiteLLM events into the local Lago workspace.
+
+### Example `.env` snippet for local Lago + LiteLLM
+
+Place these values in `webapp/infra/docker/.env` (same folder as `docker-compose.yml`) before starting the `lago` profile:
+
+```ini
+# Lago application secrets (used by the Lago containers)
+LAGO_SECRET_KEY_BASE=<output of `docker compose --profile lago run --rm lago_api bundle exec rake secret`>
+LAGO_ENCRYPTION_PRIMARY_KEY=<32-byte hex from `openssl rand -hex 32`>
+LAGO_ENCRYPTION_DETERMINISTIC_KEY=<32-byte hex from `openssl rand -hex 32`>
+LAGO_ENCRYPTION_KEY_DERIVATION_SALT=<32-byte hex from `openssl rand -hex 32`>
+LAGO_RSA_PRIVATE_KEY=<PEM from `openssl genrsa -out lago_rsa_private.pem 2048`>
+LAGO_RSA_PUBLIC_KEY=<PEM from `openssl rsa -in lago_rsa_private.pem -pubout -out lago_rsa_public.pem`>
+
+# LiteLLM → Lago wiring (used by the user-service when it sends usage events)
+LAGO_API_BASE=http://localhost:3000
+LAGO_API_KEY=<API key from Lago UI: Settings → Developers → API Keys → Create API key>
+LAGO_API_EVENT_CODE=<event code of your Lago Billable Metric, e.g., `litellm-call`>
+LAGO_API_CHARGE_BY=user_id
+```
+
+How to obtain the values:
+
+- `LAGO_SECRET_KEY_BASE`: in the compose directory, run `docker compose --profile lago run --rm lago_api bundle exec rake secret`.
+- `LAGO_ENCRYPTION_*`: generate three 32-byte hex strings: `openssl rand -hex 32` (run three times).
+- `LAGO_RSA_PRIVATE_KEY` and `LAGO_RSA_PUBLIC_KEY`: generate a keypair with `openssl genrsa -out lago_rsa_private.pem 2048` and `openssl rsa -in lago_rsa_private.pem -pubout -out lago_rsa_public.pem`; paste the PEM contents into the `.env` variables.
+- `LAGO_API_KEY`: once the Lago UI is up (`http://localhost:4000`), go to **Settings → Developers → API Keys**, click **Create API key**, and copy the value.
+- `LAGO_API_EVENT_CODE`: in the Lago UI, create or open a **Billable Metric** (e.g., "LiteLLM Calls") and copy its **Event code** field; this must match `LAGO_API_EVENT_CODE` so incoming events are accepted.
