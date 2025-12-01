@@ -7,6 +7,8 @@ import asyncio
 from litellm import acompletion, ModelResponse
 import litellm
 
+from services.lago_service import build_litellm_metadata
+
 # Configure litellm
 litellm.drop_params = True
 litellm.set_verbose = False
@@ -22,7 +24,8 @@ class ChatService:
         session_id: str,
         messages: List[Dict[str, str]],
         model: str,
-        config: Dict[str, Any]
+        config: Dict[str, Any],
+        user_id: Optional[str] = None,
     ) -> str:
         """Create a ticket and start async chat completion"""
         ticket_id = str(uuid.uuid4())
@@ -45,7 +48,7 @@ class ChatService:
             json.dump(ticket_data, f)
         
         # Start async processing
-        task = asyncio.create_task(self._process_chat(ticket_id, messages, model, config))
+        task = asyncio.create_task(self._process_chat(ticket_id, messages, model, config, user_id))
         self.active_tasks[ticket_id] = task
         
         return ticket_id
@@ -55,17 +58,26 @@ class ChatService:
         ticket_id: str,
         messages: List[Dict[str, str]],
         model: str,
-        config: Dict[str, Any]
+        config: Dict[str, Any],
+        user_id: Optional[str] = None,
     ):
         """Process chat completion asynchronously"""
         ticket_path = self.storage_dir / f"{ticket_id}.json"
         
         try:
             # Call LiteLLM
+            enriched_config = {
+                **config,
+                "metadata": {
+                    **config.get("metadata", {}),
+                    **build_litellm_metadata(user_id),
+                },
+            }
+
             response = await acompletion(
                 model=model,
                 messages=messages,
-                **config
+                **enriched_config,
             )
             
             # Update ticket with response
@@ -116,16 +128,25 @@ class ChatService:
         session_id: str,
         messages: List[Dict[str, str]],
         model: str,
-        config: Dict[str, Any]
+        config: Dict[str, Any],
+        user_id: Optional[str] = None,
     ):
         """Stream chat completion responses"""
         try:
             # For streaming, we'll use the sync version with stream=True
+            enriched_config = {
+                **config,
+                "metadata": {
+                    **config.get("metadata", {}),
+                    **build_litellm_metadata(user_id),
+                },
+            }
+
             response = await acompletion(
                 model=model,
                 messages=messages,
                 stream=True,
-                **config
+                **enriched_config,
             )
             
             async for chunk in response:

@@ -12,6 +12,7 @@ import asyncio
 
 from services.database_service import get_database_service
 from services.llm_service import call_llm
+from services.lago_service import build_litellm_metadata
 from config import settings
 from config.provider_config import PROVIDER_CONFIG
 
@@ -183,6 +184,7 @@ Do not include any other text or markdown formatting around the JSON object.
     name_doc_gen_task = acompletion(
         model=f"{provider}/{model}",
         messages=name_doc_messages,
+        metadata=build_litellm_metadata(None),
         **name_doc_config
     )
     

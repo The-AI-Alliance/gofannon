@@ -1,8 +1,10 @@
-import litellm
 import asyncio
 import json
 from config.provider_config import PROVIDER_CONFIG
 from typing import Any, Dict, List, Tuple, Optional
+import litellm
+
+from services.lago_service import build_litellm_metadata
 
 async def call_llm(
     provider: str,
@@ -10,6 +12,7 @@ async def call_llm(
     messages: List[Dict[str, Any]],
     parameters: Dict[str, Any],
     tools: Optional[List[Dict[str, Any]]] = None,
+    user_id: Optional[str] = None,
 ) -> Tuple[str, Any]:
     """
     Calls the specified language model using litellm, handling different API styles.
@@ -27,6 +30,12 @@ async def call_llm(
         "model": model_string,
         "messages": messages,
         **parameters,
+    }
+
+    # Ensure Lago receives an external customer id via LiteLLM callbacks
+    kwargs["metadata"] = {
+        **kwargs.get("metadata", {}),
+        **build_litellm_metadata(user_id),
     }
 
     reasoning_effort = kwargs.pop('reasoning_effort', 'disable')

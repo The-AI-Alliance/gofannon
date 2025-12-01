@@ -28,6 +28,8 @@ from services.observability_service import (
     get_sanitized_request_data
 )
 
+from services.lago_service import configure_lago_logging
+
 from services.llm_service import call_llm
 
 # Import the shared provider configuration
@@ -49,6 +51,7 @@ from agent_factory.remote_mcp_client import RemoteMCPClient
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     logger = get_observability_service()
+    configure_lago_logging()
     logger.log(
         level="INFO",
         event_type="lifecycle",
@@ -207,8 +210,9 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
                 model=request.model,
                 messages=messages,
                 parameters=request.parameters,
-                tools=built_in_tools if built_in_tools else None
-            )        
+                tools=built_in_tools if built_in_tools else None,
+                user_id=user.get("uid") if isinstance(user, dict) else None,
+            )
         
         # Update ticket with success
         ticket_data.update({
