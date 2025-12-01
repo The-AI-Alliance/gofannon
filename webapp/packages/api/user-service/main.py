@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Annotated, Optional, Dict, Any, List
 from pydantic import BaseModel, Field
+from pydantic.config import ConfigDict
 from datetime import datetime
 import uuid
 import json
@@ -29,18 +30,20 @@ from services.observability_service import (
 )
 
 from services.llm_service import call_llm
+from services.user_service import get_user_service, UserService
 
 # Import the shared provider configuration
 from config.provider_config import PROVIDER_CONFIG as APP_PROVIDER_CONFIG
 from config.routes_config import RouterConfig, resolve_router_configs
 from models.agent import (
-    GenerateCodeRequest, GenerateCodeResponse, RunCodeRequest, 
+    GenerateCodeRequest, GenerateCodeResponse, RunCodeRequest,
     RunCodeResponse, Agent, CreateAgentRequest, Deployment, DeployedApi
 )
 from models.demo import (
     GenerateDemoCodeRequest, GenerateDemoCodeResponse,
     CreateDemoAppRequest, DemoApp
 )
+from models.user import User
 
 from agent_factory.remote_mcp_client import RemoteMCPClient
 
@@ -122,6 +125,31 @@ class ClientLogPayload(BaseModel):
 class FetchSpecRequest(BaseModel):
     url: str
 
+
+class UpdateMonthlyAllowanceRequest(BaseModel):
+    monthly_allowance: float = Field(..., alias="monthlyAllowance")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class UpdateResetDateRequest(BaseModel):
+    allowance_reset_date: float = Field(..., alias="allowanceResetDate")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class UpdateSpendRemainingRequest(BaseModel):
+    spend_remaining: float = Field(..., alias="spendRemaining")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class AddUsageRequest(BaseModel):
+    response_cost: float = Field(..., alias="responseCost")
+    metadata: Optional[Dict[str, Any]] = None
+
+    model_config = ConfigDict(populate_by_name=True)
+
 # Import models after defining local ones to avoid circular dependencies
 from models.chat import ChatRequest, ChatMessage, ChatResponse, ProviderConfig, SessionData
 
@@ -134,11 +162,19 @@ def get_logger() -> ObservabilityService:
     """Dependency to get the observability service instance."""
     return get_observability_service()
 
+def get_user_service_dep(db: DatabaseService = Depends(get_db)) -> UserService:
+    return get_user_service(db)
+
 # Background task for LLM processing
 async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Request):
     # Background tasks don't have access to dependency injection, so we get service instances directly
     db_service = get_database_service(settings)
+    user_service = get_user_service(db_service)
     logger = get_observability_service()
+    user_basic_info = {
+        "email": user.get("email"),
+        "name": user.get("name") or user.get("displayName")
+    }
     try:
         # Update ticket status
         ticket_data = {
@@ -207,8 +243,11 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
                 model=request.model,
                 messages=messages,
                 parameters=request.parameters,
-                tools=built_in_tools if built_in_tools else None
-            )        
+                tools=built_in_tools if built_in_tools else None,
+                user_service=user_service,
+                user_id=user.get("uid"),
+                user_basic_info=user_basic_info,
+            )
         
         # Update ticket with success
         ticket_data.update({
@@ -348,6 +387,52 @@ def get_model_config(provider: str, model: str):
     if model not in available_providers[provider]["models"]:
         raise HTTPException(status_code=404, detail="Model not found")
     return available_providers[provider]["models"][model]
+
+
+@router.get("/users/me", response_model=User)
+def get_current_user_profile(user: dict = Depends(get_current_user), user_service: UserService = Depends(get_user_service_dep)):
+    return user_service.get_user(user.get("uid", "anonymous"), user)
+
+
+@router.put("/users/me/monthly-allowance", response_model=User)
+def set_monthly_allowance(
+    request: UpdateMonthlyAllowanceRequest,
+    user: dict = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service_dep),
+):
+    return user_service.set_monthly_allowance(user.get("uid", "anonymous"), request.monthly_allowance, user)
+
+
+@router.put("/users/me/allowance-reset-date", response_model=User)
+def set_allowance_reset_date(
+    request: UpdateResetDateRequest,
+    user: dict = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service_dep),
+):
+    return user_service.set_reset_date(user.get("uid", "anonymous"), request.allowance_reset_date, user)
+
+
+@router.post("/users/me/reset-allowance", response_model=User)
+def reset_allowance(user: dict = Depends(get_current_user), user_service: UserService = Depends(get_user_service_dep)):
+    return user_service.reset_allowance(user.get("uid", "anonymous"), user)
+
+
+@router.put("/users/me/spend-remaining", response_model=User)
+def update_spend_remaining(
+    request: UpdateSpendRemainingRequest,
+    user: dict = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service_dep),
+):
+    return user_service.update_spend_remaining(user.get("uid", "anonymous"), request.spend_remaining, user)
+
+
+@router.post("/users/me/usage", response_model=User)
+def add_usage_entry(
+    request: AddUsageRequest,
+    user: dict = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service_dep),
+):
+    return user_service.add_usage(user.get("uid", "anonymous"), request.response_cost, request.metadata, user)
 
 @router.post("/chat")
 async def chat(request: ChatRequest, req: Request, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):

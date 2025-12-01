@@ -5,7 +5,6 @@ from .prompts import how_to_use_tools, \
     what_to_do_prompt_template, \
     how_to_use_swagger_tools, \
     how_to_use_gofannon_agents
-from litellm import acompletion
 from models.agent import GenerateCodeRequest, GenerateCodeResponse, Agent
 import json
 import asyncio
@@ -183,16 +182,19 @@ Do not include any other text or markdown formatting around the JSON object.
     if provider == "openai":
         name_doc_config['response_format'] = { "type": "json_object" }
 
-    name_doc_gen_task = acompletion(
-        model=f"{provider}/{model}",
-        messages=name_doc_messages,
-        **name_doc_config
-    )
-    
+    async def name_doc_generation():
+        content, _ = await call_llm(
+            provider=provider,
+            model=model,
+            messages=name_doc_messages,
+            parameters=name_doc_config,
+        )
+        return content
+
     # ---- Run tasks concurrently ----
-    (code_body, thoughts), name_doc_response = await asyncio.gather(
+    (code_body, thoughts), name_doc_content = await asyncio.gather(
         code_gen_with_thoughts(),
-        name_doc_gen_task
+        name_doc_generation()
     )
 
     # ---- Process Code Generation Response ----
@@ -215,7 +217,6 @@ async def run(input_dict, tools):
     full_code = f"{header}\n{indented_body}"
 
     # ---- Process Name and Docstring Response ----
-    name_doc_content = name_doc_response.choices[0].message.content
     try:
         # Clean up potential markdown
         if name_doc_content.strip().startswith("```json"):

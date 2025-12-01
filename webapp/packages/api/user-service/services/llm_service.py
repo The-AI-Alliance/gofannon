@@ -1,12 +1,36 @@
 import asyncio
 import json
+from config import settings
 from config.provider_config import PROVIDER_CONFIG
+from services.database_service import get_database_service
+from services.user_service import get_user_service
 from typing import Any, Dict, List, Tuple, Optional
 import litellm
 
 from services.litellm_logger import ensure_litellm_logging
+from services.user_service import UserService
 
 ensure_litellm_logging()
+
+def _extract_response_cost(response_obj: Any) -> Optional[float]:
+    standard_logging = None
+    if hasattr(response_obj, "_hidden_params") and isinstance(response_obj._hidden_params, dict):
+        standard_logging = response_obj._hidden_params.get("standard_logging_object")
+    if isinstance(standard_logging, dict):
+        try:
+            cost_value = standard_logging.get("response_cost")
+            if cost_value is not None:
+                return float(cost_value)
+        except Exception:
+            pass
+    usage = getattr(response_obj, "usage", None)
+    if usage and getattr(usage, "total_cost", None) is not None:
+        try:
+            return float(getattr(usage, "total_cost"))
+        except Exception:
+            return None
+    return None
+
 
 async def call_llm(
     provider: str,
@@ -14,6 +38,9 @@ async def call_llm(
     messages: List[Dict[str, Any]],
     parameters: Dict[str, Any],
     tools: Optional[List[Dict[str, Any]]] = None,
+    user_service: Optional[UserService] = None,
+    user_id: Optional[str] = None,
+    user_basic_info: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, Any]:
     """
     Calls the specified language model using litellm, handling different API styles.
@@ -21,7 +48,7 @@ async def call_llm(
     """
     model_config = PROVIDER_CONFIG.get(provider, {}).get("models", {}).get(model, {})
     api_style = model_config.get("api_style")
-    
+
     model_string = f"{provider}/{model}"
     
     thoughts = None
@@ -37,6 +64,14 @@ async def call_llm(
 
     if tools:
         kwargs["tools"] = tools
+
+    if user_service is None:
+        user_service = get_user_service(get_database_service(settings))
+    if user_id is None:
+        user_id = "anonymous"
+
+    if user_service and user_id:
+        user_service.require_allowance(user_id, basic_info=user_basic_info)
 
     if api_style == "responses":
         # Use aresponses and aget_responses for OpenAI's special tools like built-in web search
@@ -120,5 +155,14 @@ async def call_llm(
     # Ensure thoughts are JSON serializable
     if thoughts is not None:
         thoughts = json.loads(json.dumps(thoughts, default=str))
+
+    if user_service and user_id:
+        response_cost = None
+        try:
+            response_cost = _extract_response_cost(final_response if api_style == "responses" else response)
+        except Exception:
+            response_cost = None
+        if response_cost is not None:
+            user_service.add_usage(user_id, response_cost, basic_info=user_basic_info)
 
     return content, thoughts
