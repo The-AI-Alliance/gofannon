@@ -21,9 +21,6 @@ const ProfilePage = () => {
       <Typography variant="h4" gutterBottom>
         Profile
       </Typography>
-      <Typography variant="h6" gutterBottom>
-        {activeSection.label}
-      </Typography>
       <Box sx={{ pt: 1 }}>{activeSection.component}</Box>
     </Box>
   );
