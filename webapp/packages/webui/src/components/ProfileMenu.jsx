@@ -1,12 +1,14 @@
 // webapp/packages/webui/src/components/ProfileMenu.jsx
 import React, { useState } from 'react';
-import { IconButton, Menu, MenuItem } from '@mui/material';
+import { Divider, IconButton, Menu, MenuItem } from '@mui/material';
 import AccountCircle from '@mui/icons-material/AccountCircle';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const ProfileMenu = () => {
   const { logout } = useAuth();
   const [anchorEl, setAnchorEl] = useState(null);
+  const navigate = useNavigate();
 
   const handleMenu = (event) => {
     setAnchorEl(event.currentTarget);
@@ -18,6 +20,11 @@ const ProfileMenu = () => {
 
   const handleLogout = () => {
     logout();
+    handleClose();
+  };
+
+  const handleNavigate = (path) => {
+    navigate(path);
     handleClose();
   };
 
@@ -48,6 +55,10 @@ const ProfileMenu = () => {
         open={Boolean(anchorEl)}
         onClose={handleClose}
       >
+        <MenuItem onClick={() => handleNavigate('/profile/basic')}>Basic Info</MenuItem>
+        <MenuItem onClick={() => handleNavigate('/profile/usage')}>Usage</MenuItem>
+        <MenuItem onClick={() => handleNavigate('/profile/billing')}>Billing</MenuItem>
+        <Divider />
         <MenuItem onClick={handleLogout}>Logout</MenuItem>
       </Menu>
     </div>

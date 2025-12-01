@@ -20,6 +20,7 @@ import CanvasScreen from '../pages/DemoCreationFlow/CanvasScreen';
 import SaveDemoScreen from '../pages/DemoCreationFlow/SaveDemoScreen';
 import { AgentCreationFlowProvider } from '../pages/AgentCreationFlow/AgentCreationFlowContext';
 import { DemoCreationFlowProvider } from '../pages/DemoCreationFlow/DemoCreationFlowContext';
+import ProfilePage from '../pages/ProfilePage';
 // import extendRoutes from '../extensions/routes/routeExtensions';
 
 export const defaultRoutes = [
@@ -44,6 +45,10 @@ export const defaultRoutes = [
   {
     path: '/demo-apps',
     element: <DemoAppsPage />,
+  },
+  {
+    path: '/profile/:section?',
+    element: <ProfilePage />,
   },
   {
     path: '/demos/:demoId',
