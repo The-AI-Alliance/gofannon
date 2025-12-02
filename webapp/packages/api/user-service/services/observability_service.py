@@ -159,6 +159,27 @@ class ObservabilityService:
             self.providers.append(ConsoleProvider())
 
 
+    def _sanitize_for_json(self, value: Any) -> Any:
+        """Recursively coerce values into JSON-serializable equivalents.
+
+        This protects logging codepaths that run in environments without
+        FastAPI (e.g., Firebase callable functions) where metadata may contain
+        awaitables or other non-serializable objects. Anything unknown is
+        converted to a string representation so that downstream JSON encoding
+        never fails.
+        """
+        if isinstance(value, dict):
+            return {k: self._sanitize_for_json(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [self._sanitize_for_json(v) for v in value]
+        if asyncio.iscoroutine(value):
+            return f"<coroutine {value.__name__ if hasattr(value, '__name__') else str(value)}>"
+        try:
+            json.dumps(value)
+            return value
+        except (TypeError, ValueError):
+            return str(value)
+
     def log(
         self,
         event_type: str,
@@ -172,7 +193,7 @@ class ObservabilityService:
         Creates a log payload and sends it to all configured providers asynchronously.
         This is a fire-and-forget method.
         """
-        payload = {
+        raw_payload = {
             "timestamp": datetime.utcnow().isoformat(),
             "level": level.upper(),
             "eventType": event_type,
@@ -181,7 +202,9 @@ class ObservabilityService:
             "message": message,
             "metadata": metadata or {},
         }
-        
+
+        payload = self._sanitize_for_json(raw_payload)
+
         async def _log_async():
             tasks = [provider.log(payload) for provider in self.providers]
             await asyncio.gather(*tasks)
