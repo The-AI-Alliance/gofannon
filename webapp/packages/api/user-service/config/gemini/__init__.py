@@ -33,7 +33,7 @@ models = {
                 "tool_config": {"codeExecution": {}}
             }
         ]
-    }
+    },
     "gemini-2.5-pro": {
         "parameters": {
             "temperature": {

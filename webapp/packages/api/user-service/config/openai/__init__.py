@@ -14,7 +14,7 @@ models = {
                 "description": "Reasoning Effort: Effort level for reasoning during generation" 
             },
         }
-    }
+    },
     "gpt-5": {
         "api_style": "responses",
         "returns_thoughts": True,  # reasoning traces supported by GPT-5/o-series
