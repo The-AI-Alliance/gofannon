@@ -9,43 +9,54 @@ from datetime import datetime
 import uuid
 import json
 import os
-from pathlib import Path
-import asyncio
-import litellm
 import traceback
-import httpx
-import yaml
-from fastapi.security import OAuth2PasswordBearer
+from pathlib import Path
 from contextlib import asynccontextmanager
 
-from services.database_service import get_database_service, DatabaseService
 from config import settings
-from services.mcp_client_service import McpClientService, get_mcp_client_service
-
-from services.observability_service import (
-    get_observability_service,
-    ObservabilityMiddleware,
-    ObservabilityService,
-    get_sanitized_request_data
-)
-
-from services.llm_service import call_llm
-from services.user_service import get_user_service, UserService
-
-# Import the shared provider configuration
-from config.provider_config import PROVIDER_CONFIG as APP_PROVIDER_CONFIG
 from config.routes_config import RouterConfig, resolve_router_configs
+from dependencies import (
+    deploy_agent,
+    fetch_spec_content,
+    get_agent_deployment,
+    get_available_providers,
+    get_db,
+    get_logger,
+    get_user_service_dep,
+    list_deployments as list_deployments_logic,
+    oauth2_scheme,
+    process_chat,
+    require_admin_access,
+    run_deployed_agent as run_deployed_agent_logic,
+    undeploy_agent,
+    _execute_agent_code,
+)
 from models.agent import (
-    GenerateCodeRequest, GenerateCodeResponse, RunCodeRequest,
-    RunCodeResponse, Agent, CreateAgentRequest, Deployment, DeployedApi
+    GenerateCodeRequest,
+    GenerateCodeResponse,
+    RunCodeRequest,
+    RunCodeResponse,
+    Agent,
+    CreateAgentRequest,
+    Deployment,
+    DeployedApi,
 )
 from models.demo import (
-    GenerateDemoCodeRequest, GenerateDemoCodeResponse,
-    CreateDemoAppRequest, DemoApp
+    GenerateDemoCodeRequest,
+    GenerateDemoCodeResponse,
+    CreateDemoAppRequest,
+    DemoApp,
 )
 from models.user import User
-
-from agent_factory.remote_mcp_client import RemoteMCPClient
+from services.database_service import DatabaseService
+from services.mcp_client_service import McpClientService, get_mcp_client_service
+from services.observability_service import (
+    get_observability_service,
+    get_sanitized_request_data,
+    ObservabilityMiddleware,
+    ObservabilityService,
+)
+from services.user_service import UserService
 
 
 @asynccontextmanager
@@ -65,8 +76,6 @@ router = APIRouter()
 
 # Add observability middleware
 app.add_middleware(ObservabilityMiddleware)
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 
 
@@ -161,188 +170,6 @@ class AdminUpdateUserRequest(BaseModel):
 # Import models after defining local ones to avoid circular dependencies
 from models.chat import ChatRequest, ChatMessage, ChatResponse, ProviderConfig, SessionData
 
-
-# --- Dependencies ---
-def get_db() -> DatabaseService:
-    yield get_database_service(settings)
-
-def get_logger() -> ObservabilityService:
-    """Dependency to get the observability service instance."""
-    return get_observability_service()
-
-def get_user_service_dep(db: DatabaseService = Depends(get_db)) -> UserService:
-    return get_user_service(db)
-
-
-def require_admin_access(admin_password: str | None = Header(default=None, alias="X-Admin-Password")):
-    if not settings.ADMIN_PANEL_ENABLED:
-        raise HTTPException(status_code=403, detail="Admin panel is disabled")
-
-    if admin_password != settings.ADMIN_PANEL_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid admin password")
-
-# Background task for LLM processing
-async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Request):
-    # Background tasks don't have access to dependency injection, so we get service instances directly
-    db_service = get_database_service(settings)
-    user_service = get_user_service(db_service)
-    logger = get_observability_service()
-    user_basic_info = {
-        "email": user.get("email"),
-        "name": user.get("name") or user.get("displayName")
-    }
-    try:
-        # Update ticket status
-        ticket_data = {
-            "status": "processing",
-            "created_at": datetime.utcnow().isoformat(), # Use isoformat for JSON serialization
-            "request": request.dict(by_alias=True)
-        }
-        db_service.save("tickets", ticket_id, ticket_data)
-        
-        messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
-        
-        content = ""
-        thoughts = None
-
-        if request.provider == "gofannon":
-            logger.log("INFO", "agent_chat_request", f"Initiating Agent call to {request.model}", metadata={"request": get_sanitized_request_data(req)})
-            agent_friendly_name = request.model
-            
-            try:
-                deployment_doc = db_service.get("deployments", agent_friendly_name)
-                agent_id = deployment_doc["agentId"]
-                agent_data = db_service.get("agents", agent_id)
-                agent = Agent(**agent_data)
-            except Exception:
-                raise ValueError(f"Could not find a deployed agent with name '{agent_friendly_name}'")
-
-            last_user_message = next((msg for msg in reversed(messages) if msg["role"] == "user"), None)
-            if not last_user_message:
-                raise ValueError("No user message found to run the agent with.")
-
-            input_dict = request.parameters.copy()
-            # The user query is always mapped to 'inputText'
-            input_dict["inputText"] = last_user_message["content"]
-            
-            result = await _execute_agent_code(
-                code=agent.code,
-                input_dict=input_dict,
-                tools=agent.tools,
-                gofannon_agents=agent.gofannon_agents,
-                db=db_service
-            )
-            
-            if isinstance(result, dict):
-                # The response is always from 'outputText'
-                content = result.get("outputText", json.dumps(result))
-                thoughts = result
-            else:
-                content = str(result)
-                thoughts = {"raw_output": content}
-
-        else:
-            # Build tools list from config
-            built_in_tools = []
-            model_tool_config = APP_PROVIDER_CONFIG.get(request.provider, {}).get("models", {}).get(request.model, {}).get("built_in_tools", [])
-            if request.built_in_tools:
-                for tool_id in request.built_in_tools:
-                    tool_conf = next((t for t in model_tool_config if t["id"] == tool_id), None)
-                    if tool_conf:
-                        built_in_tools.append(tool_conf["tool_config"])
-
-
-            logger.log("INFO", "llm_request", f"Initiating LLM call to {request.provider}/{request.model}", metadata={"request": get_sanitized_request_data(req)})
-
-            content, thoughts = await call_llm(
-                provider=request.provider,
-                model=request.model,
-                messages=messages,
-                parameters=request.parameters,
-                tools=built_in_tools if built_in_tools else None,
-                user_service=user_service,
-                user_id=user.get("uid"),
-                user_basic_info=user_basic_info,
-            )
-        
-        # Update ticket with success
-        ticket_data.update({
-            "status": "completed",
-            "completed_at": datetime.utcnow().isoformat(),
-            "result": {
-                "content": content,
-                "thoughts": thoughts,
-                "model": f"{request.provider}/{request.model}",
-                # Usage data is not consistently available across both litellm APIs, so omitting for now
-            }
-        })
-        db_service.save("tickets", ticket_id, ticket_data)
-        
-    except Exception as e:
-        logger.log("ERROR", "background_task_failure", f"Chat processing failed for ticket {ticket_id}: {e}", metadata={"traceback": traceback.format_exc(), "request": get_sanitized_request_data(req)})
-        # Ensure ticket_data is defined for error update
-        if 'ticket_data' not in locals():
-             ticket_data = db_service.get("tickets", ticket_id)
-
-        # Update ticket with error
-        ticket_data.update({
-            "status": "failed",
-            "completed_at": datetime.utcnow().isoformat(),
-            "error": str(e)
-        })
-        db_service.save("tickets", ticket_id, ticket_data)
-
-# Helper function to filter providers based on environment variables
-def get_available_providers():
-    db_service = get_database_service(settings)
-    available_providers = {}
-    for provider, config in APP_PROVIDER_CONFIG.items():
-        api_key_env_var = config.get("api_key_env_var")
-        # Include provider if api_key_env_var is not specified, or if it is specified and the env var is set.
-        if not api_key_env_var or os.getenv(api_key_env_var):
-            available_providers[provider] = config
-    
-    # ---- Add Gofannon agents as a virtual provider ----
-    try:
-        all_deployments = db_service.list_all("deployments")
-        gofannon_models = {}
-        for deployment_doc in all_deployments:
-            try:
-                agent_id = deployment_doc["agentId"]
-                agent_doc = db_service.get("agents", agent_id)
-                agent = Agent(**agent_doc)
-
-                friendly_name = deployment_doc["_id"]
-
-                parameters = agent.input_schema
-                input_schema_foo = agent.input_schema
-                print(f"Agent '{friendly_name}' input schema: {input_schema_foo}")
-                print(f"Loading deployed Gofannon agent '{friendly_name}' with parameters: {parameters.keys()}")
-                formatted_params = {}
-                for name, schema in parameters.items():
-                    formatted_params[name] = {
-                        "type": schema,
-                        "description": name,
-                        "default": ""
-                    }
-
-                gofannon_models[friendly_name] = {
-                    "id": agent.id,
-                    "description": agent.description,
-                    "parameters": formatted_params,
-                }
-            except Exception as agent_load_e:
-                print(f"Skipping deployed agent '{deployment_doc.get('_id')}' due to error: {agent_load_e}")
-
-        if gofannon_models:
-            available_providers["gofannon"] = {
-                "models": gofannon_models
-            }
-            
-    except Exception as e:
-        print(f"Could not load Gofannon agents as a provider: {e}")
-            
-    return available_providers
 
 # --- Routes ---
 @router.get("/")
@@ -619,180 +446,30 @@ async def generate_agent_code(request: GenerateCodeRequest, user: dict = Depends
 @router.post("/specs/fetch")
 async def fetch_spec_from_url(request: FetchSpecRequest, user: dict = Depends(get_current_user)):
     """Fetches OpenAPI/Swagger spec content from a public URL."""
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(request.url)
-            response.raise_for_status() # Raises an exception for 4xx/5xx responses
-            
-            # Basic validation: Try to parse as JSON or YAML
-            content = response.text
-            try:
-                json.loads(content)
-            except json.JSONDecodeError:
-                try:
-                    yaml.safe_load(content)
-                except yaml.YAMLError:
-                    raise HTTPException(status_code=400, detail="Content from URL is not valid JSON or YAML.")
-
-            # Create a name from the URL path
-            from urllib.parse import urlparse
-            path = urlparse(str(request.url)).path
-            name = path.split('/')[-1] if path else "spec_from_url.json"
-            if not name:
-                name = "spec_from_url.json"
-
-            return {"name": name, "content": content}
-        except httpx.RequestError as e:
-            raise HTTPException(status_code=400, detail=f"Error fetching from URL: {e}")
+    return await fetch_spec_content(request.url)
 
 
 @router.post("/agents/{agent_id}/deploy", status_code=201)
-async def deploy_agent(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
+async def deploy_agent_route(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Registers an agent for internal REST deployment."""
-    agent_doc = db.get("agents", agent_id)
-    agent = Agent(**agent_doc)
-    friendly_name = agent.friendly_name
-
-    if not friendly_name:
-        raise HTTPException(status_code=400, detail="Agent must have a friendly_name to be deployed.")
-
-    try:
-        # Check if a deployment with this name already exists
-        existing_deployment = db.get("deployments", friendly_name)
-        # If it exists and belongs to this agent, it's already deployed
-        if existing_deployment.get("agentId") == agent_id:
-            return {"message": "Agent is already deployed", "endpoint": f"/rest/{friendly_name}"}
-        else:
-            # Another agent is using this friendly_name
-            raise HTTPException(status_code=409, detail=f"A deployment with the name '{friendly_name}' already exists for a different agent.")
-    except HTTPException as e:
-        if e.status_code == 404:
-            # No existing deployment, proceed to create one
-            deployment_doc = {"agentId": agent_id}
-            db.save("deployments", friendly_name, deployment_doc)
-            return {"message": "Agent deployed successfully", "endpoint": f"/rest/{friendly_name}"}
-        else:
-            raise e
+    return await deploy_agent(agent_id, db)
 
 @router.delete("/agents/{agent_id}/undeploy", status_code=204)
-async def undeploy_agent(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
+async def undeploy_agent_route(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Removes an agent from the internal REST deployment registry."""
-    agent_doc = db.get("agents", agent_id)
-    agent = Agent(**agent_doc)
-    friendly_name = agent.friendly_name
-    if not friendly_name:
-        # Agent doesn't have a friendly name, so it can't be deployed. Nothing to do.
-        return
-
-    try:
-        # This will raise 404 if not found, which we can ignore.
-        db.delete("deployments", friendly_name)
-    except HTTPException as e:
-        if e.status_code == 404:
-            pass # It wasn't deployed, so the goal is achieved.
-        else:
-            raise e # Re-raise other errors
+    await undeploy_agent(agent_id, db)
     return
 
 @router.get("/agents/{agent_id}/deployment")
-async def get_agent_deployment(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
+async def get_agent_deployment_route(agent_id: str, db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Checks if an agent is deployed and returns its public-facing name."""
-    agent_doc = db.get("agents", agent_id)
-    agent = Agent(**agent_doc)
-    friendly_name = agent.friendly_name
-
-    if not friendly_name:
-        return {"is_deployed": False}
-
-    try:
-        deployment_doc = db.get("deployments", friendly_name)
-        # Ensure the deployment record points back to this agent_id
-        if deployment_doc.get("agentId") == agent_id:
-            return {"is_deployed": True, "friendly_name": friendly_name}
-        else:
-            # A different agent is using this friendly_name, so this one is not deployed.
-            return {"is_deployed": False}
-    except HTTPException as e:
-        if e.status_code == 404:
-            return {"is_deployed": False}
-        raise e
+    return await get_agent_deployment(agent_id, db)
 
 @router.get("/deployments", response_model=List[DeployedApi])
-async def list_deployments(db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
+async def list_deployments_route(db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
     """Lists all deployed agents/APIs with their relevant details."""
-    try:
-        all_deployments_docs = db.list_all("deployments")
-        deployment_infos = []
-        for dep_doc in all_deployments_docs:
-            try:
-                agent_doc = db.get("agents", dep_doc["agentId"])
-                agent = Agent(**agent_doc)
-                dep_info = DeployedApi(
-                    friendlyName=dep_doc["_id"],
-                    agentId=dep_doc["agentId"],
-                    description=agent.description,
-                    inputSchema=agent.input_schema,
-                    outputSchema=agent.output_schema
-                )
-                deployment_infos.append(dep_info)
-            except Exception as e:
-                print(f"Skipping deployment '{dep_doc['_id']}' due to error fetching agent '{dep_doc['agentId']}': {e}")
-                continue
-        return deployment_infos
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-async def _execute_agent_code(code: str, input_dict: dict, tools: dict, gofannon_agents: List[str], db: DatabaseService):
-    """Helper function for recursive execution of agent code."""
-    
-    class GofannonClient:
-        def __init__(self, agent_ids: List[str], db_service: DatabaseService):
-            self.db = db_service
-            self.agent_map = {}
-            if agent_ids:
-                try:
-                    all_agents = [Agent(**self.db.get("agents", agent_id)) for agent_id in agent_ids]
-                    for agent in all_agents:
-                        self.agent_map[agent.name] = agent
-                except Exception as e:
-                    print(f"Error loading dependent agents: {e}")
-                    raise ValueError("Could not load one or more dependent Gofannon agents.")
-
-        async def call(self, agent_name: str, input_dict: dict) -> Any:
-            agent_to_run = self.agent_map.get(agent_name)
-            if not agent_to_run:
-                raise ValueError(f"Gofannon agent '{agent_name}' not found or not imported for this run.")
-
-            # Recursive call to the execution helper
-            return await _execute_agent_code(
-                code=agent_to_run.code,
-                input_dict=input_dict,
-                tools=agent_to_run.tools,
-                gofannon_agents=agent_to_run.gofannon_agents,
-                db=self.db
-            )
-
-    exec_globals = {
-        "RemoteMCPClient": RemoteMCPClient,
-        "litellm": litellm,
-        "asyncio": asyncio,
-        "http_client": httpx.AsyncClient(),
-        "gofannon_client": GofannonClient(gofannon_agents, db),
-        "__builtins__": __builtins__
-    }
-    
-    local_scope = {}
-    
-    code_obj = compile(code, '<string>', 'exec')
-    exec(code_obj, exec_globals, local_scope)
-
-    run_function = local_scope.get('run')
-
-    if not run_function or not asyncio.iscoroutinefunction(run_function):
-        raise ValueError("Code did not define an 'async def run(input_dict, tools)' function.")
-
-    result = await run_function(input_dict=input_dict, tools=tools)
-    return result
+    deployments = await list_deployments_logic(db)
+    return [DeployedApi(**dep) for dep in deployments]
 
 @router.post("/agents/run-code", response_model=RunCodeResponse)
 async def run_agent_code(
@@ -830,34 +507,10 @@ async def run_agent_code(
         raise e
 
 @router.post("/rest/{friendly_name}")
-async def run_deployed_agent(friendly_name: str, request: Request, db: DatabaseService = Depends(get_db)):
+async def run_deployed_agent_route(friendly_name: str, request: Request, db: DatabaseService = Depends(get_db)):
     """Public endpoint to run a deployed agent by its friendly_name."""
-    try:
-        # 1. Find the deployment record by its friendly_name
-        deployment_doc = db.get("deployments", friendly_name)
-        agent_id = deployment_doc["agentId"]
-
-        # 2. Fetch the full agent configuration
-        agent_data = db.get("agents", agent_id)
-        agent = Agent(**agent_data)
-        
-        input_dict = await request.json()
-
-        # 3. Execute the agent's code
-        result = await _execute_agent_code(
-            code=agent.code,
-            input_dict=input_dict,
-            tools=agent.tools,
-            gofannon_agents=agent.gofannon_agents,
-            db=db
-        )
-        return result
-    except HTTPException as e:
-        if e.status_code == 404:
-            raise HTTPException(status_code=404, detail="No deployed agent found with that name.")
-        raise e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error executing agent: {str(e)}")
+    input_dict = await request.json()
+    return await run_deployed_agent_logic(friendly_name, input_dict, db)
 
 # --- Demo App Endpoints ---
 
