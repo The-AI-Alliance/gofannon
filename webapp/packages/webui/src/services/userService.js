@@ -25,6 +25,18 @@ const userService = {
   addUsage(responseCost, metadata = null) {
     return apiClient.post('/users/me/usage', { responseCost, metadata });
   },
+
+  getAllUsers(adminPassword) {
+    return apiClient.get('/admin/users', {
+      headers: { 'X-Admin-Password': adminPassword },
+    });
+  },
+
+  updateUser(userId, payload, adminPassword) {
+    return apiClient.put(`/admin/users/${userId}`, payload, {
+      headers: { 'X-Admin-Password': adminPassword },
+    });
+  },
 };
 
 export default userService;

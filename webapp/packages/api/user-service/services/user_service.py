@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, Any
+from typing import Optional, Any, List
 
 from fastapi import HTTPException
 
@@ -34,6 +34,9 @@ class UserService:
         user = self._create_default_user(user_id, basic_info)
         return self.save_user(user)
 
+    def list_users(self) -> List[User]:
+        return [User(**user_doc) for user_doc in self.db.list_all("users")]
+
     def save_user(self, user: User) -> User:
         user.updated_at = datetime.utcnow()
         saved = self.db.save("users", user.id, user.model_dump(by_alias=True, mode="json"))
@@ -67,6 +70,30 @@ class UserService:
     def update_spend_remaining(self, user_id: str, spend_remaining: float, basic_info: Optional[dict] = None) -> User:
         user = self.get_user(user_id, basic_info)
         user.usage_info.spend_remaining = spend_remaining
+        return self.save_user(user)
+
+    def update_user_usage_info(
+        self,
+        user_id: str,
+        *,
+        monthly_allowance: Optional[float] = None,
+        allowance_reset_date: Optional[float] = None,
+        spend_remaining: Optional[float] = None,
+        basic_info: Optional[dict] = None,
+    ) -> User:
+        user = self.get_user(user_id, basic_info)
+
+        if monthly_allowance is not None:
+            user.usage_info.monthly_allowance = monthly_allowance
+            if user.usage_info.spend_remaining > monthly_allowance:
+                user.usage_info.spend_remaining = monthly_allowance
+
+        if allowance_reset_date is not None:
+            user.usage_info.allowance_reset_date = allowance_reset_date
+
+        if spend_remaining is not None:
+            user.usage_info.spend_remaining = spend_remaining
+
         return self.save_user(user)
 
     def add_usage(self, user_id: str, response_cost: float, metadata: Optional[Any] = None, basic_info: Optional[dict] = None) -> User:

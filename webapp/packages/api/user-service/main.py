@@ -1,5 +1,5 @@
 # webapp/packages/api/user-service/main.py
-from fastapi import APIRouter, FastAPI, UploadFile, File, Depends, HTTPException, BackgroundTasks, Request
+from fastapi import APIRouter, FastAPI, UploadFile, File, Depends, HTTPException, BackgroundTasks, Request, Header
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Annotated, Optional, Dict, Any, List
@@ -150,6 +150,14 @@ class AddUsageRequest(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
+
+class AdminUpdateUserRequest(BaseModel):
+    monthly_allowance: Optional[float] = Field(default=None, alias="monthlyAllowance")
+    allowance_reset_date: Optional[float] = Field(default=None, alias="allowanceResetDate")
+    spend_remaining: Optional[float] = Field(default=None, alias="spendRemaining")
+
+    model_config = ConfigDict(populate_by_name=True)
+
 # Import models after defining local ones to avoid circular dependencies
 from models.chat import ChatRequest, ChatMessage, ChatResponse, ProviderConfig, SessionData
 
@@ -164,6 +172,14 @@ def get_logger() -> ObservabilityService:
 
 def get_user_service_dep(db: DatabaseService = Depends(get_db)) -> UserService:
     return get_user_service(db)
+
+
+def require_admin_access(admin_password: str | None = Header(default=None, alias="X-Admin-Password")):
+    if not settings.ADMIN_PANEL_ENABLED:
+        raise HTTPException(status_code=403, detail="Admin panel is disabled")
+
+    if admin_password != settings.ADMIN_PANEL_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password")
 
 # Background task for LLM processing
 async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Request):
@@ -392,6 +408,29 @@ def get_model_config(provider: str, model: str):
 @router.get("/users/me", response_model=User)
 def get_current_user_profile(user: dict = Depends(get_current_user), user_service: UserService = Depends(get_user_service_dep)):
     return user_service.get_user(user.get("uid", "anonymous"), user)
+
+
+@router.get("/admin/users", response_model=List[User])
+def list_all_users(
+    user_service: UserService = Depends(get_user_service_dep),
+    _: None = Depends(require_admin_access),
+):
+    return user_service.list_users()
+
+
+@router.put("/admin/users/{user_id}", response_model=User)
+def update_user_allowances(
+    user_id: str,
+    request: AdminUpdateUserRequest,
+    user_service: UserService = Depends(get_user_service_dep),
+    _: None = Depends(require_admin_access),
+):
+    return user_service.update_user_usage_info(
+        user_id,
+        monthly_allowance=request.monthly_allowance,
+        allowance_reset_date=request.allowance_reset_date,
+        spend_remaining=request.spend_remaining,
+    )
 
 
 @router.put("/users/me/monthly-allowance", response_model=User)

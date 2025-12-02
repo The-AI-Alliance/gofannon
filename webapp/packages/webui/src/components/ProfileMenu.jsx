@@ -5,6 +5,14 @@ import AccountCircle from '@mui/icons-material/AccountCircle';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
+const isAdminPanelEnabled = () => {
+  const envValue = import.meta.env.VITE_ADMIN_PANEL_ENABLED
+    ?? (typeof process !== 'undefined' ? process.env.ADMIN_PANEL_ENABLED : undefined)
+    ?? 'false';
+  const raw = envValue.toString();
+  return raw.toLowerCase() === 'true';
+};
+
 const ProfileMenu = () => {
   const { logout } = useAuth();
   const [anchorEl, setAnchorEl] = useState(null);
@@ -58,6 +66,9 @@ const ProfileMenu = () => {
         <MenuItem onClick={() => handleNavigate('/profile/basic')}>Basic Info</MenuItem>
         <MenuItem onClick={() => handleNavigate('/profile/usage')}>Usage</MenuItem>
         <MenuItem onClick={() => handleNavigate('/profile/billing')}>Billing</MenuItem>
+        {isAdminPanelEnabled() && (
+          <MenuItem onClick={() => handleNavigate('/admin')}>Admin Panel</MenuItem>
+        )}
         <Divider />
         <MenuItem onClick={handleLogout}>Logout</MenuItem>
       </Menu>
