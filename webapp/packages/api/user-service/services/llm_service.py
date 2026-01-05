@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Tuple, Optional
 import litellm
 
 from services.litellm_logger import ensure_litellm_logging
+from services.observability_service import get_observability_service
 from services.user_service import UserService
 
 ensure_litellm_logging()
@@ -151,9 +152,16 @@ async def call_llm(
                 raise Exception("Polling for OpenAI Responses API timed out.")
 
         except Exception as e:
-            import traceback
-            print(f"Error using litellm.aresponses: {e}")
-            print(f"Full traceback:\n{traceback.format_exc()}")
+            observability = get_observability_service()
+            observability.log_exception(
+                e,
+                user_id=user_id,
+                metadata={
+                    "context": "litellm.aresponses",
+                    "model": model_string,
+                    "provider": provider,
+                }
+            )
             raise
     else:
         # Standard acompletion call for most models
@@ -163,10 +171,17 @@ async def call_llm(
         try:
             response = await litellm.acompletion(**kwargs)
         except Exception as e:
-            import traceback
-            print(f"Error using litellm.acompletion: {e}")
-            print(f"Full traceback:\n{traceback.format_exc()}")
-            print(f"Request kwargs (excluding messages): model={kwargs.get('model')}, tools={kwargs.get('tools')}")
+            observability = get_observability_service()
+            observability.log_exception(
+                e,
+                user_id=user_id,
+                metadata={
+                    "context": "litellm.acompletion",
+                    "model": kwargs.get('model'),
+                    "provider": provider,
+                    "tools": kwargs.get('tools'),
+                }
+            )
             raise
         message = response.choices[0].message
         content = message.content if isinstance(message.content, str) else ""
