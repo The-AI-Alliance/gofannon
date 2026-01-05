@@ -23,7 +23,7 @@ models = {
                 "min": 0.0,
                 "max": 1.0,
                 "description": "Nucleus sampling (0.1=conservative, 0.95=diverse)",
-                "mutually_exclusive_with": "temperature"
+                "mutually_exclusive_with": ["temperature"]
             },
             "max_tokens": {
                 "type": "integer",
@@ -50,7 +50,7 @@ models = {
                 "min": 0.0,
                 "max": 1.0,
                 "description": "Nucleus sampling (0.1=conservative, 0.95=diverse)",
-                "mutually_exclusive_with": "temperature"
+                "mutually_exclusive_with": ["temperature"]
             },
             "max_tokens": {
                 "type": "integer",
@@ -77,7 +77,7 @@ models = {
                 "min": 0.0,
                 "max": 1.0,
                 "description": "Nucleus sampling (0.1=conservative, 0.95=diverse)",
-                "mutually_exclusive_with": "temperature"
+                "mutually_exclusive_with": ["temperature"]
             },
             "max_tokens": {
                 "type": "integer",
@@ -108,7 +108,7 @@ models = {
                 "min": 0.0,
                 "max": 1.0,
                 "description": "Nucleus sampling (0.1=conservative, 0.95=diverse)",
-                "mutually_exclusive_with": "temperature"
+                "mutually_exclusive_with": ["temperature"]
             },
             "max_tokens": {
                 "type": "integer",
@@ -139,7 +139,7 @@ models = {
                 "min": 0.0,
                 "max": 1.0,
                 "description": "Nucleus sampling (0.1=conservative, 0.95=diverse)",
-                "mutually_exclusive_with": "temperature"
+                "mutually_exclusive_with": ["temperature"]
             },
             "max_tokens": {
                 "type": "integer",
@@ -166,7 +166,7 @@ models = {
                 "min": 0.0,
                 "max": 1.0,
                 "description": "Nucleus sampling (0.1=conservative, 0.95=diverse)",
-                "mutually_exclusive_with": "temperature"
+                "mutually_exclusive_with": ["temperature"]
             },
             "max_tokens": {
                 "type": "integer",
@@ -197,7 +197,7 @@ models = {
                 "min": 0.0,
                 "max": 1.0,
                 "description": "Nucleus sampling (0.1=conservative, 0.95=diverse)",
-                "mutually_exclusive_with": "temperature"
+                "mutually_exclusive_with": ["temperature"]
             },
             "max_tokens": {
                 "type": "integer",
@@ -228,7 +228,7 @@ models = {
                 "min": 0.0,
                 "max": 1.0,
                 "description": "Nucleus sampling (0.1=conservative, 0.95=diverse)",
-                "mutually_exclusive_with": "temperature"
+                "mutually_exclusive_with": ["temperature"]
             },
             "max_tokens": {
                 "type": "integer",
@@ -255,7 +255,7 @@ models = {
                 "min": 0.0,
                 "max": 1.0,
                 "description": "Nucleus sampling (0.1=conservative, 0.95=diverse)",
-                "mutually_exclusive_with": "temperature"
+                "mutually_exclusive_with": ["temperature"]
             },
             "max_tokens": {
                 "type": "integer",
@@ -282,7 +282,7 @@ models = {
                 "min": 0.0,
                 "max": 1.0,
                 "description": "Nucleus sampling (0.1=conservative, 0.95=diverse)",
-                "mutually_exclusive_with": "temperature"
+                "mutually_exclusive_with": ["temperature"]
             },
             "max_tokens": {
                 "type": "integer",
@@ -313,7 +313,7 @@ models = {
                 "min": 0.0,
                 "max": 1.0,
                 "description": "Nucleus sampling (0.1=conservative, 0.95=diverse)",
-                "mutually_exclusive_with": "temperature"
+                "mutually_exclusive_with": ["temperature"]
             },
             "max_tokens": {
                 "type": "integer",
