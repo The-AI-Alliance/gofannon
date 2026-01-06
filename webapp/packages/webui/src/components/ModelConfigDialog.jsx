@@ -1,5 +1,5 @@
 // webapp/packages/webui/src/components/ModelConfigDialog.jsx
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
 import {
   Dialog,
@@ -21,8 +21,7 @@ import {
   FormGroup,
   Checkbox,
   FormControlLabel,
-  ToggleButtonGroup,
-  ToggleButton,
+  Tooltip,
 } from '@mui/material';
 
 const ModelConfigDialog = ({
@@ -44,8 +43,37 @@ const ModelConfigDialog = ({
   loadingProviders,
   providersError,
 }) => {
-  // Track which sampling method to use (temperature or top_p)
-  const [samplingMode, setSamplingMode] = useState('temperature');
+  const hasValue = (val) => val !== undefined && val !== null;
+
+  const getMutuallyExclusiveParams = (paramName, schema = modelParamSchema) => {
+    if (!schema) return [];
+    const paramConfig = schema[paramName] || {};
+    const forward = paramConfig.mutually_exclusive_with || [];
+    const reverse = Object.entries(schema)
+      .filter(([otherName, config]) => (config?.mutually_exclusive_with || []).includes(paramName))
+      .map(([otherName]) => otherName);
+    return Array.from(new Set([...forward, ...reverse]));
+  };
+
+  const buildDefaultParams = (paramSchema) => {
+    const defaults = {};
+    Object.entries(paramSchema || {}).forEach(([key, param]) => {
+      if (param.default === null || param.default === undefined) return;
+      const conflicts = getMutuallyExclusiveParams(key, paramSchema);
+      const conflictAlreadySet = conflicts.some((conflict) => hasValue(defaults[conflict]));
+      if (conflictAlreadySet) return;
+      defaults[key] = param.default;
+    });
+    return defaults;
+  };
+
+  const clearParamValue = (paramName) => {
+    setCurrentModelParams((prev) => {
+      const updated = { ...prev };
+      delete updated[paramName];
+      return updated;
+    });
+  };
 
   const handleProviderChange = (e) => {
     const provider = e.target.value;
@@ -58,19 +86,7 @@ const ModelConfigDialog = ({
       const modelParams = providers[provider].models[defaultModel].parameters; 
       setModelParamSchema(modelParams);
       
-      // Only set params with non-null defaults
-      // For Anthropic, skip top_p (use temperature by default) since they're mutually exclusive
-      const defaultParams = {};
-      Object.keys(modelParams).forEach(key => {
-        if (modelParams[key].default !== null) {
-          // Skip top_p for Anthropic - use temperature by default
-          if (key === 'top_p' && provider === 'anthropic') {
-            return;
-          }
-          defaultParams[key] = modelParams[key].default;
-        }
-      });
-      setCurrentModelParams(defaultParams);
+      setCurrentModelParams(buildDefaultParams(modelParams));
     } else {
       setSelectedModel('');
       setModelParamSchema({});
@@ -78,8 +94,6 @@ const ModelConfigDialog = ({
     }
     // Reset built-in tool selection when provider changes
     if (setSelectedBuiltInTool) setSelectedBuiltInTool('');
-    // Reset sampling mode to temperature
-    setSamplingMode('temperature');
   };
 
   const handleModelChange = (e) => {
@@ -90,65 +104,54 @@ const ModelConfigDialog = ({
 
     setModelParamSchema(modelParams);
     
-    // Only set params with non-null defaults
-    // For Anthropic, skip top_p (use temperature by default) since they're mutually exclusive
-    const defaultParams = {};
-    Object.keys(modelParams).forEach(key => {
-      if (modelParams[key].default !== null) {
-        // Skip top_p for Anthropic - use temperature by default
-        if (key === 'top_p' && selectedProvider === 'anthropic') {
-          return;
-        }
-        defaultParams[key] = modelParams[key].default;
-      }
-    });
-    setCurrentModelParams(defaultParams);
+    setCurrentModelParams(buildDefaultParams(modelParams));
     // Reset built-in tool selection when model changes
     if (setSelectedBuiltInTool) setSelectedBuiltInTool('');
-    // Reset sampling mode to temperature
-    setSamplingMode('temperature');
   };
 
   const handleParamChange = (paramName, value) => {
     setCurrentModelParams(prev => ({
-      ...prev,
+      ...Object.fromEntries(
+        Object.entries(prev).filter(
+          ([key]) => !getMutuallyExclusiveParams(paramName).includes(key)
+        )
+      ),
       [paramName]: value,
     }));
   };
 
-  // Handle switching between temperature and top_p
-  const handleSamplingModeChange = (event, newMode) => {
-    if (newMode !== null) {
-      setSamplingMode(newMode);
-      // When switching modes, set default for the new mode and remove the other
-      const tempConfig = modelParamSchema?.temperature;
-      const topPConfig = modelParamSchema?.top_p;
-      
-      if (newMode === 'temperature' && tempConfig) {
-        setCurrentModelParams(prev => {
-          const newParams = { ...prev };
-          delete newParams.top_p;
-          newParams.temperature = tempConfig.default ?? 1.0;
-          return newParams;
-        });
-      } else if (newMode === 'top_p' && topPConfig) {
-        setCurrentModelParams(prev => {
-          const newParams = { ...prev };
-          delete newParams.temperature;
-          newParams.top_p = 0.9; // sensible default for top_p
-          return newParams;
-        });
-      }
-    }
+  const isParamDisabled = (paramName) => {
+    const conflicts = getMutuallyExclusiveParams(paramName);
+    return conflicts.some((conflict) => hasValue(currentModelParams[conflict]));
   };
 
-  // Check if this model has mutually exclusive sampling params (Anthropic Claude 4+ models)
-  const hasSamplingToggle = selectedProvider === 'anthropic' && 
-    modelParamSchema?.temperature && 
-    modelParamSchema?.top_p;
+  const getDisableReason = (paramName) => {
+    const conflicts = getMutuallyExclusiveParams(paramName).filter((conflict) =>
+      hasValue(currentModelParams[conflict])
+    );
+
+    if (!conflicts.length) {
+      return '';
+    }
+
+    const formattedConflicts = conflicts.join(', ');
+    return `Clear ${formattedConflicts} to configure ${paramName}.`;
+  };
+
+  const renderClearAction = (paramName) => {
+    if (!getMutuallyExclusiveParams(paramName).length || !hasValue(currentModelParams[paramName])) {
+      return null;
+    }
+
+    return (
+      <Button size="small" variant="text" onClick={() => clearParamValue(paramName)}>
+        Clear
+      </Button>
+    );
+  };
 
   const builtInToolsForModel =
-  providers?.[selectedProvider]?.models?.[selectedModel]?.built_in_tools || [];
+    providers?.[selectedProvider]?.models?.[selectedModel]?.built_in_tools || [];
   
   const renderSchemaParamControls = () => {
     if (!modelParamSchema || Object.keys(modelParamSchema).length === 0) {
@@ -183,13 +186,28 @@ const ModelConfigDialog = ({
   const renderParamControl = (paramName, paramConfig) => {
     const value = currentModelParams[paramName];
     const controlledValue = value !== undefined ? value : paramConfig.default;
+    const disabled = isParamDisabled(paramName);
+    const disableReason = getDisableReason(paramName);
+    const clearAction = renderClearAction(paramName);
+    const wrapWithTooltip = (node) => (
+      disabled ? (
+        <Tooltip key={paramName} title={disableReason} placement="top">
+          <Box component="span" sx={{ display: 'block', width: '100%' }}>
+            {node}
+          </Box>
+        </Tooltip>
+      ) : node
+    );
 
     if (paramConfig.type === 'float' || paramConfig.type === 'integer') {
-      return (
+      return wrapWithTooltip(
         <Box key={paramName} sx={{ mb: 2 }}>
-          <Typography gutterBottom variant="body2" color="text.secondary">
-            {paramConfig.description || paramName}: <Typography component="span" variant="body1" color="text.primary">{controlledValue}</Typography>
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography gutterBottom variant="body2" color="text.secondary" sx={{ mr: 1 }}>
+              {paramConfig.description || paramName}: <Typography component="span" variant="body1" color="text.primary">{controlledValue}</Typography>
+            </Typography>
+            {clearAction}
+          </Box>
           <Slider
             value={controlledValue}
             onChange={(e, newValue) => handleParamChange(paramName, newValue)}
@@ -198,19 +216,21 @@ const ModelConfigDialog = ({
             step={paramConfig.type === 'float' ? (paramConfig.step || 0.1) : 1} 
             marks
             valueLabelDisplay="auto"
+            disabled={disabled}
           />
         </Box>
       );
     }
 
     if (paramConfig.type === 'choice') {
-      return (
-        <FormControl fullWidth key={paramName} sx={{ mb: 2 }}>
+      return wrapWithTooltip(
+        <FormControl fullWidth key={paramName} sx={{ mb: 2 }} disabled={disabled}>
           <InputLabel>{paramConfig.description || paramName}</InputLabel>
           <Select
             value={controlledValue} // controlledValue will now be the string choice
             label={paramConfig.description || paramName}
             onChange={(e) => handleParamChange(paramName, e.target.value)}
+            disabled={disabled}
           >
             {paramConfig.choices.map((choice) => ( // Iterate over choices directly
               <MenuItem key={choice} value={choice}>{choice}</MenuItem> // Value is the choice string
@@ -233,7 +253,7 @@ const ModelConfigDialog = ({
         handleParamChange(paramName, Array.from(newSelected)); // Update with array of selected strings
       };
 
-      return (
+      return wrapWithTooltip(
         <Box key={paramName} sx={{ mb: 2 }}>
           <Typography gutterBottom variant="body2" color="text.secondary">
             {paramConfig.description || paramName}
@@ -246,9 +266,11 @@ const ModelConfigDialog = ({
                   <Checkbox
                     checked={selectedChoices.has(choice)}
                     onChange={() => handleToggleChoice(choice)}
+                    disabled={disabled}
                   />
                 }
                 label={choice}
+                disabled={disabled}
               />
             ))}
           </FormGroup>
@@ -256,7 +278,7 @@ const ModelConfigDialog = ({
       );
     }
 
-    return (
+    return wrapWithTooltip(
       <TextField
         key={paramName}
         fullWidth
@@ -265,6 +287,7 @@ const ModelConfigDialog = ({
         onChange={(e) => handleParamChange(paramName, e.target.value)}
         sx={{ mb: 2 }}
         type={paramConfig.type === 'integer' ? 'number' : 'text'}
+        disabled={disabled}
       />
     );
   };
@@ -366,28 +389,6 @@ const ModelConfigDialog = ({
               {selectedProvider === 'gofannon' ? 'Agent Input Parameters' : 'Model Parameters'}
             </Typography>
             
-            {selectedModel && selectedProvider !== 'gofannon' && hasSamplingToggle && (
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  Sampling Method (use one, not both)
-                </Typography>
-                <ToggleButtonGroup
-                  value={samplingMode}
-                  exclusive
-                  onChange={handleSamplingModeChange}
-                  size="small"
-                  fullWidth
-                >
-                  <ToggleButton value="temperature">
-                    Temperature
-                  </ToggleButton>
-                  <ToggleButton value="top_p">
-                    Top-P (Nucleus)
-                  </ToggleButton>
-                </ToggleButtonGroup>
-              </Box>
-            )}
-            
             {selectedModel && (
               selectedProvider === 'gofannon'
                 ? renderSchemaParamControls()
@@ -396,11 +397,6 @@ const ModelConfigDialog = ({
                       const param = modelParamSchema[paramName];
                       // Skip params with null default
                       if (param.default === null) return false;
-                      // If we have sampling toggle, only show the active one
-                      if (hasSamplingToggle) {
-                        if (paramName === 'temperature' && samplingMode !== 'temperature') return false;
-                        if (paramName === 'top_p' && samplingMode !== 'top_p') return false;
-                      }
                       return true;
                     })
                     .map(paramName =>
