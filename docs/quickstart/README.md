@@ -7,9 +7,12 @@ cd gofannon/webapp/infra/docker
 ```
 Add .env file with these contents:
 ```bash
+# Only one provider is required. We're all biased and have our personal favorites, we won't force you to choose, here are a few popular ones. 
 OPENAI_API_KEY=sk-proj-your-key
 ANTHROPIC_API_KEY=sk-ant-your-key
-# GEMINI_API_KEY if you have one
+GEMINI_API_KEY=...
+
+# This will be for a locally running CouchDB Instance that will persist your agents and demos between runs. 
 COUCHDB_USER=admin
 COUCHDB_PASSWORD=password
 ```
