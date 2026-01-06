@@ -5,7 +5,7 @@
 git clone https://github.com/The-AI-Alliance/gofannon.git
 cd gofannon/webapp/infra/docker
 ```
-Add .env file with these contents:
+Add `webapp/infra/docker/.env` file with these contents:
 ```bash
 OPENAI_API_KEY=sk-proj-your-key
 ANTHROPIC_API_KEY=sk-ant-your-key
