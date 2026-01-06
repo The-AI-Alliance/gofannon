@@ -1,4 +1,5 @@
 from typing import Any, Dict, List
+from decimal import Decimal
 from fastapi import HTTPException
 import boto3
 from botocore.exceptions import ClientError
@@ -7,6 +8,25 @@ from .base import DatabaseService
 
 class DynamoDBService(DatabaseService):
     """DynamoDB implementation of the DatabaseService."""
+
+    @staticmethod
+    def _convert_floats_to_decimal(obj: Any) -> Any:
+        """
+        Recursively convert all float values to Decimal for DynamoDB compatibility.
+
+        Args:
+            obj: The object to convert (can be dict, list, float, or any other type)
+
+        Returns:
+            The same object structure with floats converted to Decimal
+        """
+        if isinstance(obj, float):
+            return Decimal(str(obj))
+        elif isinstance(obj, dict):
+            return {k: DynamoDBService._convert_floats_to_decimal(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [DynamoDBService._convert_floats_to_decimal(item) for item in obj]
+        return obj
 
     def __init__(self, region_name: str = None, endpoint_url: str = None, aws_access_key_id: str = None, aws_secret_access_key: str = None):
         """
@@ -88,7 +108,9 @@ class DynamoDBService(DatabaseService):
         try:
             # Ensure _id is set
             doc['_id'] = doc_id
-            table.put_item(Item=doc)
+            # Convert floats to Decimal for DynamoDB compatibility
+            doc_converted = self._convert_floats_to_decimal(doc)
+            table.put_item(Item=doc_converted)
             return {"id": doc_id, "rev": "dynamodb-rev"}
         except ClientError as e:
             raise HTTPException(status_code=500, detail=f"Failed to save document: {e}")
