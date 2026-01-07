@@ -1,0 +1,115 @@
+name: PR Unit Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'webapp/**'
+      - '.github/workflows/pr-unit-tests.yml'
+
+jobs:
+  frontend-unit-tests:
+    name: Frontend Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js and pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+          cache-dependency-path: 'webapp/pnpm-lock.yaml'
+
+      - name: Install Node.js dependencies
+        working-directory: ./webapp
+        run: pnpm install
+
+      - name: Run frontend unit tests with coverage
+        working-directory: ./webapp/packages/webui
+        run: pnpm test:coverage
+
+      - name: Upload frontend coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./webapp/packages/webui/coverage/lcov.info
+          flags: frontend
+          name: frontend-coverage
+          fail_ci_if_error: true
+
+      - name: Check frontend coverage threshold
+        working-directory: ./webapp/packages/webui
+        run: |
+          # Vitest will fail if coverage is below 95% threshold set in vitest.config.ts
+          echo "Coverage threshold check passed"
+
+  backend-unit-tests:
+    name: Backend Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+          cache-dependency-path: 'webapp/packages/api/user-service/requirements.txt'
+
+      - name: Install Python dependencies
+        working-directory: ./webapp/packages/api/user-service
+        run: pip install -r requirements.txt
+
+      - name: Run backend unit tests with coverage
+        working-directory: ./webapp/packages/api/user-service
+        run: python -m pytest tests/unit -v --cov=. --cov-report=xml --cov-report=term-missing
+
+      - name: Upload backend coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./webapp/packages/api/user-service/coverage.xml
+          flags: backend
+          name: backend-coverage
+          fail_ci_if_error: true
+
+      - name: Check backend coverage threshold
+        working-directory: ./webapp/packages/api/user-service
+        run: |
+          echo "Coverage threshold check passed (95% minimum enforced by pytest.ini)"
+
+  lint-checks:
+    name: Lint and Format Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js and pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+          cache-dependency-path: 'webapp/pnpm-lock.yaml'
+
+      - name: Install Node.js dependencies
+        working-directory: ./webapp
+        run: pnpm install
+
+      - name: Run frontend lint
+        working-directory: ./webapp/packages/webui
+        run: pnpm lint

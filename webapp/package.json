@@ -6,9 +6,16 @@
   "scripts": {
     "dev": "pnpm --filter webui dev",
     "build": "pnpm --filter webui build",
-    "test": "pnpm run test:api && pnpm run test:e2e",
-    "test:api": "cd packages/api/user-service && python -m pytest",
-    "test:e2e": "playwright test"
+    "test": "pnpm run test:unit && pnpm run test:integration",
+    "test:unit": "pnpm run test:unit:frontend && pnpm run test:unit:backend",
+    "test:unit:frontend": "pnpm --filter webui test",
+    "test:unit:backend": "cd packages/api/user-service && python -m pytest tests/unit -v",
+    "test:integration": "pnpm run test:integration:backend && pnpm run test:e2e",
+    "test:integration:backend": "cd packages/api/user-service && python -m pytest tests/integration -v",
+    "test:e2e": "playwright test",
+    "test:coverage": "pnpm run test:coverage:frontend && pnpm run test:coverage:backend",
+    "test:coverage:frontend": "pnpm --filter webui test:coverage",
+    "test:coverage:backend": "cd packages/api/user-service && python -m pytest tests/unit --cov=. --cov-report=html --cov-report=term-missing"
   },
   "devDependencies": {
     "@playwright/test": "^1.45.1",

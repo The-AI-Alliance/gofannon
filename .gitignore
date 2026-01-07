@@ -51,6 +51,14 @@ coverage.xml
 .pytest_cache/
 cover/
 
+# Vitest coverage
+webapp/packages/webui/coverage/
+
+# Playwright
+webapp/playwright-report/
+webapp/test-results/
+webapp/.playwright/
+
 # Translations
 *.mo
 *.pot

@@ -60,6 +60,13 @@ For a detailed overview of planned features and their current status, please ref
 
 Documentation can be found [here](https://github.com/The-AI-Alliance/gofannon/tree/main/docs). Each tool comes with its own documentation, which can be found in the docs/ directory. The documentation provides detailed information on how to use each tool, including required parameters and example usage.
 
+### Testing Documentation
+
+For information about running tests and contributing code with tests, see the [Testing Documentation](https://github.com/The-AI-Alliance/gofannon/tree/main/docs/testing):
+- [Testing Overview](https://github.com/The-AI-Alliance/gofannon/blob/main/docs/testing/README.md) - Quick start and testing strategy
+- [Unit Testing Guide](https://github.com/The-AI-Alliance/gofannon/blob/main/docs/testing/unit-testing.md) - How to write unit tests
+- [Contributing Tests](https://github.com/The-AI-Alliance/gofannon/blob/main/docs/testing/contributing.md) - PR requirements
+
 ## ☎️☎️ Contact Us ☎️☎️
 
 [Contact Information](https://the-ai-alliance.github.io/gofannon/community/contact.html)
