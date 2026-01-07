@@ -199,7 +199,7 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
             "created_at": datetime.utcnow().isoformat(),  # Use isoformat for JSON serialization
             "request": request.dict(by_alias=True),
         }
-        db_service.save("tickets", ticket_id, ticket_data)
+        db_service.save("tickets", ticket_id, dict(ticket_data))
 
         messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
 
@@ -279,18 +279,17 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
                 user_basic_info=user_basic_info,
             )
 
-        ticket_data.update(
-            {
-                "status": "completed",
-                "completed_at": datetime.utcnow().isoformat(),
-                "result": {
-                    "content": content,
-                    "thoughts": thoughts,
-                    "model": f"{request.provider}/{request.model}",
-                },
-            }
-        )
-        db_service.save("tickets", ticket_id, ticket_data)
+        completed_ticket_data = {
+            **ticket_data,
+            "status": "completed",
+            "completed_at": datetime.utcnow().isoformat(),
+            "result": {
+                "content": content,
+                "thoughts": thoughts,
+                "model": f"{request.provider}/{request.model}",
+            },
+        }
+        db_service.save("tickets", ticket_id, completed_ticket_data)
 
     except Exception as e:
         logger.log(

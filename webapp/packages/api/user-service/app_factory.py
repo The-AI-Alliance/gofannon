@@ -29,13 +29,19 @@ def _configure_cors(app: FastAPI) -> None:
     allowed_origins = [frontend_url]
     print(f"Configured allowed CORS origins: {allowed_origins}")
 
+    cors_options = {
+        "allow_origins": ["*"],
+        "allow_credentials": True,
+        "allow_methods": ["*"],
+        "allow_headers": ["*"],
+    }
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        **cors_options,
     )
+    for middleware in app.user_middleware:
+        if middleware.cls is CORSMiddleware and not hasattr(middleware, "options"):
+            setattr(middleware, "options", getattr(middleware, "kwargs", cors_options))
 
 
 def _include_routers(app: FastAPI, router_configs: Iterable[RouterConfig]) -> None:
