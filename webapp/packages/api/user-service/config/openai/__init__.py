@@ -598,8 +598,8 @@ models = {
     "gpt-4-turbo": {
         "returns_thoughts": False,
         "parameters": {
-            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0},
-            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0},
+            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0, "mutually_exclusive_with": ["top_p"]},
+            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0, "mutually_exclusive_with": ["temperature"]},
             "max_tokens": {"type": "int", "default": 4096, "min": 1, "max": 4096},
         },
         "built_in_tools": []
@@ -607,8 +607,8 @@ models = {
     "gpt-4-turbo-2024-04-09": {
         "returns_thoughts": False,
         "parameters": {
-            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0},
-            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0},
+            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0, "mutually_exclusive_with": ["top_p"]},
+            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0, "mutually_exclusive_with": ["temperature"]},
             "max_tokens": {"type": "int", "default": 4096, "min": 1, "max": 4096},
         },
         "built_in_tools": []
@@ -616,8 +616,8 @@ models = {
     "gpt-4-turbo-preview": {
         "returns_thoughts": False,
         "parameters": {
-            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0},
-            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0},
+            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0, "mutually_exclusive_with": ["top_p"]},
+            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0, "mutually_exclusive_with": ["temperature"]},
             "max_tokens": {"type": "int", "default": 4096, "min": 1, "max": 4096},
         },
         "built_in_tools": []
@@ -625,8 +625,8 @@ models = {
     "gpt-4-0125-preview": {
         "returns_thoughts": False,
         "parameters": {
-            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0},
-            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0},
+            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0, "mutually_exclusive_with": ["top_p"]},
+            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0, "mutually_exclusive_with": ["temperature"]},
             "max_tokens": {"type": "int", "default": 4096, "min": 1, "max": 4096},
         },
         "built_in_tools": []
@@ -634,8 +634,8 @@ models = {
     "gpt-4-1106-preview": {
         "returns_thoughts": False,
         "parameters": {
-            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0},
-            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0},
+            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0, "mutually_exclusive_with": ["top_p"]},
+            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0, "mutually_exclusive_with": ["temperature"]},
             "max_tokens": {"type": "int", "default": 4096, "min": 1, "max": 4096},
         },
         "built_in_tools": []
@@ -647,8 +647,8 @@ models = {
     "gpt-4": {
         "returns_thoughts": False,
         "parameters": {
-            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0},
-            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0},
+            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0, "mutually_exclusive_with": ["top_p"]},
+            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0, "mutually_exclusive_with": ["temperature"]},
             "max_tokens": {"type": "int", "default": 8192, "min": 1, "max": 8192},
         },
         "built_in_tools": []
@@ -656,8 +656,8 @@ models = {
     "gpt-4-0613": {
         "returns_thoughts": False,
         "parameters": {
-            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0},
-            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0},
+            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0, "mutually_exclusive_with": ["top_p"]},
+            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0, "mutually_exclusive_with": ["temperature"]},
             "max_tokens": {"type": "int", "default": 8192, "min": 1, "max": 8192},
         },
         "built_in_tools": []
@@ -669,8 +669,8 @@ models = {
     "gpt-3.5-turbo": {
         "returns_thoughts": False,
         "parameters": {
-            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0},
-            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0},
+            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0, "mutually_exclusive_with": ["top_p"]},
+            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0, "mutually_exclusive_with": ["temperature"]},
             "max_tokens": {"type": "int", "default": 4096, "min": 1, "max": 4096},
         },
         "built_in_tools": []
@@ -678,8 +678,8 @@ models = {
     "gpt-3.5-turbo-0125": {
         "returns_thoughts": False,
         "parameters": {
-            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0},
-            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0},
+            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0, "mutually_exclusive_with": ["top_p"]},
+            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0, "mutually_exclusive_with": ["temperature"]},
             "max_tokens": {"type": "int", "default": 4096, "min": 1, "max": 4096},
         },
         "built_in_tools": []
@@ -687,8 +687,8 @@ models = {
     "gpt-3.5-turbo-1106": {
         "returns_thoughts": False,
         "parameters": {
-            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0},
-            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0},
+            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0, "mutually_exclusive_with": ["top_p"]},
+            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0, "mutually_exclusive_with": ["temperature"]},
             "max_tokens": {"type": "int", "default": 4096, "min": 1, "max": 4096},
         },
         "built_in_tools": []
@@ -696,8 +696,8 @@ models = {
     "gpt-3.5-turbo-16k": {
         "returns_thoughts": False,
         "parameters": {
-            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0},
-            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0},
+            "temperature": {"type": "float", "default": 0.7, "min": 0.0, "max": 2.0, "mutually_exclusive_with": ["top_p"]},
+            "top_p": {"type": "float", "default": 1.0, "min": 0.0, "max": 1.0, "mutually_exclusive_with": ["temperature"]},
             "max_tokens": {"type": "int", "default": 4096, "min": 1, "max": 16384},
         },
         "built_in_tools": []
