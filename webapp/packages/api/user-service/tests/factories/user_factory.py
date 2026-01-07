@@ -1,7 +1,10 @@
 """Factory classes for generating test User data."""
 import factory
 from factory import Faker
-from datetime import timezone
+from faker import Faker as FakerLib
+
+
+faker = FakerLib()
 
 
 class UserFactory(factory.Factory):
@@ -10,13 +13,25 @@ class UserFactory(factory.Factory):
     class Meta:
         model = dict
 
-    uid = Faker('uuid4')
-    email = Faker('email')
-    email_verified = True
-    display_name = Faker('name')
-    photo_url = Faker('image_url')
-    created_at = Faker('iso8601', tzinfo=timezone.utc)
-    last_sign_in_time = Faker('iso8601', tzinfo=timezone.utc)
+    _id = Faker("uuid4")
+    _rev = Faker("uuid4")
+    createdAt = Faker("date_time")
+    updatedAt = Faker("date_time")
+    basicInfo = factory.LazyFunction(
+        lambda: {
+            "displayName": faker.name(),
+            "email": faker.email(),
+        }
+    )
+    billingInfo = factory.LazyFunction(lambda: {"plan": None, "status": None})
+    usageInfo = factory.LazyFunction(
+        lambda: {
+            "monthlyAllowance": 100.0,
+            "allowanceResetDate": 0.0,
+            "spendRemaining": 100.0,
+            "usage": [],
+        }
+    )
 
 
 class UnverifiedUserFactory(UserFactory):

@@ -34,8 +34,8 @@ class TestUserService:
         user = user_service._create_default_user("test-user-id")
 
         assert user.id == "test-user-id"
-        assert user.basic_info["displayName"] is None
-        assert user.basic_info["email"] is None
+        assert user.basic_info.display_name is None
+        assert user.basic_info.email is None
         assert isinstance(user.created_at, datetime)
         assert isinstance(user.updated_at, datetime)
 
@@ -48,8 +48,8 @@ class TestUserService:
         user = user_service._create_default_user("test-user-id", basic_info)
 
         assert user.id == "test-user-id"
-        assert user.basic_info["displayName"] == "Test User"
-        assert user.basic_info["email"] == "test@example.com"
+        assert user.basic_info.display_name == "Test User"
+        assert user.basic_info.email == "test@example.com"
 
     def test_get_user_existing(self, user_service, mock_db):
         """Test getting an existing user."""
@@ -59,7 +59,7 @@ class TestUserService:
         user = user_service.get_user("test-user-id")
 
         mock_db.get.assert_called_once_with("users", "test-user-id")
-        assert user.id == user_data["uid"]
+        assert user.id == user_data["_id"]
 
     def test_get_user_not_found_creates_new(self, user_service, mock_db):
         """Test that getting a non-existent user creates a new one."""
@@ -109,7 +109,7 @@ class TestUserService:
 
         user = user_service.require_allowance("test-user-id", minimum_remaining=1.0)
 
-        assert user.id == user_data["uid"]
+        assert user.id == user_data["_id"]
 
     def test_require_allowance_insufficient(self, user_service, mock_db):
         """Test require_allowance raises error when insufficient allowance."""
@@ -187,7 +187,7 @@ class TestUserService:
 
         assert len(updated_user.usage_info.usage) == initial_usage_count + 1
         assert updated_user.usage_info.spend_remaining == 75.0
-        assert updated_user.usage_info.usage[-1].responseCost == 25.0
+        assert updated_user.usage_info.usage[-1].response_cost == 25.0
 
     def test_add_usage_prevents_negative_remaining(self, user_service, mock_db):
         """Test that add_usage prevents negative spend_remaining."""
@@ -216,6 +216,31 @@ class TestUserService:
         assert updated_user.usage_info.allowance_reset_date == 1234567890.0
         assert updated_user.usage_info.spend_remaining == 150.0
         mock_db.save.assert_called_once()
+
+    def test_set_reset_date(self, user_service, mock_db):
+        """Test setting the allowance reset date."""
+        user_data = UserFactory.build()
+        mock_db.get.return_value = user_data
+
+        updated_user = user_service.set_reset_date("test-user-id", 9876543210.0)
+
+        assert updated_user.usage_info.allowance_reset_date == 9876543210.0
+        mock_db.save.assert_called_once()
+
+    def test_update_user_usage_info_caps_spend_remaining(self, user_service, mock_db):
+        """Test update_user_usage_info caps spend_remaining when allowance drops."""
+        user_data = UserFactory.build()
+        user = User(**user_data)
+        user.usage_info.spend_remaining = 120.0
+        mock_db.get.return_value = user.model_dump(by_alias=True, mode="json")
+
+        updated_user = user_service.update_user_usage_info(
+            "test-user-id",
+            monthly_allowance=100.0,
+        )
+
+        assert updated_user.usage_info.monthly_allowance == 100.0
+        assert updated_user.usage_info.spend_remaining == 100.0
 
     def test_get_user_service_singleton(self, mock_db):
         """Test that get_user_service returns a singleton instance."""
