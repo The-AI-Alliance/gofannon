@@ -1,6 +1,6 @@
 import boto3
 from botocore.client import Config
-from ..config import settings
+from config import settings
 from google.cloud import storage
 
 class StorageService:
