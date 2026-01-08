@@ -17,7 +17,7 @@ This directory contains comprehensive documentation for testing the Gofannon pro
 
 Gofannon maintains a comprehensive testing strategy with:
 
-- **95% minimum code coverage** for all new code
+- **95% minimum code coverage** for all new code (goal not enforced yet)
 - **Unit tests** run on every PR
 - **Integration tests** run nightly
 - **Fast feedback** - unit tests complete in under 2 minutes
