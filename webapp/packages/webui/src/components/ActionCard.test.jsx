@@ -63,6 +63,7 @@ describe('ActionCard', () => {
     render(<ActionCard {...defaultProps} title="Very Long Title That Should Not Wrap" />);
 
     const title = screen.getByText('Very Long Title That Should Not Wrap');
+    // eslint-disable-next-line no-unused-vars
     const parentBox = title.parentElement;
 
     expect(title).toHaveStyle({ overflow: 'hidden' });
