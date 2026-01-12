@@ -50,6 +50,7 @@ const ModelConfigDialog = ({
     const paramConfig = schema[paramName] || {};
     const forward = paramConfig.mutually_exclusive_with || [];
     const reverse = Object.entries(schema)
+    // eslint-disable-next-line no-unused-vars
       .filter(([otherName, config]) => (config?.mutually_exclusive_with || []).includes(paramName))
       .map(([otherName]) => otherName);
     return Array.from(new Set([...forward, ...reverse]));

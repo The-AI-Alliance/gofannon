@@ -21,12 +21,10 @@ import AdminPanel from '../pages/AdminPanel';
 // import extendRoutes from '../extensions/routes/routeExtensions';
 
 const isAdminPanelEnabled = () => {
-  const envValue = import.meta.env.VITE_ADMIN_PANEL_ENABLED
-    ?? (typeof process !== 'undefined' ? process.env.ADMIN_PANEL_ENABLED : undefined)
-    ?? 'false';
-  const raw = envValue.toString();
+  const raw = (import.meta.env.VITE_ADMIN_PANEL_ENABLED ?? 'false').toString();
   return raw.toLowerCase() === 'true';
 };
+
 
 export const defaultRoutes = [
   {
