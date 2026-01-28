@@ -462,7 +462,13 @@ async def list_deployments(db: DatabaseService):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def run_deployed_agent(friendly_name: str, input_dict: dict, db: DatabaseService):
+async def run_deployed_agent(
+    friendly_name: str, 
+    input_dict: dict, 
+    db: DatabaseService,
+    user_id: Optional[str] = None,
+    user_basic_info: Optional[Dict[str, Any]] = None,
+):
     try:
         deployment_doc = db.get("deployments", friendly_name)
         agent_id = deployment_doc["agentId"]
@@ -476,6 +482,8 @@ async def run_deployed_agent(friendly_name: str, input_dict: dict, db: DatabaseS
             tools=agent.tools,
             gofannon_agents=agent.gofannon_agents,
             db=db,
+            user_id=user_id,
+            user_basic_info=user_basic_info,
         )
         return result
     except HTTPException as e:

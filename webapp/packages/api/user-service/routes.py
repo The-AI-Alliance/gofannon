@@ -596,10 +596,25 @@ async def run_agent_code(
 
 
 @router.post("/rest/{friendly_name}")
-async def run_deployed_agent_route(friendly_name: str, request: Request, db: DatabaseService = Depends(get_db)):
-    """Public endpoint to run a deployed agent by its friendly_name."""
+async def run_deployed_agent_route(
+    friendly_name: str, 
+    request: Request, 
+    db: DatabaseService = Depends(get_db),
+    user: dict = Depends(get_current_user)
+):
+    """Run a deployed agent by its friendly_name. Requires authentication."""
     input_dict = await request.json()
-    return await run_deployed_agent_logic(friendly_name, input_dict, db)
+    user_basic_info = {
+        "email": user.get("email"),
+        "name": user.get("name") or user.get("displayName"),
+    }
+    return await run_deployed_agent_logic(
+        friendly_name, 
+        input_dict, 
+        db, 
+        user_id=user.get("uid"),
+        user_basic_info=user_basic_info,
+    )
 
 
 @router.post("/demos/generate-code", response_model=GenerateDemoCodeResponse)
@@ -609,7 +624,15 @@ async def generate_demo_app_code(request: GenerateDemoCodeRequest, user: dict = 
     """
     from agent_factory.demo_factory import generate_demo_code
     try:
-        code_response = await generate_demo_code(request)
+        user_basic_info = {
+            "email": user.get("email"),
+            "name": user.get("name") or user.get("displayName"),
+        }
+        code_response = await generate_demo_code(
+            request,
+            user_id=user.get("uid"),
+            user_basic_info=user_basic_info,
+        )
         return code_response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating demo code: {e}")
