@@ -83,6 +83,28 @@ describe('ProfileMenu', () => {
     expect(screen.getByText('Billing')).toBeInTheDocument();
   });
 
+  it('has API Keys menu item', async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<ProfileMenu />);
+
+    const button = screen.getByRole('button', { name: /account of current user/i });
+    await user.click(button);
+
+    expect(screen.getByText('API Keys')).toBeInTheDocument();
+  });
+
+  it('navigates to API Keys when clicked', async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<ProfileMenu />);
+
+    const button = screen.getByRole('button', { name: /account of current user/i });
+    await user.click(button);
+
+    const apiKeysItem = screen.getByText('API Keys');
+    expect(apiKeysItem).toBeInTheDocument();
+    await user.click(apiKeysItem);
+  });
+
   it('menu button has proper attributes', () => {
     renderWithRouter(<ProfileMenu />);
 
