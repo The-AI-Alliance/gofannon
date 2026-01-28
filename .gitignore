@@ -174,3 +174,6 @@ _site
 
 # Generated docs (synced from /docs by sync-docs script)
 website/docs/
+
+.vscode/
+.claude/

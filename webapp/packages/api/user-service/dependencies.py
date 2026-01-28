@@ -235,12 +235,42 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
         db_service.save("tickets", ticket_id, ticket_data)
 
 
-def get_available_providers():
+def get_available_providers(user_id: Optional[str] = None, user_basic_info: Optional[Dict[str, Any]] = None):
+    """
+    Get available providers.
+    
+    If user_id is provided, checks user's stored API keys first,
+    then falls back to environment variables.
+    """
     db_service = get_database_service(settings)
     available_providers: Dict[str, Any] = {}
+    
+    # Get user service if user_id is provided
+    user_service = None
+    if user_id:
+        user_service = get_user_service(db_service)
+    
     for provider, config in APP_PROVIDER_CONFIG.items():
         api_key_env_var = config.get("api_key_env_var")
-        if not api_key_env_var or os.getenv(api_key_env_var):
+        
+        # Check if provider is available
+        is_available = False
+        
+        # First, check if user has a stored API key for this provider
+        if user_service and user_id:
+            user_key = user_service.get_effective_api_key(user_id, provider, basic_info=user_basic_info)
+            if user_key:
+                is_available = True
+        
+        # If no user key, check environment variable
+        if not is_available and (not api_key_env_var or os.getenv(api_key_env_var)):
+            is_available = True
+        
+        # Ollama doesn't require an API key
+        if not api_key_env_var:
+            is_available = True
+        
+        if is_available:
             available_providers[provider] = config
 
     try:

@@ -81,6 +81,15 @@ async def call_llm(
     if user_service and user_id:
         user_service.require_allowance(user_id, basic_info=user_basic_info)
 
+    # Get the effective API key (user's key takes precedence over env var)
+    api_key = None
+    if user_service and user_id:
+        api_key = user_service.get_effective_api_key(user_id, provider, basic_info=user_basic_info)
+    
+    # If no user-specific key, litellm will use environment variables
+    if api_key:
+        kwargs["api_key"] = api_key
+
     # Only use aresponses API when we actually need its features (tools or reasoning)
     # Otherwise use standard acompletion which is more reliable
     use_responses_api = (
@@ -323,6 +332,15 @@ async def stream_llm(
 
     if user_service and user_id:
         user_service.require_allowance(user_id, basic_info=user_basic_info)
+
+    # Get the effective API key (user's key takes precedence over env var)
+    api_key = None
+    if user_service and user_id:
+        api_key = user_service.get_effective_api_key(user_id, provider, basic_info=user_basic_info)
+    
+    # If no user-specific key, litellm will use environment variables
+    if api_key:
+        kwargs["api_key"] = api_key
 
     try:
         response = await litellm.acompletion(**kwargs)

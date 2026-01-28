@@ -41,7 +41,7 @@ from models.demo import (
     GenerateDemoCodeRequest,
     GenerateDemoCodeResponse,
 )
-from models.user import User
+from models.user import User, ApiKeys
 from services.database_service import DatabaseService
 from services.mcp_client_service import McpClientService, get_mcp_client_service
 from services.observability_service import (
@@ -171,33 +171,33 @@ async def log_client_event(
 
 
 @router.get("/providers")
-def get_providers():
+def get_providers(user: dict = Depends(get_current_user)):
     """Get all available providers and their configurations"""
-    return get_available_providers()
+    return get_available_providers(user.get("uid", "anonymous"), user)
 
 
 @router.get("/providers/{provider}")
-def get_provider_config_route(provider: str):
+def get_provider_config_route(provider: str, user: dict = Depends(get_current_user)):
     """Get configuration for a specific provider"""
-    available_providers = get_available_providers()
+    available_providers = get_available_providers(user.get("uid", "anonymous"), user)
     if provider not in available_providers:
         raise HTTPException(status_code=404, detail="Provider not found or not configured")
     return available_providers[provider]
 
 
 @router.get("/providers/{provider}/models")
-def get_provider_models(provider: str):
+def get_provider_models(provider: str, user: dict = Depends(get_current_user)):
     """Get available models for a provider"""
-    available_providers = get_available_providers()
+    available_providers = get_available_providers(user.get("uid", "anonymous"), user)
     if provider not in available_providers:
         raise HTTPException(status_code=404, detail="Provider not found or not configured")
     return list(available_providers[provider]["models"].keys())
 
 
 @router.get("/providers/{provider}/models/{model}")
-def get_model_config(provider: str, model: str):
+def get_model_config(provider: str, model: str, user: dict = Depends(get_current_user)):
     """Get configuration for a specific model"""
-    available_providers = get_available_providers()
+    available_providers = get_available_providers(user.get("uid", "anonymous"), user)
     if provider not in available_providers:
         raise HTTPException(status_code=404, detail="Provider not found or not configured")
     if model not in available_providers[provider]["models"]:
@@ -272,6 +272,67 @@ def add_usage_entry(
     user_service: UserService = Depends(get_user_service_dep),
 ):
     return user_service.add_usage(user.get("uid", "anonymous"), request.response_cost, request.metadata, user)
+
+
+# --- API Key Management Routes ---
+
+@router.get("/users/me/api-keys", response_model=ApiKeys)
+def get_user_api_keys(
+    user: dict = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service_dep),
+):
+    """Get the current user's API keys (keys are masked for security)"""
+    return user_service.get_api_keys(user.get("uid", "anonymous"), user)
+
+
+class UpdateApiKeyRequest(BaseModel):
+    provider: str
+    api_key: str
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+@router.put("/users/me/api-keys", response_model=User)
+def update_user_api_key(
+    request: UpdateApiKeyRequest,
+    user: dict = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service_dep),
+):
+    """Update an API key for a specific provider"""
+    return user_service.update_api_key(
+        user.get("uid", "anonymous"), 
+        request.provider, 
+        request.api_key, 
+        user
+    )
+
+
+@router.delete("/users/me/api-keys/{provider}", response_model=User)
+def delete_user_api_key(
+    provider: str,
+    user: dict = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service_dep),
+):
+    """Delete (clear) an API key for a specific provider"""
+    return user_service.delete_api_key(user.get("uid", "anonymous"), provider, user)
+
+
+@router.get("/users/me/api-keys/{provider}/effective")
+def get_effective_api_key(
+    provider: str,
+    user: dict = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service_dep),
+):
+    """
+    Check if an effective API key exists for a provider.
+    Returns whether a key is available (does not expose the actual key).
+    """
+    key = user_service.get_effective_api_key(user.get("uid", "anonymous"), provider, user)
+    return {
+        "provider": provider,
+        "has_key": key is not None and len(key) > 0,
+        "source": "user" if user_service.get_api_keys(user.get("uid", "anonymous"), user).dict().get(f"{provider}_api_key") else ("env" if key else None)
+    }
 
 
 @router.post("/chat")

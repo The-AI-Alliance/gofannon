@@ -3,7 +3,7 @@ import pytest
 from datetime import datetime
 from pydantic import ValidationError
 
-from models.user import User, UsageEntry, UsageInfo, BillingInfo, BasicInfo
+from models.user import User, UsageEntry, UsageInfo, BillingInfo, BasicInfo, ApiKeys
 
 
 pytestmark = pytest.mark.unit
@@ -123,6 +123,65 @@ class TestBasicInfo:
         assert basic_info.email == "test@example.com"
 
 
+class TestApiKeys:
+    """Test suite for ApiKeys model."""
+
+    def test_api_keys_defaults(self):
+        """Test ApiKeys default values (all None)."""
+        api_keys = ApiKeys()
+
+        assert api_keys.openai_api_key is None
+        assert api_keys.anthropic_api_key is None
+        assert api_keys.gemini_api_key is None
+        assert api_keys.perplexity_api_key is None
+
+    def test_api_keys_with_values(self):
+        """Test ApiKeys with custom values."""
+        api_keys = ApiKeys(
+            openaiApiKey="sk-openai-test",
+            anthropicApiKey="sk-ant-test",
+            geminiApiKey="gemini-test",
+            perplexityApiKey="pplx-test"
+        )
+
+        assert api_keys.openai_api_key == "sk-openai-test"
+        assert api_keys.anthropic_api_key == "sk-ant-test"
+        assert api_keys.gemini_api_key == "gemini-test"
+        assert api_keys.perplexity_api_key == "pplx-test"
+
+    def test_api_keys_snake_case_fields(self):
+        """Test ApiKeys accepts snake_case field names."""
+        api_keys = ApiKeys(
+            openai_api_key="sk-openai-test",
+            anthropic_api_key="sk-ant-test"
+        )
+
+        assert api_keys.openai_api_key == "sk-openai-test"
+        assert api_keys.anthropic_api_key == "sk-ant-test"
+
+    def test_api_keys_alias_mapping(self):
+        """Test that camelCase aliases work correctly for ApiKeys."""
+        api_keys = ApiKeys(
+            openaiApiKey="sk-openai-test",
+            anthropicApiKey="sk-ant-test"
+        )
+        data = api_keys.model_dump(by_alias=True)
+
+        assert "openaiApiKey" in data
+        assert "anthropicApiKey" in data
+        assert data["openaiApiKey"] == "sk-openai-test"
+        assert data["anthropicApiKey"] == "sk-ant-test"
+
+    def test_api_keys_partial_values(self):
+        """Test ApiKeys with only some values set."""
+        api_keys = ApiKeys(openaiApiKey="sk-openai-test")
+
+        assert api_keys.openai_api_key == "sk-openai-test"
+        assert api_keys.anthropic_api_key is None
+        assert api_keys.gemini_api_key is None
+        assert api_keys.perplexity_api_key is None
+
+
 class TestUser:
     """Test suite for User model."""
 
@@ -137,6 +196,7 @@ class TestUser:
         assert isinstance(user.basic_info, BasicInfo)
         assert isinstance(user.billing_info, BillingInfo)
         assert isinstance(user.usage_info, UsageInfo)
+        assert isinstance(user.api_keys, ApiKeys)
 
     def test_user_creation_full(self):
         """Test creating a User with all fields."""
@@ -148,7 +208,8 @@ class TestUser:
             updatedAt=now,
             basicInfo=BasicInfo(displayName="Test User", email="test@example.com"),
             billingInfo=BillingInfo(plan="premium", status="active"),
-            usageInfo=UsageInfo(monthlyAllowance=200.0, spendRemaining=150.0)
+            usageInfo=UsageInfo(monthlyAllowance=200.0, spendRemaining=150.0),
+            apiKeys=ApiKeys(openaiApiKey="sk-test", anthropicApiKey="sk-ant-test")
         )
 
         assert user.id == "test-user-123"
@@ -157,6 +218,8 @@ class TestUser:
         assert user.basic_info.display_name == "Test User"
         assert user.billing_info.plan == "premium"
         assert user.usage_info.monthly_allowance == 200.0
+        assert user.api_keys.openai_api_key == "sk-test"
+        assert user.api_keys.anthropic_api_key == "sk-ant-test"
 
     def test_user_missing_id_raises_validation_error(self):
         """Test that creating a User without an ID raises ValidationError."""
@@ -169,7 +232,8 @@ class TestUser:
         """Test that model_dump uses camelCase aliases."""
         user = User(
             _id="test-user-123",
-            basicInfo=BasicInfo(displayName="Test User", email="test@example.com")
+            basicInfo=BasicInfo(displayName="Test User", email="test@example.com"),
+            apiKeys=ApiKeys(openaiApiKey="sk-test")
         )
         data = user.model_dump(by_alias=True, mode="json")
 
@@ -177,7 +241,9 @@ class TestUser:
         assert "basicInfo" in data
         assert "createdAt" in data
         assert "updatedAt" in data
+        assert "apiKeys" in data
         assert data["basicInfo"]["displayName"] == "Test User"
+        assert data["apiKeys"]["openaiApiKey"] == "sk-test"
 
     def test_user_from_dict_with_aliases(self):
         """Test creating User from dict with camelCase keys."""
@@ -192,6 +258,10 @@ class TestUser:
             "usageInfo": {
                 "monthlyAllowance": 200.0,
                 "spendRemaining": 175.0
+            },
+            "apiKeys": {
+                "openaiApiKey": "sk-openai",
+                "anthropicApiKey": "sk-ant"
             }
         }
         user = User(**data)
@@ -199,6 +269,8 @@ class TestUser:
         assert user.id == "test-user-123"
         assert user.basic_info.display_name == "Test User"
         assert user.usage_info.monthly_allowance == 200.0
+        assert user.api_keys.openai_api_key == "sk-openai"
+        assert user.api_keys.anthropic_api_key == "sk-ant"
 
     def test_user_nested_usage_entries(self):
         """Test User with nested usage entries."""
@@ -217,3 +289,25 @@ class TestUser:
         assert len(user.usage_info.usage) == 2
         assert user.usage_info.usage[0].response_cost == 25.0
         assert user.usage_info.usage[1].metadata["model"] == "gpt-4"
+
+    def test_user_with_empty_api_keys(self):
+        """Test User with empty/default ApiKeys."""
+        user = User(_id="test-user-123")
+
+        assert isinstance(user.api_keys, ApiKeys)
+        assert user.api_keys.openai_api_key is None
+        assert user.api_keys.anthropic_api_key is None
+
+    def test_user_api_keys_from_dict_with_snake_case(self):
+        """Test creating User with api_keys using snake_case."""
+        data = {
+            "_id": "test-user-123",
+            "api_keys": {
+                "openai_api_key": "sk-openai",
+                "anthropic_api_key": "sk-ant"
+            }
+        }
+        user = User(**data)
+
+        assert user.api_keys.openai_api_key == "sk-openai"
+        assert user.api_keys.anthropic_api_key == "sk-ant"
