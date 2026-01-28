@@ -515,7 +515,11 @@ async def list_mcp_tools(
 async def generate_agent_code(request: GenerateCodeRequest, user: dict = Depends(get_current_user)):
     """Generates agent code based on the provided configuration."""
     from agent_factory import generate_agent_code as generate_code_function
-    code = await generate_code_function(request)
+    user_basic_info = {
+        "email": user.get("email"),
+        "name": user.get("name") or user.get("displayName"),
+    }
+    code = await generate_code_function(request, user_id=user.get("uid"), user_basic_info=user_basic_info)
     return code
 
 
@@ -562,12 +566,18 @@ async def run_agent_code(
     """Executes agent code in a sandboxed environment."""
     logger.log("INFO", "user_action", "Attempting to run agent code in sandbox.", metadata={"request": get_sanitized_request_data(req)})
     try:
+        user_basic_info = {
+            "email": user.get("email"),
+            "name": user.get("name") or user.get("displayName"),
+        }
         result = await _execute_agent_code(
             code=request.code,
             input_dict=request.input_dict,
             tools=request.tools,
             gofannon_agents=request.gofannon_agents,
-            db=db
+            db=db,
+            user_id=user.get("uid"),
+            user_basic_info=user_basic_info,
         )
 
         logger.log("INFO", "sandbox_run", "Agent code executed successfully.", metadata={"request": get_sanitized_request_data(req)})

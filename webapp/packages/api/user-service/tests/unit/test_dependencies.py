@@ -105,7 +105,7 @@ def run(input_dict, tools):
 
 @pytest.mark.asyncio
 async def test_execute_agent_code_with_call_llm(monkeypatch):
-    """Test agent code that uses call_llm."""
+    """Test agent code that uses call_llm with user context."""
     call_llm_args = {}
 
     async def fake_call_llm(**kwargs):
@@ -120,8 +120,6 @@ async def run(input_dict, tools):
         model="gpt-4",
         messages=[{"role": "user", "content": input_dict["message"]}],
         parameters={},
-        user_service=None,
-        user_id=None,
     )
     return {"outputText": content}
 """
@@ -130,11 +128,22 @@ async def run(input_dict, tools):
     # We need to patch call_llm at the module level before exec_globals is created
     monkeypatch.setattr(dependencies_module, "call_llm", fake_call_llm)
 
-    result = await _execute_agent_code(code, {"message": "test prompt"}, {}, [], db_service)
+    result = await _execute_agent_code(
+        code, 
+        {"message": "test prompt"}, 
+        {}, 
+        [], 
+        db_service,
+        user_id="test-user",
+        user_basic_info={"email": "test@example.com"}
+    )
 
     assert result == {"outputText": "LLM response content"}
     assert call_llm_args["provider"] == "openai"
     assert call_llm_args["model"] == "gpt-4"
+    # Verify user context is passed
+    assert call_llm_args["user_id"] == "test-user"
+    assert call_llm_args["user_basic_info"] == {"email": "test@example.com"}
 
 
 @pytest.mark.asyncio
@@ -174,7 +183,7 @@ async def test_process_chat_gofannon_flow(monkeypatch):
 
     fake_logger = FakeLogger()
 
-    async def fake_execute_agent_code(*, code, input_dict, tools, gofannon_agents, db):
+    async def fake_execute_agent_code(*, code, input_dict, tools, gofannon_agents, db, user_id=None, user_basic_info=None):
         return {"outputText": f"agent:{input_dict['inputText']}"}
 
     monkeypatch.setattr(dependencies_module, "get_database_service", lambda _settings: db_service)

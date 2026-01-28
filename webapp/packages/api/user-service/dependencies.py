@@ -51,8 +51,18 @@ def require_admin_access(admin_password: str | None = Header(default=None, alias
         raise HTTPException(status_code=401, detail="Invalid admin password")
 
 
-async def _execute_agent_code(code: str, input_dict: dict, tools: dict, gofannon_agents: List[str], db: DatabaseService):
+async def _execute_agent_code(
+    code: str, 
+    input_dict: dict, 
+    tools: dict, 
+    gofannon_agents: List[str], 
+    db: DatabaseService,
+    user_id: Optional[str] = None,
+    user_basic_info: Optional[Dict[str, Any]] = None,
+):
     """Helper function for recursive execution of agent code."""
+    # Get user service for API key lookup if user_id is provided
+    user_service = get_user_service(db) if user_id else None
 
     class GofannonClient:
         def __init__(self, agent_ids: List[str], db_service: DatabaseService):
@@ -79,11 +89,40 @@ async def _execute_agent_code(code: str, input_dict: dict, tools: dict, gofannon
                 tools=agent_to_run.tools,
                 gofannon_agents=agent_to_run.gofannon_agents,
                 db=self.db,
+                user_id=user_id,
+                user_basic_info=user_basic_info,
             )
+
+    # Create a wrapped call_llm that includes user context
+    async def call_llm_with_context(
+        provider: str,
+        model: str,
+        messages: List[Dict[str, Any]],
+        parameters: Dict[str, Any],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        **kwargs
+    ):
+        """Wrapped call_llm that includes user context for API key lookup."""
+        # Remove user context kwargs if they were passed by generated code
+        # (we'll set them explicitly from the outer scope)
+        kwargs.pop("user_service", None)
+        kwargs.pop("user_id", None)
+        kwargs.pop("user_basic_info", None)
+        return await call_llm(
+            provider=provider,
+            model=model,
+            messages=messages,
+            parameters=parameters,
+            tools=tools,
+            user_service=user_service,
+            user_id=user_id,
+            user_basic_info=user_basic_info,
+            **kwargs
+        )
 
     exec_globals = {
         "RemoteMCPClient": RemoteMCPClient,
-        "call_llm": call_llm,  # Use centralized LLM service
+        "call_llm": call_llm_with_context,  # Use wrapped LLM service with user context
         "asyncio": asyncio,
         "httpx": httpx,
         "re": __import__('re'),
@@ -161,6 +200,8 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
                 tools=agent.tools,
                 gofannon_agents=agent.gofannon_agents,
                 db=db_service,
+                user_id=user.get("uid"),
+                user_basic_info=user_basic_info,
             )
 
             if isinstance(result, dict):
