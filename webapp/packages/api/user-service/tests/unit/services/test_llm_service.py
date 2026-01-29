@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -191,3 +191,226 @@ async def test_stream_llm_filters_none_params(monkeypatch):
     assert "top_p" not in call_kwargs
     assert "max_tokens" in call_kwargs
     assert call_kwargs["stream"] is True
+
+
+class TestLLMServiceApiKeys:
+    """Test suite for LLM service API key integration."""
+
+    @pytest.mark.asyncio
+    async def test_call_llm_uses_user_api_key_when_set(self, monkeypatch):
+        """Test that user API key is passed to litellm when set."""
+        call_kwargs = {}
+
+        async def fake_acompletion(**kwargs):
+            call_kwargs.update(kwargs)
+            return _DummyResponse("hello", total_cost=1.0)
+
+        monkeypatch.setattr(llm_service.litellm, "acompletion", fake_acompletion)
+        monkeypatch.setattr(llm_service, "get_observability_service", lambda: Mock())
+
+        user_service = Mock()
+        user_service.get_effective_api_key.return_value = "user-specific-api-key"
+
+        content, thoughts = await llm_service.call_llm(
+            provider="openai",
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": "hi"}],
+            parameters={},
+            user_service=user_service,
+            user_id="user-1",
+        )
+
+        # Verify the user API key was passed to litellm
+        assert "api_key" in call_kwargs
+        assert call_kwargs["api_key"] == "user-specific-api-key"
+        user_service.get_effective_api_key.assert_called_once_with("user-1", "openai", basic_info=None)
+
+    @pytest.mark.asyncio
+    async def test_call_llm_no_api_key_when_not_set(self, monkeypatch):
+        """Test that no api_key is passed when user has no key set."""
+        call_kwargs = {}
+
+        async def fake_acompletion(**kwargs):
+            call_kwargs.update(kwargs)
+            return _DummyResponse("hello", total_cost=1.0)
+
+        monkeypatch.setattr(llm_service.litellm, "acompletion", fake_acompletion)
+        monkeypatch.setattr(llm_service, "get_observability_service", lambda: Mock())
+
+        user_service = Mock()
+        user_service.get_effective_api_key.return_value = None
+
+        content, thoughts = await llm_service.call_llm(
+            provider="openai",
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": "hi"}],
+            parameters={},
+            user_service=user_service,
+            user_id="user-1",
+        )
+
+        # Verify no api_key was passed (litellm will use env var)
+        assert "api_key" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_stream_llm_uses_user_api_key_when_set(self, monkeypatch):
+        """Test that user API key is used for streaming when set."""
+        call_kwargs = {}
+
+        async def async_gen():
+            yield _DummyStreamChunk("test")
+
+        async def fake_acompletion(**kwargs):
+            call_kwargs.update(kwargs)
+            return async_gen()
+
+        monkeypatch.setattr(llm_service.litellm, "acompletion", fake_acompletion)
+        monkeypatch.setattr(llm_service, "get_observability_service", lambda: Mock())
+
+        user_service = Mock()
+        user_service.get_effective_api_key.return_value = "user-streaming-key"
+
+        async for _ in llm_service.stream_llm(
+            provider="anthropic",
+            model="claude-3",
+            messages=[{"role": "user", "content": "hi"}],
+            parameters={},
+            user_service=user_service,
+            user_id="user-2",
+        ):
+            pass
+
+        # Verify the user API key was passed
+        assert "api_key" in call_kwargs
+        assert call_kwargs["api_key"] == "user-streaming-key"
+        user_service.get_effective_api_key.assert_called_once_with("user-2", "anthropic", basic_info=None)
+
+    @pytest.mark.asyncio
+    async def test_stream_llm_no_api_key_when_not_set(self, monkeypatch):
+        """Test that no api_key is passed for streaming when user has no key."""
+        call_kwargs = {}
+
+        async def async_gen():
+            yield _DummyStreamChunk("test")
+
+        async def fake_acompletion(**kwargs):
+            call_kwargs.update(kwargs)
+            return async_gen()
+
+        monkeypatch.setattr(llm_service.litellm, "acompletion", fake_acompletion)
+        monkeypatch.setattr(llm_service, "get_observability_service", lambda: Mock())
+
+        user_service = Mock()
+        user_service.get_effective_api_key.return_value = None
+
+        async for _ in llm_service.stream_llm(
+            provider="openai",
+            model="gpt-4",
+            messages=[{"role": "user", "content": "hi"}],
+            parameters={},
+            user_service=user_service,
+            user_id="user-3",
+        ):
+            pass
+
+        # Verify no api_key was passed
+        assert "api_key" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_call_llm_with_user_basic_info(self, monkeypatch):
+        """Test that user_basic_info is passed to get_effective_api_key."""
+        call_kwargs = {}
+
+        async def fake_acompletion(**kwargs):
+            call_kwargs.update(kwargs)
+            return _DummyResponse("hello", total_cost=1.0)
+
+        monkeypatch.setattr(llm_service.litellm, "acompletion", fake_acompletion)
+        monkeypatch.setattr(llm_service, "get_observability_service", lambda: Mock())
+
+        user_service = Mock()
+        user_service.get_effective_api_key.return_value = "user-key"
+
+        user_basic_info = {"email": "test@example.com", "name": "Test User"}
+
+        await llm_service.call_llm(
+            provider="openai",
+            model="gpt-4",
+            messages=[{"role": "user", "content": "hi"}],
+            parameters={},
+            user_service=user_service,
+            user_id="user-1",
+            user_basic_info=user_basic_info,
+        )
+
+        # Verify user_basic_info was passed to get_effective_api_key
+        user_service.get_effective_api_key.assert_called_once_with("user-1", "openai", basic_info=user_basic_info)
+
+    @pytest.mark.asyncio
+    async def test_call_llm_different_providers_use_different_keys(self, monkeypatch):
+        """Test that different providers use their respective API keys."""
+        call_log = []
+
+        async def fake_acompletion(**kwargs):
+            call_log.append({"provider": kwargs.get("model").split("/")[0], "api_key": kwargs.get("api_key")})
+            return _DummyResponse("hello", total_cost=1.0)
+
+        monkeypatch.setattr(llm_service.litellm, "acompletion", fake_acompletion)
+        monkeypatch.setattr(llm_service, "get_observability_service", lambda: Mock())
+
+        # Test multiple providers
+        providers_and_keys = [
+            ("openai", "gpt-4", "openai-user-key"),
+            ("anthropic", "claude-3", "anthropic-user-key"),
+            ("gemini", "gemini-pro", "gemini-user-key"),
+        ]
+
+        for provider, model, expected_key in providers_and_keys:
+            user_service = Mock()
+            user_service.get_effective_api_key.return_value = expected_key
+
+            await llm_service.call_llm(
+                provider=provider,
+                model=model,
+                messages=[{"role": "user", "content": "hi"}],
+                parameters={},
+                user_service=user_service,
+                user_id="user-1",
+            )
+
+            # Verify get_effective_api_key was called with the correct provider
+            user_service.get_effective_api_key.assert_called_once_with("user-1", provider, basic_info=None)
+
+        # Verify all calls had their respective API keys
+        for i, (provider, _, expected_key) in enumerate(providers_and_keys):
+            assert call_log[i]["provider"] == provider
+            assert call_log[i]["api_key"] == expected_key
+
+    @pytest.mark.asyncio
+    async def test_call_llm_empty_string_key_not_passed(self, monkeypatch):
+        """Test that empty string API key is not passed to litellm (treated as no key)."""
+        call_kwargs = {}
+
+        async def fake_acompletion(**kwargs):
+            call_kwargs.update(kwargs)
+            return _DummyResponse("hello", total_cost=1.0)
+
+        monkeypatch.setattr(llm_service.litellm, "acompletion", fake_acompletion)
+        monkeypatch.setattr(llm_service, "get_observability_service", lambda: Mock())
+
+        user_service = Mock()
+        # Empty string is falsy, so the code shouldn't pass it
+        user_service.get_effective_api_key.return_value = ""  # Empty string
+
+        await llm_service.call_llm(
+            provider="openai",
+            model="gpt-4",
+            messages=[{"role": "user", "content": "hi"}],
+            parameters={},
+            user_service=user_service,
+            user_id="user-1",
+        )
+
+        # Empty string is falsy in Python, so api_key should not be in kwargs
+        # (the code checks `if api_key:` which is False for empty string)
+        assert "api_key" not in call_kwargs

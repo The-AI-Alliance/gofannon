@@ -76,7 +76,7 @@ def test_provider_routes_return_data_and_404(monkeypatch):
         }
     }
 
-    monkeypatch.setattr(routes_module, "get_available_providers", lambda: fake_providers)
+    monkeypatch.setattr(routes_module, "get_available_providers", lambda user_id=None, user_basic_info=None: fake_providers)
 
     app = create_app()
     client = TestClient(app)

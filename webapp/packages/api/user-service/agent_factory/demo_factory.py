@@ -1,6 +1,7 @@
 # webapp/packages/api/user-service/agent_factory/demo_factory.py
 from .prompts import how_to_build_demo_app_template
 from models.demo import GenerateDemoCodeRequest, GenerateDemoCodeResponse, DeployedApi
+from typing import Dict, Any, Optional
 import json
 
 from services.llm_service import call_llm
@@ -35,9 +36,13 @@ def _format_api_docs(apis: list[DeployedApi]) -> str:
     return "\n\n".join(docs_parts)
 
 
-async def generate_demo_code(request: GenerateDemoCodeRequest) -> GenerateDemoCodeResponse:
+async def generate_demo_code(
+    request: GenerateDemoCodeRequest,
+    user_id: Optional[str] = None,
+    user_basic_info: Optional[Dict[str, Any]] = None
+) -> GenerateDemoCodeResponse:
     """
-    Generates HTML, CSS, and JS for a demo app based on a user prompt and selected APIs.
+    Generates HTML, CSS, and JS for a demo app based on a prompt and selected APIs.
     """
     api_docs = _format_api_docs(request.selected_apis)
     
@@ -71,7 +76,9 @@ async def generate_demo_code(request: GenerateDemoCodeRequest) -> GenerateDemoCo
         model=model,
         messages=messages,
         parameters=config,
-        tools=built_in_tools if built_in_tools else None
+        tools=built_in_tools if built_in_tools else None,
+        user_id=user_id,
+        user_basic_info=user_basic_info,
     )
 
     try:

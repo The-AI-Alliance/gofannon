@@ -1,11 +1,11 @@
 """Unit tests for UserService."""
 import pytest
 from datetime import datetime
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock, MagicMock, patch
 from fastapi import HTTPException
 
 from services.user_service import UserService, get_user_service
-from models.user import User, UsageEntry
+from models.user import User, UsageEntry, ApiKeys
 from tests.factories.user_factory import UserFactory
 
 
@@ -248,3 +248,203 @@ class TestUserService:
         service2 = get_user_service(mock_db)
 
         assert service1 is service2
+
+
+class TestUserServiceApiKeys:
+    """Test suite for UserService API key management."""
+
+    @pytest.fixture
+    def mock_db(self):
+        """Create a mock database service."""
+        db = Mock()
+        db.get = Mock()
+        db.save = Mock(return_value={"rev": "test-rev"})
+        db.list_all = Mock(return_value=[])
+        return db
+
+    @pytest.fixture
+    def user_service(self, mock_db):
+        """Create a UserService instance with mock database."""
+        return UserService(mock_db)
+
+    def test_get_api_keys(self, user_service, mock_db):
+        """Test getting user's API keys."""
+        user_data = UserFactory.build()
+        user = User(**user_data)
+        user.api_keys.openai_api_key = "sk-openai-test"
+        user.api_keys.anthropic_api_key = "sk-ant-test"
+        mock_db.get.return_value = user.model_dump(by_alias=True, mode="json")
+
+        api_keys = user_service.get_api_keys("test-user-id")
+
+        assert isinstance(api_keys, ApiKeys)
+        assert api_keys.openai_api_key == "sk-openai-test"
+        assert api_keys.anthropic_api_key == "sk-ant-test"
+        assert api_keys.gemini_api_key is None
+
+    def test_update_api_key_openai(self, user_service, mock_db):
+        """Test updating OpenAI API key."""
+        user_data = UserFactory.build()
+        mock_db.get.return_value = user_data
+
+        updated_user = user_service.update_api_key("test-user-id", "openai", "sk-new-openai-key")
+
+        assert updated_user.api_keys.openai_api_key == "sk-new-openai-key"
+        mock_db.save.assert_called_once()
+
+    def test_update_api_key_anthropic(self, user_service, mock_db):
+        """Test updating Anthropic API key."""
+        user_data = UserFactory.build()
+        mock_db.get.return_value = user_data
+
+        updated_user = user_service.update_api_key("test-user-id", "anthropic", "sk-new-ant-key")
+
+        assert updated_user.api_keys.anthropic_api_key == "sk-new-ant-key"
+
+    def test_update_api_key_gemini(self, user_service, mock_db):
+        """Test updating Gemini API key."""
+        user_data = UserFactory.build()
+        mock_db.get.return_value = user_data
+
+        updated_user = user_service.update_api_key("test-user-id", "gemini", "gemini-new-key")
+
+        assert updated_user.api_keys.gemini_api_key == "gemini-new-key"
+
+    def test_update_api_key_perplexity(self, user_service, mock_db):
+        """Test updating Perplexity API key."""
+        user_data = UserFactory.build()
+        mock_db.get.return_value = user_data
+
+        updated_user = user_service.update_api_key("test-user-id", "perplexity", "pplx-new-key")
+
+        assert updated_user.api_keys.perplexity_api_key == "pplx-new-key"
+
+    def test_update_api_key_unknown_provider_raises_error(self, user_service, mock_db):
+        """Test that updating an unknown provider raises an error."""
+        user_data = UserFactory.build()
+        mock_db.get.return_value = user_data
+
+        with pytest.raises(HTTPException) as exc_info:
+            user_service.update_api_key("test-user-id", "unknown_provider", "some-key")
+
+        assert exc_info.value.status_code == 400
+        assert "Unknown provider" in exc_info.value.detail
+
+    def test_delete_api_key(self, user_service, mock_db):
+        """Test deleting (clearing) an API key."""
+        user_data = UserFactory.build()
+        user = User(**user_data)
+        user.api_keys.openai_api_key = "sk-existing-key"
+        mock_db.get.return_value = user.model_dump(by_alias=True, mode="json")
+
+        updated_user = user_service.delete_api_key("test-user-id", "openai")
+
+        assert updated_user.api_keys.openai_api_key is None
+        mock_db.save.assert_called_once()
+
+    def test_delete_api_key_unknown_provider_raises_error(self, user_service, mock_db):
+        """Test that deleting an unknown provider raises an error."""
+        user_data = UserFactory.build()
+        mock_db.get.return_value = user_data
+
+        with pytest.raises(HTTPException) as exc_info:
+            user_service.delete_api_key("test-user-id", "unknown_provider")
+
+        assert exc_info.value.status_code == 400
+        assert "Unknown provider" in exc_info.value.detail
+
+    @patch.dict("os.environ", {"OPENAI_API_KEY": "env-openai-key"}, clear=True)
+    def test_get_effective_api_key_returns_user_key_when_set(self, user_service, mock_db):
+        """Test that user key takes precedence over env var."""
+        user_data = UserFactory.build()
+        user = User(**user_data)
+        user.api_keys.openai_api_key = "user-openai-key"
+        mock_db.get.return_value = user.model_dump(by_alias=True, mode="json")
+
+        effective_key = user_service.get_effective_api_key("test-user-id", "openai")
+
+        # User key should be returned, not env var
+        assert effective_key == "user-openai-key"
+
+    @patch.dict("os.environ", {"OPENAI_API_KEY": "env-openai-key"}, clear=True)
+    def test_get_effective_api_key_falls_back_to_env_var(self, user_service, mock_db):
+        """Test that env var is used when user key is not set."""
+        user_data = UserFactory.build()
+        user = User(**user_data)
+        user.api_keys.openai_api_key = None  # User has no key set
+        mock_db.get.return_value = user.model_dump(by_alias=True, mode="json")
+
+        effective_key = user_service.get_effective_api_key("test-user-id", "openai")
+
+        # Env var should be returned when user key is not set
+        assert effective_key == "env-openai-key"
+
+    def test_get_effective_api_key_returns_none_when_no_key_available(self, user_service, mock_db):
+        """Test that None is returned when no key is available."""
+        user_data = UserFactory.build()
+        user = User(**user_data)
+        user.api_keys.openai_api_key = None
+        mock_db.get.return_value = user.model_dump(by_alias=True, mode="json")
+
+        with patch.dict("os.environ", {}, clear=True):
+            effective_key = user_service.get_effective_api_key("test-user-id", "openai")
+
+        assert effective_key is None
+
+    @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "env-ant-key"}, clear=True)
+    def test_get_effective_api_key_anthropic(self, user_service, mock_db):
+        """Test getting effective key for Anthropic."""
+        user_data = UserFactory.build()
+        user = User(**user_data)
+        user.api_keys.anthropic_api_key = "user-ant-key"
+        mock_db.get.return_value = user.model_dump(by_alias=True, mode="json")
+
+        effective_key = user_service.get_effective_api_key("test-user-id", "anthropic")
+
+        assert effective_key == "user-ant-key"
+
+    @patch.dict("os.environ", {"GEMINI_API_KEY": "env-gemini-key"}, clear=True)
+    def test_get_effective_api_key_gemini(self, user_service, mock_db):
+        """Test getting effective key for Gemini."""
+        user_data = UserFactory.build()
+        user = User(**user_data)
+        user.api_keys.gemini_api_key = None  # Not set by user
+        mock_db.get.return_value = user.model_dump(by_alias=True, mode="json")
+
+        effective_key = user_service.get_effective_api_key("test-user-id", "gemini")
+
+        assert effective_key == "env-gemini-key"
+
+    @patch.dict("os.environ", {"PERPLEXITYAI_API_KEY": "env-perplexity-key"}, clear=True)
+    def test_get_effective_api_key_perplexity(self, user_service, mock_db):
+        """Test getting effective key for Perplexity."""
+        user_data = UserFactory.build()
+        user = User(**user_data)
+        user.api_keys.perplexity_api_key = "user-perplexity-key"
+        mock_db.get.return_value = user.model_dump(by_alias=True, mode="json")
+
+        effective_key = user_service.get_effective_api_key("test-user-id", "perplexity")
+
+        assert effective_key == "user-perplexity-key"
+
+    def test_get_effective_api_key_for_unknown_provider(self, user_service, mock_db):
+        """Test getting effective key for unknown provider returns None."""
+        user_data = UserFactory.build()
+        mock_db.get.return_value = user_data
+
+        effective_key = user_service.get_effective_api_key("test-user-id", "unknown_provider")
+
+        assert effective_key is None
+
+    @patch.dict("os.environ", {"OPENAI_API_KEY": "env-key"}, clear=True)
+    def test_get_effective_api_key_empty_string_user_key_falls_back(self, user_service, mock_db):
+        """Test that empty string user key falls back to env var."""
+        user_data = UserFactory.build()
+        user = User(**user_data)
+        user.api_keys.openai_api_key = ""  # Empty string should be treated as not set
+        mock_db.get.return_value = user.model_dump(by_alias=True, mode="json")
+
+        effective_key = user_service.get_effective_api_key("test-user-id", "openai")
+
+        # Empty string is falsy, so should fall back to env var
+        assert effective_key == "env-key"

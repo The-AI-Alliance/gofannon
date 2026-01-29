@@ -37,6 +37,23 @@ const userService = {
       headers: { 'X-Admin-Password': adminPassword },
     });
   },
+
+  // API Key Management
+  getApiKeys() {
+    return apiClient.get('/users/me/api-keys');
+  },
+
+  updateApiKey(provider, apiKey) {
+    return apiClient.put('/users/me/api-keys', { provider, api_key: apiKey });
+  },
+
+  deleteApiKey(provider) {
+    return apiClient.delete(`/users/me/api-keys/${provider}`);
+  },
+
+  getEffectiveApiKey(provider) {
+    return apiClient.get(`/users/me/api-keys/${provider}/effective`);
+  },
 };
 
 export default userService;

@@ -37,6 +37,16 @@ class BasicInfo(BaseModel):
     model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
 
 
+class ApiKeys(BaseModel):
+    """User-specific API keys for LLM providers"""
+    openai_api_key: Optional[str] = Field(default=None, alias="openaiApiKey")
+    anthropic_api_key: Optional[str] = Field(default=None, alias="anthropicApiKey")
+    gemini_api_key: Optional[str] = Field(default=None, alias="geminiApiKey")
+    perplexity_api_key: Optional[str] = Field(default=None, alias="perplexityApiKey")
+
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+
 class User(BaseModel):
     id: str = Field(alias="_id")
     rev: Optional[str] = Field(default=None, alias="_rev")
@@ -45,5 +55,6 @@ class User(BaseModel):
     basic_info: BasicInfo = Field(default_factory=BasicInfo, alias="basicInfo")
     billing_info: BillingInfo = Field(default_factory=BillingInfo, alias="billingInfo")
     usage_info: UsageInfo = Field(default_factory=UsageInfo, alias="usageInfo")
+    api_keys: ApiKeys = Field(default_factory=ApiKeys, alias="apiKeys")
 
     model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)

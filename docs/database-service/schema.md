@@ -103,6 +103,12 @@ Location: [models/user.py](../../../webapp/packages/api/user-service/models/user
         ],
         "last_reset": "2024-01-01T00:00:00Z"       # Last billing period reset
     },
+    "api_keys": {                                   # User-specific API keys (optional)
+        "openai_api_key": "sk-...",                 # OpenAI API key
+        "anthropic_api_key": "sk-ant-...",          # Anthropic API key
+        "gemini_api_key": "...",                    # Google Gemini API key
+        "perplexity_api_key": "pplx-..."            # Perplexity API key
+    },
     "created_at": "2024-01-01T00:00:00Z",
     "updated_at": "2024-01-15T10:30:00Z"
 }
@@ -111,7 +117,11 @@ Location: [models/user.py](../../../webapp/packages/api/user-service/models/user
 **Key Fields:**
 - `_id`: Composite of provider and provider user ID
 - `usage_info.usage`: Array that grows with each API call
+- `api_keys`: User-specific API keys that take precedence over environment variables
 - Cost tracking in USD for billing/quota enforcement
+
+**API Keys:**
+User-specific API keys allow each user to configure their own provider credentials. These keys take precedence over system-wide environment variables. See [API Key Management](../api-key-management.md) for more details.
 
 ### Session Document
 
@@ -217,4 +227,4 @@ Location: [models/demo.py](../../../webapp/packages/api/user-service/models/demo
 
 ---
 
-Last Updated: 2026-01-11
+Last Updated: 2026-01-28

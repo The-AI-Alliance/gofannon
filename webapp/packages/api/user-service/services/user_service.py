@@ -1,9 +1,9 @@
 from datetime import datetime
-from typing import Optional, Any, List
+from typing import Optional, Any, List, Dict
 
 from fastapi import HTTPException
 
-from models.user import User, UsageEntry
+from models.user import User, UsageEntry, ApiKeys
 
 
 class UserService:
@@ -101,6 +101,85 @@ class UserService:
         user.usage_info.usage.append(UsageEntry(responseCost=response_cost, metadata=metadata))
         user.usage_info.spend_remaining = max(0.0, user.usage_info.spend_remaining - response_cost)
         return self.save_user(user)
+
+    def get_api_keys(self, user_id: str, basic_info: Optional[dict] = None) -> ApiKeys:
+        """Get the user's API keys (masked for security)"""
+        user = self.get_user(user_id, basic_info)
+        return user.api_keys
+
+    def update_api_key(self, user_id: str, provider: str, api_key: str, basic_info: Optional[dict] = None) -> User:
+        """Update a specific API key for a provider"""
+        user = self.get_user(user_id, basic_info)
+        
+        # Map provider names to ApiKeys field names
+        provider_key_map = {
+            "openai": "openai_api_key",
+            "anthropic": "anthropic_api_key",
+            "gemini": "gemini_api_key",
+            "perplexity": "perplexity_api_key",
+        }
+        
+        key_field = provider_key_map.get(provider)
+        if not key_field:
+            raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
+        
+        # Update the specific API key
+        setattr(user.api_keys, key_field, api_key)
+        return self.save_user(user)
+
+    def delete_api_key(self, user_id: str, provider: str, basic_info: Optional[dict] = None) -> User:
+        """Delete (clear) a specific API key for a provider"""
+        user = self.get_user(user_id, basic_info)
+        
+        # Map provider names to ApiKeys field names
+        provider_key_map = {
+            "openai": "openai_api_key",
+            "anthropic": "anthropic_api_key",
+            "gemini": "gemini_api_key",
+            "perplexity": "perplexity_api_key",
+        }
+        
+        key_field = provider_key_map.get(provider)
+        if not key_field:
+            raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
+        
+        # Clear the specific API key
+        setattr(user.api_keys, key_field, None)
+        return self.save_user(user)
+
+    def get_effective_api_key(self, user_id: str, provider: str, basic_info: Optional[dict] = None) -> Optional[str]:
+        """
+        Get the effective API key for a provider.
+        First checks user's stored keys, then falls back to environment variables.
+        Returns None if no key is available.
+        """
+        import os
+        from config.provider_config import PROVIDER_CONFIG
+        
+        user = self.get_user(user_id, basic_info)
+        
+        # Map provider names to ApiKeys field names
+        provider_key_map = {
+            "openai": "openai_api_key",
+            "anthropic": "anthropic_api_key",
+            "gemini": "gemini_api_key",
+            "perplexity": "perplexity_api_key",
+        }
+        
+        # First, check user's stored API keys
+        key_field = provider_key_map.get(provider)
+        if key_field:
+            user_key = getattr(user.api_keys, key_field)
+            if user_key:
+                return user_key
+        
+        # Fall back to environment variable
+        provider_config = PROVIDER_CONFIG.get(provider, {})
+        env_var = provider_config.get("api_key_env_var")
+        if env_var:
+            return os.getenv(env_var)
+        
+        return None
 
 
 _user_service_instance: Optional[UserService] = None

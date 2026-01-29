@@ -17,7 +17,7 @@ from config.provider_config import PROVIDER_CONFIG
 
 ensure_litellm_logging()
 
-async def generate_agent_code(request: GenerateCodeRequest):
+async def generate_agent_code(request: GenerateCodeRequest, user_id: str = None, user_basic_info: dict = None):
     """
     Generates agent code based on the provided configuration.
     """
@@ -193,6 +193,8 @@ result = await gofannon_client.call(agent_name='{agent.name}', input_dict={{...}
             messages=code_gen_messages,
             parameters=config,
             tools=None,  # Don't pass tools - we want code generation, not tool execution
+            user_id=user_id,
+            user_basic_info=user_basic_info,
         )
 
     # ---- Friendly Name and Docstring Generation Task ----
@@ -231,6 +233,8 @@ Do not include any other text or markdown formatting around the JSON object.
             model=model,
             messages=name_doc_messages,
             parameters=name_doc_config,
+            user_id=user_id,
+            user_basic_info=user_basic_info,
         )
         return content
 

@@ -81,6 +81,15 @@ async def call_llm(
     if user_service and user_id:
         user_service.require_allowance(user_id, basic_info=user_basic_info)
 
+    # Get the effective API key (user's key takes precedence over env var)
+    api_key = None
+    if user_service and user_id:
+        api_key = user_service.get_effective_api_key(user_id, provider, basic_info=user_basic_info)
+    # If no user-specific key, litellm will use environment variables
+    if api_key:
+        kwargs["api_key"] = api_key
+
+
     # Only use aresponses API when we actually need its features (tools or reasoning)
     # Otherwise use standard acompletion which is more reliable
     use_responses_api = (
@@ -133,7 +142,11 @@ async def call_llm(
             final_response = None
             for _ in range(15): # Poll for up to 30 seconds
                 await asyncio.sleep(2)
-                response_status = await litellm.aget_responses(response_id=response_obj.id)
+                # Pass api_key to aget_responses as well (needed when using user-specific keys)
+                poll_kwargs = {"response_id": response_obj.id}
+                if api_key:
+                    poll_kwargs["api_key"] = api_key
+                response_status = await litellm.aget_responses(**poll_kwargs)
                 if response_status.status == "completed":
                     final_response = response_status
                     break
@@ -210,6 +223,25 @@ async def call_llm(
 
         except Exception as e:
             observability = get_observability_service()
+            
+            # Check for authentication errors and provide user-friendly message
+            error_str = str(e).lower()
+            if "invalid_api_key" in error_str or "authentication" in error_str or "api key" in error_str:
+                key_source = "user-specific" if api_key else "environment variable"
+                error_msg = f"Invalid API key for {provider}. Please check your {key_source} API key in your profile settings."
+                observability.log(
+                    level="ERROR",
+                    event_type="invalid_api_key",
+                    message=error_msg,
+                    user_id=user_id,
+                    metadata={
+                        "provider": provider,
+                        "key_source": key_source,
+                        "original_error": str(e)[:200],
+                    }
+                )
+                raise ValueError(error_msg) from e
+            
             observability.log_exception(
                 e,
                 user_id=user_id,
@@ -229,6 +261,25 @@ async def call_llm(
             response = await litellm.acompletion(**kwargs)
         except Exception as e:
             observability = get_observability_service()
+            
+            # Check for authentication errors and provide user-friendly message
+            error_str = str(e).lower()
+            if "invalid_api_key" in error_str or "authentication" in error_str or "api key" in error_str:
+                key_source = "user-specific" if api_key else "environment variable"
+                error_msg = f"Invalid API key for {provider}. Please check your {key_source} API key in your profile settings."
+                observability.log(
+                    level="ERROR",
+                    event_type="invalid_api_key",
+                    message=error_msg,
+                    user_id=user_id,
+                    metadata={
+                        "provider": provider,
+                        "key_source": key_source,
+                        "original_error": str(e)[:200],
+                    }
+                )
+                raise ValueError(error_msg) from e
+            
             observability.log_exception(
                 e,
                 user_id=user_id,
@@ -323,6 +374,15 @@ async def stream_llm(
 
     if user_service and user_id:
         user_service.require_allowance(user_id, basic_info=user_basic_info)
+
+    # Get the effective API key (user's key takes precedence over env var)
+    api_key = None
+    if user_service and user_id:
+        api_key = user_service.get_effective_api_key(user_id, provider, basic_info=user_basic_info)
+    
+    # If no user-specific key, litellm will use environment variables
+    if api_key:
+        kwargs["api_key"] = api_key
 
     try:
         response = await litellm.acompletion(**kwargs)

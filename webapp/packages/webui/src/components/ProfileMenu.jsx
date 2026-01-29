@@ -64,6 +64,7 @@ const ProfileMenu = () => {
         <MenuItem onClick={() => handleNavigate('/profile/basic')}>Basic Info</MenuItem>
         <MenuItem onClick={() => handleNavigate('/profile/usage')}>Usage</MenuItem>
         <MenuItem onClick={() => handleNavigate('/profile/billing')}>Billing</MenuItem>
+        <MenuItem onClick={() => handleNavigate('/profile/apikeys')}>API Keys</MenuItem>
         {isAdminPanelEnabled() && (
           <MenuItem onClick={() => handleNavigate('/admin')}>Admin Panel</MenuItem>
         )}

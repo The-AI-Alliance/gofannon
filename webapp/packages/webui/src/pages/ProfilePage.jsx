@@ -4,11 +4,13 @@ import { useParams } from 'react-router-dom';
 import BasicInfoTab from '../components/profile/BasicInfoTab';
 import UsageInfoTab from '../components/profile/UsageInfoTab';
 import BillingInfoTab from '../components/profile/BillingInfoTab';
+import ApiKeysTab from '../components/profile/ApiKeysTab';
 
 const sections = {
   basic: { label: 'Basic Info', component: <BasicInfoTab /> },
   usage: { label: 'Usage', component: <UsageInfoTab /> },
   billing: { label: 'Billing', component: <BillingInfoTab /> },
+  apikeys: { label: 'API Keys', component: <ApiKeysTab /> },
 };
 
 const ProfilePage = () => {

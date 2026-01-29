@@ -31,6 +31,33 @@ The LLM service that consumes these configurations is located at:
 webapp/packages/api/user-service/services/llm_service.py
 ```
 
+## API Key Management
+
+Gofannon supports **two ways** to configure API keys:
+
+### 1. Environment Variables (System-wide)
+Set by administrators and used as fallback for all users:
+
+```bash
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GEMINI_API_KEY=...
+PERPLEXITYAI_API_KEY=pplx-...
+```
+
+### 2. User Profile Keys (User-specific)
+Each user can configure their own API keys through the Profile → API Keys page. **User-specific keys take precedence** over environment variables.
+
+See [API Key Management](api-key-management.md) for detailed documentation.
+
+### Key Priority Order
+
+When making an LLM API call:
+
+1. **User's stored API key** (if configured in profile)
+2. **Environment variable** (system-wide fallback)
+3. **No key available** (provider unavailable)
+
 ## Why LiteLLM?
 
 Gofannon relies on [LiteLLM](https://github.com/BerriAI/litellm) to abstract multiple LLM providers and manage their dependencies. This architectural decision has important implications:
@@ -624,9 +651,23 @@ if isinstance(message.content, list):  # Anthropic's block-based content
 ### Provider Not Working
 
 1. **Check LiteLLM Support**: Verify the provider is supported by LiteLLM
-2. **Verify API Key**: Ensure the environment variable is set correctly
+2. **Verify API Key**: 
+   - Check if the user has configured a personal API key in their profile
+   - Ensure the environment variable is set correctly (fallback)
 3. **Check Model Name**: Verify the model name matches LiteLLM's expected format
 4. **Review LiteLLM Logs**: Check `services/litellm_logger.py` for error messages
+
+### API Key Issues
+
+**User-specific keys not working:**
+- Verify the key is saved in the user's profile (Profile → API Keys)
+- Check the provider status shows "Configured"
+- Test the key directly with the provider's API
+
+**Environment variable not working:**
+- Ensure the environment variable name matches `api_key_env_var` in `provider_config.py`
+- Restart the application after setting environment variables
+- Check for typos or extra whitespace
 
 ### Parameter Issues
 
