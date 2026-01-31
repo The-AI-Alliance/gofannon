@@ -130,6 +130,76 @@ content, thoughts = await call_llm(
 ```
 
 **Note:** Not all models support all tools. Check the model documentation above to see which built-in tools are available for each model.
+
+## Batch Processing Guidance
+
+When processing large datasets or multiple items, follow these best practices to avoid token limits and ensure reliable results:
+
+### Token-Aware Batching
+- Estimate ~4 characters per token when calculating batch sizes
+- For large inputs, process in batches of 10-50 items depending on item size
+- Leave headroom for the response (at least 25% of max_tokens)
+
+### Progressive Consolidation Pattern
+For tasks requiring analysis of many items (e.g., summarizing 100 documents):
+```python
+# Process in batches, then consolidate
+batch_size = 20
+batch_results = []
+
+for i in range(0, len(items), batch_size):
+    batch = items[i:i + batch_size]
+    result, _ = await call_llm(
+        provider=provider,
+        model=model,
+        messages=[{"role": "user", "content": f"Analyze these items: {batch}"}],
+        parameters=parameters,
+    )
+    batch_results.append(result)
+
+# Final consolidation pass
+final_result, _ = await call_llm(
+    provider=provider,
+    model=model,
+    messages=[{"role": "user", "content": f"Consolidate these analyses: {batch_results}"}],
+    parameters=parameters,
+)
+```
+
+### Skip Lists for Efficiency
+When processing items that may fail or be irrelevant:
+```python
+skip_patterns = ["404", "access denied", "not found", "empty"]
+results = []
+
+for item in items:
+    if any(pattern in str(item).lower() for pattern in skip_patterns):
+        continue
+    # Process item...
+```
+
+### Output Format Recommendations
+- **Prefer Markdown over JSON** for large outputs - it's more token-efficient and readable
+- Use structured Markdown (headers, lists, tables) for organized data
+- Reserve JSON for programmatic consumption or when exact structure is required
+
+### Error Handling for Batch Operations
+```python
+async def process_with_retry(item, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            result, _ = await call_llm(...)
+            return result
+        except Exception as e:
+            if attempt == max_retries - 1:
+                return {"error": str(e), "item": item}
+            await asyncio.sleep(2 ** attempt)  # Exponential backoff
+```
+
+### Memory Management
+- For very large datasets (1000+ items), consider streaming results to storage
+- Don't accumulate all results in memory before returning
+- Use generators or async iterators when possible
 """
 
 
