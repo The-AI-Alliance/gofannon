@@ -414,3 +414,123 @@ class TestLLMServiceApiKeys:
         # Empty string is falsy in Python, so api_key should not be in kwargs
         # (the code checks `if api_key:` which is False for empty string)
         assert "api_key" not in call_kwargs
+
+
+class TestBedrockProvider:
+    """Test suite for Bedrock provider integration."""
+
+    @pytest.mark.asyncio
+    async def test_call_llm_bedrock_uses_api_key(self, monkeypatch):
+        """Test that bedrock provider uses AWS_BEARER_TOKEN_BEDROCK via api_key."""
+        call_kwargs = {}
+
+        async def fake_acompletion(**kwargs):
+            call_kwargs.update(kwargs)
+            return _DummyResponse("hello from bedrock", total_cost=0.5)
+
+        monkeypatch.setattr(llm_service.litellm, "acompletion", fake_acompletion)
+        monkeypatch.setattr(llm_service, "get_observability_service", lambda: Mock())
+
+        user_service = Mock()
+        user_service.get_effective_api_key.return_value = "bedrock-api-key-12345"
+
+        content, thoughts = await llm_service.call_llm(
+            provider="bedrock",
+            model="us.anthropic.claude-opus-4-5-20251101-v1:0",
+            messages=[{"role": "user", "content": "hi"}],
+            parameters={},
+            user_service=user_service,
+            user_id="user-1",
+        )
+
+        assert content == "hello from bedrock"
+        assert "api_key" in call_kwargs
+        assert call_kwargs["api_key"] == "bedrock-api-key-12345"
+        assert call_kwargs["model"] == "bedrock/us.anthropic.claude-opus-4-5-20251101-v1:0"
+        user_service.get_effective_api_key.assert_called_once_with("user-1", "bedrock", basic_info=None)
+
+    @pytest.mark.asyncio
+    async def test_call_llm_bedrock_model_string_format(self, monkeypatch):
+        """Test that bedrock model string is correctly formatted as bedrock/model-id."""
+        call_kwargs = {}
+
+        async def fake_acompletion(**kwargs):
+            call_kwargs.update(kwargs)
+            return _DummyResponse("test", total_cost=0.1)
+
+        monkeypatch.setattr(llm_service.litellm, "acompletion", fake_acompletion)
+        monkeypatch.setattr(llm_service, "get_observability_service", lambda: Mock())
+
+        user_service = Mock()
+        user_service.get_effective_api_key.return_value = None
+
+        await llm_service.call_llm(
+            provider="bedrock",
+            model="us.amazon.nova-pro-v1:0",
+            messages=[{"role": "user", "content": "test"}],
+            parameters={},
+            user_service=user_service,
+            user_id="user-1",
+        )
+
+        # Model string should be "bedrock/model-id" format for litellm
+        assert call_kwargs["model"] == "bedrock/us.amazon.nova-pro-v1:0"
+
+    @pytest.mark.asyncio
+    async def test_stream_llm_bedrock_uses_api_key(self, monkeypatch):
+        """Test that bedrock streaming uses the API key."""
+        call_kwargs = {}
+
+        async def async_gen():
+            yield _DummyStreamChunk("bedrock stream")
+
+        async def fake_acompletion(**kwargs):
+            call_kwargs.update(kwargs)
+            return async_gen()
+
+        monkeypatch.setattr(llm_service.litellm, "acompletion", fake_acompletion)
+        monkeypatch.setattr(llm_service, "get_observability_service", lambda: Mock())
+
+        user_service = Mock()
+        user_service.get_effective_api_key.return_value = "bedrock-stream-key"
+
+        async for _ in llm_service.stream_llm(
+            provider="bedrock",
+            model="us.meta.llama4-maverick-17b-instruct-v1:0",
+            messages=[{"role": "user", "content": "hi"}],
+            parameters={},
+            user_service=user_service,
+            user_id="user-1",
+        ):
+            pass
+
+        assert "api_key" in call_kwargs
+        assert call_kwargs["api_key"] == "bedrock-stream-key"
+        assert call_kwargs["model"] == "bedrock/us.meta.llama4-maverick-17b-instruct-v1:0"
+
+    @pytest.mark.asyncio
+    async def test_call_llm_bedrock_with_parameters(self, monkeypatch):
+        """Test that bedrock calls pass through parameters correctly."""
+        call_kwargs = {}
+
+        async def fake_acompletion(**kwargs):
+            call_kwargs.update(kwargs)
+            return _DummyResponse("test", total_cost=0.1)
+
+        monkeypatch.setattr(llm_service.litellm, "acompletion", fake_acompletion)
+        monkeypatch.setattr(llm_service, "get_observability_service", lambda: Mock())
+
+        user_service = Mock()
+        user_service.get_effective_api_key.return_value = "bedrock-key"
+
+        await llm_service.call_llm(
+            provider="bedrock",
+            model="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+            messages=[{"role": "user", "content": "test"}],
+            parameters={"temperature": 0.7, "max_tokens": 1000},
+            user_service=user_service,
+            user_id="user-1",
+        )
+
+        assert call_kwargs["temperature"] == 0.7
+        assert call_kwargs["max_tokens"] == 1000
