@@ -183,7 +183,7 @@ async def test_process_chat_gofannon_flow(monkeypatch):
 
     fake_logger = FakeLogger()
 
-    async def fake_execute_agent_code(*, code, input_dict, tools, gofannon_agents, db, user_id=None, user_basic_info=None):
+    async def fake_execute_agent_code(*, code, input_dict, tools, gofannon_agents, db, user_id=None, user_basic_info=None, llm_settings=None):
         return {"outputText": f"agent:{input_dict['inputText']}"}
 
     monkeypatch.setattr(dependencies_module, "get_database_service", lambda _settings: db_service)

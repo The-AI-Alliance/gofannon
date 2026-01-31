@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import traceback
+import warnings
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -15,7 +16,7 @@ from fastapi.security import OAuth2PasswordBearer
 from agent_factory.remote_mcp_client import RemoteMCPClient
 from config import settings
 from config.provider_config import PROVIDER_CONFIG as APP_PROVIDER_CONFIG
-from models.agent import Agent
+from models.agent import Agent, LlmSettings
 from models.chat import ChatRequest
 from services.database_service import DatabaseService, get_database_service
 from services.llm_service import call_llm
@@ -59,14 +60,18 @@ async def _execute_agent_code(
     db: DatabaseService,
     user_id: Optional[str] = None,
     user_basic_info: Optional[Dict[str, Any]] = None,
+    llm_settings: Optional[LlmSettings] = None,
 ):
+    """Helper function for recursive execution of agent code."""
+    print(f">>> _execute_agent_code llm_settings: {llm_settings}", flush=True)  # ADD THIS
     """Helper function for recursive execution of agent code."""
     # Get user service for API key lookup if user_id is provided
     user_service = get_user_service(db) if user_id else None
 
     class GofannonClient:
-        def __init__(self, agent_ids: List[str], db_service: DatabaseService):
+        def __init__(self, agent_ids: List[str], db_service: DatabaseService, llm_settings: Optional[LlmSettings] = None):
             self.db = db_service
+            self.llm_settings = llm_settings
             self.agent_map = {}
             if agent_ids:
                 try:
@@ -83,7 +88,7 @@ async def _execute_agent_code(
                 raise ValueError(f"Gofannon agent '{agent_name}' not found or not imported for this run.")
 
             # Recursive call to the execution helper
-            return await _execute_agent_code(
+            result = await _execute_agent_code(
                 code=agent_to_run.code,
                 input_dict=input_dict,
                 tools=agent_to_run.tools,
@@ -91,9 +96,16 @@ async def _execute_agent_code(
                 db=self.db,
                 user_id=user_id,
                 user_basic_info=user_basic_info,
+                llm_settings=self.llm_settings,
             )
 
-    # Create a wrapped call_llm that includes user context
+            # Unwrap outputText if present, so callers get the content directly
+            # This prevents double-wrapping when agents return {"outputText": "..."}
+            if isinstance(result, dict) and "outputText" in result and len(result) == 1:
+                return result["outputText"]
+            return result
+
+    # Create a wrapped call_llm that includes user context and applies LLM settings
     async def call_llm_with_context(
         provider: str,
         model: str,
@@ -102,23 +114,39 @@ async def _execute_agent_code(
         tools: Optional[List[Dict[str, Any]]] = None,
         **kwargs
     ):
-        """Wrapped call_llm that includes user context for API key lookup."""
+        """Wrapped call_llm that includes user context for API key lookup and applies LLM settings."""
         # Remove user context kwargs if they were passed by generated code
         # (we'll set them explicitly from the outer scope)
         kwargs.pop("user_service", None)
         kwargs.pop("user_id", None)
         kwargs.pop("user_basic_info", None)
-        return await call_llm(
-            provider=provider,
-            model=model,
-            messages=messages,
-            parameters=parameters,
-            tools=tools,
-            user_service=user_service,
-            user_id=user_id,
-            user_basic_info=user_basic_info,
-            **kwargs
-        )
+
+        # Apply LLM settings overrides if provided
+        if llm_settings:
+            if llm_settings.max_tokens is not None:
+                parameters = {**parameters, "max_tokens": llm_settings.max_tokens}
+            if llm_settings.temperature is not None:
+                parameters = {**parameters, "temperature": llm_settings.temperature}
+            if llm_settings.reasoning_effort is not None:
+                if llm_settings.reasoning_effort != "disable":
+                    parameters = {**parameters, "reasoning_effort": llm_settings.reasoning_effort}
+                elif "reasoning_effort" in parameters:
+                    # User explicitly disabled reasoning, remove it
+                    parameters = {k: v for k, v in parameters.items() if k != "reasoning_effort"}
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="Pydantic serializer warnings")
+            return await call_llm(
+                provider=provider,
+                model=model,
+                messages=messages,
+                parameters=parameters,
+                tools=tools,
+                user_service=user_service,
+                user_id=user_id,
+                user_basic_info=user_basic_info,
+                **kwargs
+            )
 
     exec_globals = {
         "RemoteMCPClient": RemoteMCPClient,
@@ -128,7 +156,7 @@ async def _execute_agent_code(
         "re": __import__('re'),
         "json": __import__('json'),
         "http_client": httpx.AsyncClient(follow_redirects=True),  # Follow redirects automatically
-        "gofannon_client": GofannonClient(gofannon_agents, db),
+        "gofannon_client": GofannonClient(gofannon_agents, db, llm_settings),
         "__builtins__": __builtins__,
     }
 
@@ -194,6 +222,15 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
             # The user query is always mapped to 'inputText'
             input_dict["inputText"] = last_user_message["content"]
 
+            # Extract LLM settings from request parameters for agent execution
+            llm_settings = None
+            if any(k in request.parameters for k in ["max_tokens", "maxTokens", "temperature", "reasoning_effort", "reasoningEffort"]):
+                llm_settings = LlmSettings(
+                    max_tokens=request.parameters.get("max_tokens") or request.parameters.get("maxTokens"),
+                    temperature=request.parameters.get("temperature"),
+                    reasoning_effort=request.parameters.get("reasoning_effort") or request.parameters.get("reasoningEffort"),
+                )
+
             result = await _execute_agent_code(
                 code=agent.code,
                 input_dict=input_dict,
@@ -202,6 +239,7 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
                 db=db_service,
                 user_id=user.get("uid"),
                 user_basic_info=user_basic_info,
+                llm_settings=llm_settings,
             )
 
             if isinstance(result, dict):
@@ -468,6 +506,7 @@ async def run_deployed_agent(
     db: DatabaseService,
     user_id: Optional[str] = None,
     user_basic_info: Optional[Dict[str, Any]] = None,
+    llm_settings: Optional[LlmSettings] = None,
 ):
     try:
         deployment_doc = db.get("deployments", friendly_name)
@@ -484,6 +523,7 @@ async def run_deployed_agent(
             db=db,
             user_id=user_id,
             user_basic_info=user_basic_info,
+            llm_settings=llm_settings,
         )
         return result
     except HTTPException as e:

@@ -576,6 +576,7 @@ async def run_agent_code(
             tools=request.tools,
             gofannon_agents=request.gofannon_agents,
             db=db,
+            llm_settings=request.llm_settings,
             user_id=user.get("uid"),
             user_basic_info=user_basic_info,
         )

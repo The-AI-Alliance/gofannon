@@ -85,12 +85,19 @@ class Agent(CreateAgentRequest):
 
     # model_config = ConfigDict(populate_by_name=True) # model_config is inherited from CreateAgentRequest
         
+class LlmSettings(BaseModel):
+    """LLM settings passed from the UI to control model behavior in agent sandbox."""
+    max_tokens: Optional[int] = Field(None, alias="maxTokens")
+    temperature: Optional[float] = None
+    reasoning_effort: Optional[str] = Field(None, alias="reasoningEffort")
+    model_config = ConfigDict(populate_by_name=True)
 
 class RunCodeRequest(BaseModel):
     code: str
     input_dict: Dict[str, Any] = Field(..., alias="inputDict")
     tools: Dict[str, List[str]]
     gofannon_agents: Optional[List[str]] = Field(default=[], alias="gofannonAgents")
+    llm_settings: Optional[LlmSettings] = Field(default=None, alias="llmSettings")
     model_config = ConfigDict(populate_by_name=True)
 
 class RunCodeResponse(BaseModel):

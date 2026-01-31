@@ -99,7 +99,15 @@ const SandboxScreen = () => {
     observabilityService.log({ eventType: 'user-action', message: 'User running agent in sandbox.' });
 
     try {
-      const response = await agentService.runCodeInSandbox(generatedCode, formData, tools, gofannonAgents);
+      // Extract LLM settings from agent's invokable models
+      const invokableModel = agentData?.invokableModels?.[0] || agentFlowContext.invokableModels?.[0];
+      const llmSettings = invokableModel?.parameters ? {
+        maxTokens: invokableModel.parameters.max_tokens || invokableModel.parameters.maxTokens,
+        temperature: invokableModel.parameters.temperature,
+        reasoningEffort: invokableModel.parameters.reasoning_effort || invokableModel.parameters.reasoningEffort,
+      } : undefined;
+
+      const response = await agentService.runCodeInSandbox(generatedCode, formData, tools, gofannonAgents, llmSettings);
       if (response.error) {
         setError(response.error);
       } else {
