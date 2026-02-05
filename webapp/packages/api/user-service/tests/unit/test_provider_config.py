@@ -66,20 +66,33 @@ class TestBedrockModels:
         return provider_config.PROVIDER_CONFIG["bedrock"]["models"]
 
     @pytest.mark.parametrize("model_id", [
+        # Claude 4.5 family
         "us.anthropic.claude-opus-4-5-20251101-v1:0",
         "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
         "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        # Claude 4.x family
         "us.anthropic.claude-opus-4-1-20250805-v1:0",
         "us.anthropic.claude-sonnet-4-20250514-v1:0",
-        "us.anthropic.claude-3-5-haiku-20241022-v1:0",
-        "anthropic.claude-3-haiku-20240307-v1:0",
     ])
-    def test_claude_models_have_reasoning_effort(self, bedrock_models, model_id):
-        """Test that Claude models have reasoning_effort parameter."""
+    def test_claude_4_models_have_reasoning_effort(self, bedrock_models, model_id):
+        """Test that Claude 4+ models have reasoning_effort parameter for extended thinking."""
         assert model_id in bedrock_models
         params = bedrock_models[model_id]["parameters"]
         assert "reasoning_effort" in params
         assert params["reasoning_effort"]["choices"] == ["disable", "low", "medium", "high"]
+
+    @pytest.mark.parametrize("model_id", [
+        # Claude 3.5 and 3 don't support extended thinking
+        "us.anthropic.claude-3-5-haiku-20241022-v1:0",
+        "anthropic.claude-3-haiku-20240307-v1:0",
+    ])
+    def test_legacy_claude_models_no_reasoning_effort(self, bedrock_models, model_id):
+        """Test that Claude 3.5 and 3 models don't have reasoning_effort (no extended thinking support)."""
+        assert model_id in bedrock_models
+        params = bedrock_models[model_id]["parameters"]
+        assert "reasoning_effort" not in params
+        assert bedrock_models[model_id]["returns_thoughts"] is False
+        assert bedrock_models[model_id]["supports_thinking"] is False
 
     @pytest.mark.parametrize("model_id", [
         "us.amazon.nova-premier-v1:0",
