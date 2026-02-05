@@ -10,7 +10,7 @@ services:
       - VITE_APP_ENV=local
     depends_on:
       api:
-        condition: service_started # webui depends on api for data, but api needs couchdb first
+        condition: service_started
     networks:
       - gofannon-net
 
@@ -19,7 +19,7 @@ services:
       context: ../../packages/api/user-service
       dockerfile: ../../../infra/docker/Dockerfile.api
     volumes:
-      - ../../packages/api/user-service:/app # Mount for hot-reloading
+      - ../../packages/api/user-service:/app
     ports:
       - "8000:8000"
     environment:
@@ -30,14 +30,16 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minioadmin}
       - AWS_DEFAULT_REGION=us-east-1
       - DATABASE_PROVIDER=${DATABASE_PROVIDER:-couchdb}
-      - COUCHDB_URL=${COUCHDB_URL:-http://couchdb:5984/}     
+      - COUCHDB_URL=${COUCHDB_URL:-http://couchdb:5984/}
+      - COUCHDB_USER=${COUCHDB_USER:-admin}
+      - COUCHDB_PASSWORD=${COUCHDB_PASSWORD:-password}
     env_file:
       - ./.env
     depends_on:
+      couchdb:
+        condition: service_healthy
       minio:
         condition: service_started
-      couchdb-setup: 
-        condition: service_completed_successfully
     networks:
       - gofannon-net
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
@@ -45,8 +47,8 @@ services:
   minio:
     image: minio/minio:RELEASE.2023-03-20T20-16-18Z
     ports:
-      - "9000:9000" # API port
-      - "9001:9001" # Console port
+      - "9000:9000"
+      - "9001:9001"
     environment:
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=minioadmin
@@ -67,27 +69,12 @@ services:
       - couchdb-data:/opt/couchdb/data
     networks:
       - gofannon-net
-    healthcheck: # <--- ADD THIS HEALTHCHECK
-      test: ["CMD-SHELL", "curl -f http://localhost:5984/ || exit 1"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5984/ || exit 1"]
       interval: 5s
       timeout: 5s
-      retries: 5
-      start_period: 10s # Give CouchDB some time to warm up before checks begin
-
-  couchdb-setup: # <--- NEW SERVICE FOR COUCHDB INITIALIZATION
-    build:
-      context: ../../infra/docker # Use the directory where Dockerfile.couchdb-setup and couchdb-init.sh are
-      dockerfile: Dockerfile.couchdb-setup
-    environment:
-      - COUCHDB_USER=${COUCHDB_USER:-admin}
-      - COUCHDB_PASSWORD=${COUCHDB_PASSWORD:-password}
-      - COUCHDB_URL=http://couchdb:5984/ # Use the internal service name
-    depends_on:
-      couchdb:
-        condition: service_healthy # Wait for couchdb to be healthy before attempting setup
-    networks:
-      - gofannon-net
-    command: /app/couchdb-init.sh # Execute the initialization script
+      retries: 10
+      start_period: 15s
 
 networks:
   gofannon-net:

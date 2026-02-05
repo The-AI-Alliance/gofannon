@@ -1,4 +1,9 @@
+# webapp/infra/docker/Dockerfile.api
 FROM python:3.10-slim
+
+# curl is needed by the entrypoint to wait for / init CouchDB
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -7,7 +12,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Add the entrypoint wrapper that handles CouchDB wait + init
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 EXPOSE 8000
 
-# The command will be provided by docker-compose for local dev
-# For production, you would use: CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["/entrypoint.sh"]
+# Default command (overridden by docker-compose for local dev)
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
