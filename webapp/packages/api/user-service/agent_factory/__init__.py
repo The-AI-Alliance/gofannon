@@ -4,7 +4,8 @@ from .prompts import how_to_use_tools, \
     how_to_use_llm, \
     what_to_do_prompt_template, \
     how_to_use_swagger_tools, \
-    how_to_use_gofannon_agents
+    how_to_use_gofannon_agents, \
+    how_to_use_data_store
 from models.agent import GenerateCodeRequest, GenerateCodeResponse, Agent
 import json
 import asyncio
@@ -153,6 +154,9 @@ result = await gofannon_client.call(agent_name='{agent.name}', input_dict={{...}
                
     if request.invokable_models:
         system_prompt_parts.append(how_to_use_llm)
+    
+    # Data store is always available
+    system_prompt_parts.append(how_to_use_data_store)
     system_prompt_parts.append(what_to_do)
     system_prompt = "\n\n".join(system_prompt_parts)  
     

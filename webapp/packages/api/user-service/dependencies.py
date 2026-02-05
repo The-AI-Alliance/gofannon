@@ -26,12 +26,17 @@ from services.observability_service import (
     get_sanitized_request_data,
 )
 from services.user_service import UserService, get_user_service
-
+from services.data_store_service import (
+    DataStoreService,
+    AgentDataStoreProxy,
+    get_data_store_service,
+)
+from typing import Generator
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 
-def get_db() -> DatabaseService:
+def get_db() -> Generator[DatabaseService, None, None]:
     yield get_database_service(settings)
 
 
@@ -61,6 +66,7 @@ async def _execute_agent_code(
     user_id: Optional[str] = None,
     user_basic_info: Optional[Dict[str, Any]] = None,
     llm_settings: Optional[LlmSettings] = None,
+    agent_name: Optional[str] = None,
 ):
     """Helper function for recursive execution of agent code."""
     print(f">>> _execute_agent_code llm_settings: {llm_settings}", flush=True)  # ADD THIS
@@ -148,6 +154,15 @@ async def _execute_agent_code(
                 **kwargs
             )
 
+    # Create data store proxy for agent access
+    data_store_service = get_data_store_service(db)
+    data_store_proxy = AgentDataStoreProxy(
+        service=data_store_service,
+        user_id=user_id or "anonymous",
+        agent_name=agent_name or "unknown",
+        default_namespace="default"
+    )
+
     exec_globals = {
         "RemoteMCPClient": RemoteMCPClient,
         "call_llm": call_llm_with_context,  # Use wrapped LLM service with user context
@@ -157,6 +172,7 @@ async def _execute_agent_code(
         "json": __import__('json'),
         "http_client": httpx.AsyncClient(follow_redirects=True),  # Follow redirects automatically
         "gofannon_client": GofannonClient(gofannon_agents, db, llm_settings),
+        "data_store": data_store_proxy,
         "__builtins__": __builtins__,
     }
 

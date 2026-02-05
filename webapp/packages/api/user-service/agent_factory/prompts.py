@@ -272,6 +272,153 @@ Here is the documentation for the `call` method:
     {"recommendation": "buy", "confidence": 0.85}
 """
 
+how_to_use_data_store = """
+# How to Use the Data Store
+
+You are provided with a pre-initialized `data_store` object for persisting data across agent executions.
+Data stored here is available to ALL agents owned by the same user, enabling workflows where one agent
+creates data that another agent consumes.
+
+**Data store operations are synchronous (no `await` needed).**
+
+## Discovering Available Data
+
+Before querying, you can discover what namespaces contain data:
+
+```python
+# List all namespaces that have data
+namespaces = data_store.list_namespaces()
+# Returns: ["default", "files:apache/repo", "summary:apache/repo", ...]
+
+# Then work with discovered namespaces
+for ns in namespaces:
+    if ns.startswith("files:"):
+        files_ns = data_store.use_namespace(ns)
+        keys = files_ns.list_keys()
+        print(f"Found {len(keys)} files in {ns}")
+```
+
+## Basic Operations
+
+```python
+# Store a value (any JSON-serializable data)
+data_store.set("my-key", {"analysis": "results", "score": 95})
+
+# Retrieve a value (returns None if not found)
+value = data_store.get("my-key")
+
+# Retrieve with a default value
+value = data_store.get("missing-key", default={"empty": True})
+
+# Delete a value
+data_store.delete("my-key")
+
+# List all keys in the current namespace
+keys = data_store.list_keys()
+
+# List keys matching a prefix
+keys = data_store.list_keys(prefix="analysis:")
+```
+
+## Using Namespaces
+
+Namespaces help organize data by purpose. The default namespace is "default".
+
+```python
+# Switch to a specific namespace
+summaries = data_store.use_namespace("repo-summaries")
+summaries.set("src/main.py", {"functions": ["main", "init"], "lines": 150})
+
+# Read from the namespace
+file_info = summaries.get("src/main.py")
+
+# Use different namespaces for different purposes
+cache = data_store.use_namespace("analysis-cache")
+cache.set("last-run", {"timestamp": "2026-02-03", "status": "complete"})
+```
+
+## Batch Operations
+
+```python
+# Set multiple values at once
+data_store.set_many({
+    "file:a.py": {"lines": 100},
+    "file:b.py": {"lines": 200},
+    "file:c.py": {"lines": 50},
+})
+
+# Get multiple values at once
+results = data_store.get_many(["file:a.py", "file:b.py"])
+# Returns: {"file:a.py": {"lines": 100}, "file:b.py": {"lines": 200}}
+```
+
+## Common Patterns
+
+### Discovering and searching across all data
+```python
+# Find all namespaces with data
+namespaces = data_store.list_namespaces()
+
+# Search for data across namespaces
+for ns in namespaces:
+    ns_store = data_store.use_namespace(ns)
+    keys = ns_store.list_keys()
+    # Process keys...
+```
+
+### Caching expensive operations
+```python
+cache_key = f"analysis:{file_path}"
+cached = data_store.get(cache_key)
+if cached:
+    return cached
+
+# Do expensive analysis...
+result = await call_llm(...)
+
+# Cache for future runs
+data_store.set(cache_key, result)
+return result
+```
+
+### Building up results across multiple runs
+```python
+summaries = data_store.use_namespace("code-summaries")
+
+# Store this run's result
+summaries.set(input_dict["file_path"], analysis_result)
+
+# Get all accumulated results
+all_keys = summaries.list_keys()
+all_summaries = summaries.get_many(all_keys)
+```
+
+### Passing data between agents
+```python
+# Agent A: Store results for Agent B
+data_store.use_namespace("shared-analysis").set("quarterly-report", report_data)
+
+# Agent B: Read Agent A's results
+report = data_store.use_namespace("shared-analysis").get("quarterly-report")
+```
+
+### Working with dynamic namespace names
+```python
+# Namespaces often include context like repo names
+# e.g., "files:apache/tooling-trusted-releases", "summary:apache/tooling-trusted-releases"
+
+repo_name = input_dict.get("repo", "")
+files_ns = data_store.use_namespace(f"files:{repo_name}")
+summary_ns = data_store.use_namespace(f"summary:{repo_name}")
+
+# Store file content
+files_ns.set(file_path, file_content)
+
+# Store file summary
+summary_ns.set(file_path, {"summary": "...", "key_points": [...]})
+```
+"""
+
 what_to_do_prompt_template = """
 You are tasked with writing the body of an asynchronous Python function with the signature `async def run(input_dict: dict, tools: dict) -> dict:`.
 
@@ -290,6 +437,7 @@ You can use it to call tools as described in the documentation.
 - `http_client` - Async HTTP client (httpx) for REST API calls
 - `call_llm` - For calling language models via `await call_llm(provider, model, messages, parameters, ...)`
 - `gofannon_client` - For calling other Gofannon agents
+- `data_store` - For persisting and sharing data across agent executions (see data store documentation)
 - `asyncio`, `json`, `re` - Standard Python libraries
 
 **Input Schema:**
