@@ -1,211 +1,123 @@
-# Testing Documentation
+# Testing Guide
 
-This directory contains comprehensive documentation for testing the Gofannon project.
+Gofannon uses a comprehensive testing strategy with unit tests, integration tests, and E2E tests.
 
-## Quick Links
-
-- [Testing Overview](./overview.md) - Introduction to the testing strategy
-- [Unit Testing Guide](./unit-testing.md) - How to write and run unit tests
-- [Integration Testing Guide](./integration-testing.md) - How to write and run integration tests
-- [Frontend Testing Guide](./frontend-testing.md) - React component testing with Vitest
-- [Backend Testing Guide](./backend-testing.md) - Python API testing with pytest
-- [CI/CD Testing](./ci-cd.md) - GitHub Actions workflows and automation
-- [Coverage Requirements](./coverage.md) - Coverage thresholds and reporting
-- [Contributing Tests](./contributing.md) - Guidelines for writing tests in PRs
-
-## Testing Philosophy
-
-Gofannon maintains a comprehensive testing strategy with:
-
-- **95% minimum code coverage** for all new code (goal not enforced yet)
-- **Unit tests** run on every PR
-- **Integration tests** run nightly
-- **Fast feedback** - unit tests complete in under 2 minutes
-- **Isolated tests** - no dependencies between test cases
-- **Clear test structure** - easy to understand and maintain
-
-## Quick Start
-
-### Running All Tests
+## Quick Reference
 
 ```bash
-# From the webapp directory
 cd webapp
 
-# Run all unit tests (frontend + backend)
+# Run all unit tests (recommended before PRs)
 pnpm test:unit
 
-# Run all integration tests (backend + E2E)
+# Run specific test suites
+pnpm test:unit:backend     # Python tests
+pnpm test:unit:frontend    # React tests
+
+# Run with coverage
+pnpm test:coverage
+
+# Run integration tests (requires Docker services)
 pnpm test:integration
 
-# Run everything
-pnpm test
-```
-
-### Running Tests with Coverage
-
-```bash
-# Frontend coverage
-pnpm test:coverage:frontend
-
-# Backend coverage
-pnpm test:coverage:backend
-
-# All coverage
-pnpm test:coverage
-```
-
-### Running Specific Test Suites
-
-```bash
-# Frontend unit tests only
-pnpm test:unit:frontend
-
-# Backend unit tests only
-pnpm test:unit:backend
-
-# Backend integration tests only
-pnpm test:integration:backend
-
-# E2E tests only
+# Run E2E tests (requires running app)
 pnpm test:e2e
 ```
 
-## Project Structure
+## Documentation
+
+| Guide | Description |
+|-------|-------------|
+| [Unit Testing](unit-testing.md) | Testing functions and components in isolation |
+| [Backend Testing](backend-testing.md) | Python/pytest patterns and examples |
+| [Frontend Testing](frontend-testing.md) | React/Vitest component testing |
+| [Integration Testing](integration-testing.md) | Multi-component and E2E testing |
+| [CI/CD](ci-cd.md) | GitHub Actions, workflows, and coverage |
+| [Contributing Tests](contributing.md) | PR requirements and checklist |
+
+## Test Structure
 
 ```
 webapp/
 ├── packages/
-│   ├── webui/                          # Frontend React app
-│   │   ├── src/
-│   │   │   ├── components/
-│   │   │   │   ├── ActionCard.jsx
-│   │   │   │   └── ActionCard.test.jsx  # Component unit tests
-│   │   │   └── test/
-│   │   │       ├── setup.ts             # Vitest setup
-│   │   │       └── utils.test.js        # Utility tests
-│   │   ├── vitest.config.ts             # Vitest configuration
-│   │   └── package.json
+│   ├── api/user-service/
+│   │   └── tests/
+│   │       ├── conftest.py          # Pytest fixtures
+│   │       ├── unit/                # Unit tests
+│   │       │   ├── test_user_service.py
+│   │       │   └── test_llm_service.py
+│   │       ├── integration/         # Integration tests
+│   │       │   └── test_health_endpoint.py
+│   │       └── factories/           # Test data factories
+│   │           ├── agent_factory.py
+│   │           └── user_factory.py
 │   │
-│   └── api/
-│       └── user-service/                # Backend Python API
-│           ├── tests/
-│           │   ├── conftest.py          # Pytest fixtures
-│           │   ├── unit/                # Unit tests
-│           │   │   ├── test_user_service.py
-│           │   │   └── test_user_model.py
-│           │   ├── integration/         # Integration tests
-│           │   │   └── test_health_endpoint.py
-│           │   └── factories/           # Test data factories
-│           │       ├── agent_factory.py
-│           │       ├── user_factory.py
-│           │       └── chat_factory.py
-│           ├── pytest.ini               # Pytest configuration
-│           ├── .coveragerc              # Coverage configuration
-│           └── requirements.txt
+│   └── webui/
+│       └── src/
+│           └── components/
+│               ├── ActionCard.jsx
+│               └── ActionCard.test.jsx  # Co-located tests
 │
-├── tests/
-│   └── e2e/                            # Playwright E2E tests
-│
-└── playwright.config.js                # Playwright configuration
-
-.github/
-└── workflows/
-    ├── pr-unit-tests.yml               # Runs on every PR
-    └── nightly-integration-tests.yml   # Runs every night at 2 AM UTC
+└── tests/
+    └── e2e/                         # Playwright E2E tests
 ```
 
 ## Test Types
 
-### Unit Tests
-- **Location**: `tests/unit/`
-- **Purpose**: Test individual functions, classes, and components in isolation
-- **Mocking**: Use mocks for external dependencies (DB, API calls, etc.)
-- **Speed**: Fast (< 100ms per test)
-- **Run**: On every PR via GitHub Actions
-
-### Integration Tests
-- **Location**: `tests/integration/`
-- **Purpose**: Test multiple components working together
-- **Services**: Require running Docker services (CouchDB, MinIO, etc.)
-- **Speed**: Slower (500ms - 5s per test)
-- **Run**: Nightly via GitHub Actions
-
-### E2E Tests
-- **Location**: `webapp/tests/e2e/`
-- **Purpose**: Test complete user workflows in the browser
-- **Tool**: Playwright
-- **Speed**: Slow (5s - 30s per test)
-- **Run**: Nightly via GitHub Actions
+| Type | Location | Purpose | Speed | When Run |
+|------|----------|---------|-------|----------|
+| **Unit** | `tests/unit/` | Test functions/components in isolation | Fast (<100ms) | Every PR |
+| **Integration** | `tests/integration/` | Test services working together | Medium (500ms-5s) | Nightly |
+| **E2E** | `tests/e2e/` | Test complete user workflows | Slow (5-30s) | Nightly |
 
 ## Coverage Requirements
 
-- **Minimum Coverage**: 95% for lines, functions, branches, and statements
-- **Enforcement**: Automated checks in CI/CD
-- **Reports**: Generated in HTML, XML, and LCOV formats
-- **Uploads**: Coverage data uploaded to Codecov
+We aim for **95% coverage** on new code.
+
+| Metric | Minimum |
+|--------|---------|
+| Lines | 95% |
+| Functions | 95% |
+| Branches | 95% |
+| Statements | 95% |
 
 ### Viewing Coverage Reports
 
-#### Frontend (Vitest)
 ```bash
-cd webapp/packages/webui
-pnpm test:coverage
-# Open ./coverage/index.html in browser
-```
-
-#### Backend (pytest)
-```bash
+# Backend
 cd webapp/packages/api/user-service
 python -m pytest tests/unit --cov=. --cov-report=html
-# Open ./htmlcov/index.html in browser
+open htmlcov/index.html
+
+# Frontend
+cd webapp/packages/webui
+pnpm test:coverage
+open coverage/index.html
 ```
 
-## CI/CD Integration
+## Troubleshooting
 
-### PR Checks (Automatic)
-When you open a PR, the following tests run automatically:
-- Frontend unit tests with coverage
-- Backend unit tests with coverage
-- Lint checks
-- Coverage threshold validation (must be ≥95%)
+### Tests Hanging
 
-**PR will be blocked if**:
-- Any test fails
-- Coverage drops below 95%
-- Lint errors exist
+- Check for missing `await` on async functions
+- Verify mocks are properly configured
+- Look for infinite loops or blocking calls
 
-### Nightly Tests (Scheduled)
-Every night at 2 AM UTC, comprehensive tests run:
-- Backend integration tests with full Docker stack
-- E2E tests with Playwright
-- Full coverage reports uploaded
+### Import Errors
 
-**Team is notified if**:
-- Any nightly test fails
-- Services fail to start
-- Tests timeout
+```bash
+# Ensure PYTHONPATH includes project root
+export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+```
 
-## Best Practices
+### Flaky Tests
 
-1. **Write tests before code** (TDD when possible)
-2. **One assertion per test** (makes failures clear)
-3. **Use descriptive test names** (`test_user_creation_with_valid_data`)
-4. **Keep tests independent** (no shared state)
-5. **Use factories for test data** (don't repeat yourself)
-6. **Mock external services** in unit tests
-7. **Test edge cases** (null, empty, invalid input)
-8. **Test error handling** (exceptions, validation failures)
+- Remove time-based assertions
+- Ensure test isolation (no shared state)
+- Check for race conditions in async code
 
-## Getting Help
+### Coverage Not Increasing
 
-- Check the specific testing guides in this directory
-- Review example tests in the codebase
-- Ask in the team chat for testing questions
-- Open an issue for testing infrastructure problems
-
-## Next Steps
-
-- Read the [Unit Testing Guide](./unit-testing.md) to write your first test
-- Review [Contributing Tests](./contributing.md) before submitting a PR
-- Explore [Frontend Testing Guide](./frontend-testing.md) for React testing patterns
+- Verify test markers are correct (`@pytest.mark.unit`)
+- Check `.coveragerc` exclusions
+- Run coverage report to identify uncovered lines
