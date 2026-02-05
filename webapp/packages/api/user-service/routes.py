@@ -454,6 +454,9 @@ async def delete_agent(
 ):
     """Deletes an agent by its ID."""
     try:
+        deployment = await get_agent_deployment(agent_id, db)
+        if deployment.get("is_deployed"):
+            await undeploy_agent(agent_id, db)  
         db.delete("agents", agent_id)
         logger.log("INFO", "user_action", f"Agent '{agent_id}' deleted.", metadata={"agent_id": agent_id, "request": get_sanitized_request_data(req)})
         return
