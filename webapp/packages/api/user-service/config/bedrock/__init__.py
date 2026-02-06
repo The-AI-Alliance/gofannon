@@ -8,10 +8,46 @@
 
 models = {
     # =========================================================================
+    # Anthropic Claude Opus 4.6 (Bedrock)
+    # =========================================================================
+    "us.anthropic.claude-opus-4-6-v1:0": {
+        "returns_thoughts": True,
+        "supports_effort": True,
+        "supports_thinking": True,
+        "parameters": {
+            "temperature": {
+                "type": "float",
+                "default": 1.0,
+                "min": 0.0,
+                "max": 1.0,
+                "description": "Randomness (0=focused, 1=creative). Locked to 1.0 when thinking enabled.",
+                "mutually_exclusive_with": ["top_p"]
+            },
+            "top_p": {
+                "type": "float",
+                "default": 0.9,
+                "min": 0.0,
+                "max": 1.0,
+                "description": "Nucleus sampling (0.1=conservative, 0.95=diverse)",
+                "mutually_exclusive_with": ["temperature"]
+            },
+            "reasoning_effort": {
+                "type": "choice",
+                "default": "disable",
+                "choices": ["disable", "low", "medium", "high"],
+                "description": "Reasoning Effort: Enables extended thinking and controls effort level"
+            },
+            "max_tokens": {
+                "type": "integer",
+                "default": 16384,
+                "min": 1,
+                "max": 128000,
+                "description": "Maximum tokens in response"
+            },
+        }
+    },
+    # =========================================================================
     # Anthropic Claude 4.5 family (Latest - November 2025)
-    # - All support extended thinking via reasoning_effort
-    # - Opus 4.5 supports effort parameter for token budget control
-    # - Cannot specify both temperature and top_p
     # =========================================================================
     "us.anthropic.claude-opus-4-5-20251101-v1:0": {
         "returns_thoughts": True,

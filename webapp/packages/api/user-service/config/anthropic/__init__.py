@@ -4,9 +4,46 @@
 
 models = {
     # =========================================================================
-    # Claude 4.5 family (Latest - November 2025)
-    # - Opus 4.5 supports effort parameter (controls all token usage)
-    # - All support extended thinking via reasoning_effort
+    # Anthropic Claude Opus 4.6 (Anthropic API direct)
+    # =========================================================================
+    "claude-opus-4-6": {
+        "returns_thoughts": True,
+        "supports_effort": True,
+        "supports_thinking": True,
+        "parameters": {
+            "temperature": {
+                "type": "float",
+                "default": 1.0,
+                "min": 0.0,
+                "max": 1.0,
+                "description": "Randomness (0=focused, 1=creative). Locked to 1.0 when thinking enabled.",
+                "mutually_exclusive_with": ["top_p"]
+            },
+            "top_p": {
+                "type": "float",
+                "default": 0.9,
+                "min": 0.0,
+                "max": 1.0,
+                "description": "Nucleus sampling (0.1=conservative, 0.95=diverse)",
+                "mutually_exclusive_with": ["temperature"]
+            },
+            "reasoning_effort": {
+                "type": "choice",
+                "default": "disable",
+                "choices": ["disable", "low", "medium", "high"],
+                "description": "Reasoning Effort: Enables extended thinking and controls effort level"
+            },
+            "max_tokens": {
+                "type": "integer",
+                "default": 16384,
+                "min": 1,
+                "max": 128000,
+                "description": "Maximum tokens in response"
+            },
+        }
+    },
+    # =========================================================================
+    # Claude 4.5 family
     # =========================================================================
     "claude-opus-4-5-20251101": {
         "returns_thoughts": True,
