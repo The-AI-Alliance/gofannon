@@ -10,6 +10,7 @@ models = {
         "returns_thoughts": True,
         "supports_effort": True,
         "supports_thinking": True,
+        "context_window": 200000,
         "parameters": {
             "temperature": {
                 "type": "float",
@@ -49,6 +50,7 @@ models = {
         "returns_thoughts": True,
         "supports_effort": True,
         "supports_thinking": True,
+        "context_window": 200000,
         "parameters": {
             "temperature": {
                 "type": "float",
@@ -85,6 +87,7 @@ models = {
         "returns_thoughts": True,
         "supports_effort": False,
         "supports_thinking": True,
+        "context_window": 200000,
         "parameters": {
             "temperature": {
                 "type": "float",
@@ -121,6 +124,7 @@ models = {
         "returns_thoughts": True,
         "supports_effort": False,
         "supports_thinking": True,
+        "context_window": 200000,
         "parameters": {
             "temperature": {
                 "type": "float",
@@ -161,6 +165,7 @@ models = {
         "returns_thoughts": True,
         "supports_effort": False,
         "supports_thinking": True,
+        "context_window": 200000,
         "parameters": {
             "temperature": {
                 "type": "float",
@@ -201,6 +206,7 @@ models = {
         "returns_thoughts": True,
         "supports_effort": False,
         "supports_thinking": True,
+        "context_window": 200000,
         "parameters": {
             "temperature": {
                 "type": "float",
@@ -237,6 +243,7 @@ models = {
         "returns_thoughts": True,
         "supports_effort": False,
         "supports_thinking": True,
+        "context_window": 200000,
         "parameters": {
             "temperature": {
                 "type": "float",
@@ -277,6 +284,7 @@ models = {
         "returns_thoughts": True,
         "supports_effort": False,
         "supports_thinking": True,
+        "context_window": 200000,
         "parameters": {
             "temperature": {
                 "type": "float",
@@ -317,6 +325,7 @@ models = {
         "returns_thoughts": False,
         "supports_effort": False,
         "supports_thinking": False,
+        "context_window": 200000,
         "parameters": {
             "temperature": {
                 "type": "float",
@@ -347,6 +356,7 @@ models = {
         "returns_thoughts": False,
         "supports_effort": False,
         "supports_thinking": False,
+        "context_window": 200000,
         "parameters": {
             "temperature": {
                 "type": "float",
@@ -377,6 +387,7 @@ models = {
         "returns_thoughts": False,
         "supports_effort": False,
         "supports_thinking": False,
+        "context_window": 200000,
         "parameters": {
             "temperature": {
                 "type": "float",
@@ -411,6 +422,7 @@ models = {
         "returns_thoughts": False,
         "supports_effort": False,
         "supports_thinking": False,
+        "context_window": 200000,
         "parameters": {
             "temperature": {
                 "type": "float",

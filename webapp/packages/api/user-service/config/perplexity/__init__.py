@@ -7,6 +7,7 @@ models = {
     # =========================================================================
     "sonar-deep-research": {
         "returns_thoughts": False,
+        "context_window": 128000,
         "parameters": {
             "temperature": {
                 "type": "float",
@@ -24,6 +25,7 @@ models = {
     # =========================================================================
     "sonar-reasoning-pro": {
         "returns_thoughts": True,
+        "context_window": 128000,
         "parameters": {
             "temperature": {
                 "type": "float",
@@ -43,6 +45,7 @@ models = {
     },
     "sonar-reasoning": {
         "returns_thoughts": True,
+        "context_window": 128000,
         "parameters": {
             "temperature": {
                 "type": "float",
@@ -66,6 +69,7 @@ models = {
     # =========================================================================
     "sonar-pro": {
         "returns_thoughts": False,
+        "context_window": 200000,
         "parameters": {
             "temperature": {
                 "type": "float",
@@ -79,6 +83,7 @@ models = {
     },
     "sonar": {
         "returns_thoughts": False,
+        "context_window": 128000,
         "parameters": {
             "temperature": {
                 "type": "float",
@@ -96,6 +101,7 @@ models = {
     # =========================================================================
     "r1-1776": {
         "returns_thoughts": False,
+        "context_window": 128000,
         "parameters": {
             "temperature": {
                 "type": "float",

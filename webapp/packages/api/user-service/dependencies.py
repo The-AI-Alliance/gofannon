@@ -69,8 +69,6 @@ async def _execute_agent_code(
     agent_name: Optional[str] = None,
 ):
     """Helper function for recursive execution of agent code."""
-    print(f">>> _execute_agent_code llm_settings: {llm_settings}", flush=True)  # ADD THIS
-    """Helper function for recursive execution of agent code."""
     # Get user service for API key lookup if user_id is provided
     user_service = get_user_service(db) if user_id else None
 
@@ -111,6 +109,44 @@ async def _execute_agent_code(
                 return result["outputText"]
             return result
 
+    # Helper to look up a model's context window from provider config
+    def get_context_window(provider: str, model: str) -> int:
+        """Look up the context window for a provider/model pair. Returns token limit."""
+        return (
+            APP_PROVIDER_CONFIG.get(provider, {})
+            .get("models", {})
+            .get(model, {})
+            .get("context_window", 128000)  # safe default
+        )
+
+    def count_tokens(text: str, provider: str = "anthropic", model: str = "claude-opus-4-6") -> int:
+        """Count exact tokens for text using litellm's tokenizer.
+        Use this for accurate pre-flight checks before calling call_llm.
+        Much more accurate than character-based estimation."""
+        try:
+            import litellm as _litellm
+            return _litellm.token_counter(
+                model=f"{provider}/{model}",
+                text=text
+            )
+        except Exception:
+            # Fallback: conservative estimate at 2.5 chars/token
+            return int(len(str(text)) / 2.5)
+
+    def count_message_tokens(messages: list, provider: str = "anthropic", model: str = "claude-opus-4-6") -> int:
+        """Count exact tokens for a messages list using litellm's tokenizer.
+        Pass the full messages list you'd send to call_llm for accurate counting."""
+        try:
+            import litellm as _litellm
+            return _litellm.token_counter(
+                model=f"{provider}/{model}",
+                messages=messages
+            )
+        except Exception:
+            # Fallback: conservative estimate
+            total_chars = sum(len(str(m.get("content", ""))) for m in messages)
+            return int(total_chars / 2.5)
+
     # Create a wrapped call_llm that includes user context and applies LLM settings
     async def call_llm_with_context(
         provider: str,
@@ -140,6 +176,9 @@ async def _execute_agent_code(
                     # User explicitly disabled reasoning, remove it
                     parameters = {k: v for k, v in parameters.items() if k != "reasoning_effort"}
 
+        ctx_window = get_context_window(provider, model)
+        print(f">>> call_llm {provider}/{model} context_window={ctx_window:,} max_tokens={parameters.get('max_tokens')} temperature={parameters.get('temperature')} reasoning_effort={parameters.get('reasoning_effort')}", flush=True)
+
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message="Pydantic serializer warnings")
             return await call_llm(
@@ -166,6 +205,9 @@ async def _execute_agent_code(
     exec_globals = {
         "RemoteMCPClient": RemoteMCPClient,
         "call_llm": call_llm_with_context,  # Use wrapped LLM service with user context
+        "get_context_window": get_context_window,  # Look up model context window limits
+        "count_tokens": count_tokens,  # Count exact tokens for text (uses litellm tokenizer)
+        "count_message_tokens": count_message_tokens,  # Count exact tokens for messages list
         "asyncio": asyncio,
         "httpx": httpx,
         "re": __import__('re'),

@@ -1,5 +1,6 @@
 models = {
     "gemini-3-pro-preview": {
+         "context_window": 1048576,
          "parameters": {
             "temperature": {
                 "type": "float",
@@ -35,6 +36,7 @@ models = {
         ]
     },
     "gemini-2.5-pro": {
+        "context_window": 1048576,
         "parameters": {
             "temperature": {
                 "type": "float",
@@ -70,6 +72,7 @@ models = {
         ],
     },
     "gemini-2.5-flash": {
+        "context_window": 1048576,
         "parameters": {
             "temperature": {
                 "type": "float",
@@ -105,6 +108,7 @@ models = {
         ],
     },
     "gemini-2.5-flash-lite": {
+        "context_window": 1048576,
         "parameters": {
             "temperature": {
                 "type": "float",
