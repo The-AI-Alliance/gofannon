@@ -94,6 +94,10 @@ result = await gofannon_client.call(agent_name='{agent.name}', input_dict={{...}
 
             model_docs += f"**Configured Parameters:** `{json.dumps(configured_params)}`\n"
 
+            context_window = model_info.get("context_window")
+            if context_window:
+                model_docs += f"**Context Window:** {context_window:,} tokens (maximum input size — prompts exceeding this will fail)\n"
+
             selected_tool = None
             if selected_tool_id:
                 selected_tool = next(

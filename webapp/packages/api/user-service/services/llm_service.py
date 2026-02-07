@@ -242,6 +242,27 @@ async def call_llm(
                 )
                 raise ValueError(error_msg) from e
             
+            # Check for context window overflow errors
+            if "prompt is too long" in error_str or "context_length_exceeded" in error_str or "maximum context length" in error_str:
+                context_window = model_config.get("context_window", "unknown")
+                error_msg = (
+                    f"Prompt exceeded {model}'s context window of {context_window} tokens. "
+                    f"Use hierarchical consolidation to process data in smaller groups."
+                )
+                observability.log(
+                    level="ERROR",
+                    event_type="context_window_exceeded",
+                    message=error_msg,
+                    user_id=user_id,
+                    metadata={
+                        "provider": provider,
+                        "model": model,
+                        "context_window": context_window,
+                        "original_error": str(e)[:500],
+                    }
+                )
+                raise ValueError(error_msg) from e
+
             observability.log_exception(
                 e,
                 user_id=user_id,
@@ -280,6 +301,27 @@ async def call_llm(
                 )
                 raise ValueError(error_msg) from e
             
+            # Check for context window overflow errors
+            if "prompt is too long" in error_str or "context_length_exceeded" in error_str or "maximum context length" in error_str:
+                context_window = model_config.get("context_window", "unknown")
+                error_msg = (
+                    f"Prompt exceeded {model}'s context window of {context_window} tokens. "
+                    f"Use hierarchical consolidation to process data in smaller groups."
+                )
+                observability.log(
+                    level="ERROR",
+                    event_type="context_window_exceeded",
+                    message=error_msg,
+                    user_id=user_id,
+                    metadata={
+                        "provider": provider,
+                        "model": model,
+                        "context_window": context_window,
+                        "original_error": str(e)[:500],
+                    }
+                )
+                raise ValueError(error_msg) from e
+
             observability.log_exception(
                 e,
                 user_id=user_id,
@@ -400,5 +442,3 @@ async def stream_llm(
             }
         )
         raise
-
-
