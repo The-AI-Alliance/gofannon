@@ -214,7 +214,10 @@ const ModelConfigDialog = ({
             min={paramConfig.min}
             max={paramConfig.max}
             step={paramConfig.type === 'float' ? (paramConfig.step || 0.1) : 1} 
-            marks
+            marks={
+              ((paramConfig.max - paramConfig.min) /
+                (paramConfig.type === 'float' ? (paramConfig.step || 0.1) : 1)) <= 50
+            }
             valueLabelDisplay="auto"
             disabled={disabled}
           />
