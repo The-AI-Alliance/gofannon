@@ -10,7 +10,7 @@ models = {
     # =========================================================================
     # Anthropic Claude Opus 4.6 (Bedrock)
     # =========================================================================
-    "us.anthropic.claude-opus-4-6-v1:0": {
+    "anthropic.claude-opus-4-6-v1": {
         "returns_thoughts": True,
         "supports_effort": True,
         "supports_thinking": True,

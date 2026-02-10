@@ -243,6 +243,7 @@ async def call_llm(
                 raise ValueError(error_msg) from e
             
             # Check for context window overflow errors
+            # TODO make this generalized for any provider
             if "prompt is too long" in error_str or "context_length_exceeded" in error_str or "maximum context length" in error_str:
                 context_window = model_config.get("context_window", "unknown")
                 error_msg = (
