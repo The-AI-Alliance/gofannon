@@ -1,3 +1,5 @@
+import asyncio
+import threading
 from datetime import datetime
 import traceback
 import uuid
@@ -53,6 +55,22 @@ from services.user_service import UserService
 
 
 router = APIRouter()
+
+# Track running sandbox cancel events by user ID
+_cancel_events: Dict[str, threading.Event] = {}
+
+
+def _run_agent_in_thread(**kwargs):
+    """Run async agent code in a separate thread with its own event loop.
+    
+    This keeps the main event loop free to handle other requests (like cancel).
+    """
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(_execute_agent_code(**kwargs))
+    finally:
+        loop.close()
 
 
 async def _verify_firebase_token(request: Request, token: str):
@@ -568,25 +586,66 @@ async def run_agent_code(
 ):
     """Executes agent code in a sandboxed environment."""
     logger.log("INFO", "user_action", "Attempting to run agent code in sandbox.", metadata={"request": get_sanitized_request_data(req)})
+    user_id = user.get("uid", "anonymous")
+
+    # Cancel any previous run for this user
+    prev_event = _cancel_events.pop(user_id, None)
+    if prev_event:
+        prev_event.set()
+        print(f"Cancelled previous sandbox run for user {user_id}", flush=True)
+
+    cancel_event = threading.Event()
+    _cancel_events[user_id] = cancel_event
+
     try:
         user_basic_info = {
             "email": user.get("email"),
             "name": user.get("name") or user.get("displayName"),
         }
-        result = await _execute_agent_code(
-            code=request.code,
-            input_dict=request.input_dict,
-            tools=request.tools,
-            gofannon_agents=request.gofannon_agents,
-            db=db,
-            llm_settings=request.llm_settings,
-            user_id=user.get("uid"),
-            user_basic_info=user_basic_info,
+
+        loop = asyncio.get_event_loop()
+
+        # Run agent in a separate thread so the main event loop stays responsive
+        exec_future = loop.run_in_executor(
+            None,
+            lambda: _run_agent_in_thread(
+                code=request.code,
+                input_dict=request.input_dict,
+                tools=request.tools,
+                gofannon_agents=request.gofannon_agents,
+                db=db,
+                llm_settings=request.llm_settings,
+                user_id=user_id,
+                user_basic_info=user_basic_info,
+            )
         )
+
+        # Poll for completion, cancellation, or client disconnect
+        while not exec_future.done():
+            if cancel_event.is_set():
+                print(f"Cancel detected for user {user_id}, returning 499", flush=True)
+                raise asyncio.CancelledError()
+            if await req.is_disconnected():
+                print(f"Client disconnected for user {user_id}, returning 499", flush=True)
+                cancel_event.set()
+                raise asyncio.CancelledError()
+            await asyncio.sleep(0.5)
+
+        try:
+            result = exec_future.result()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            raise
 
         logger.log("INFO", "sandbox_run", "Agent code executed successfully.", metadata={"request": get_sanitized_request_data(req)})
         return RunCodeResponse(result=result)
 
+    except asyncio.CancelledError:
+        logger.log("INFO", "sandbox_run", "Agent code execution was cancelled.", metadata={"user_id": user_id})
+        raise HTTPException(status_code=499, detail="Agent run was cancelled.")
+    except HTTPException:
+        raise
     except Exception as e:
         error_str = f"{type(e).__name__}: {e}"
         tb_str = traceback.format_exc()
@@ -597,6 +656,26 @@ async def run_agent_code(
         )
 
         raise e
+    finally:
+        # Clean up cancel event if it's still ours
+        if _cancel_events.get(user_id) is cancel_event:
+            _cancel_events.pop(user_id, None)
+
+
+@router.post("/agents/cancel-run")
+async def cancel_agent_run(
+    user: dict = Depends(get_current_user),
+    logger: ObservabilityService = Depends(get_logger)
+):
+    """Cancel a running sandbox execution for the current user."""
+    user_id = user.get("uid", "anonymous")
+    print(f">>> cancel-run hit for user {user_id}", flush=True)
+    cancel_event = _cancel_events.pop(user_id, None)
+    if cancel_event:
+        cancel_event.set()
+        logger.log("INFO", "sandbox_cancel", f"Cancelled sandbox run for user {user_id}")
+        return {"status": "cancelled"}
+    return {"status": "no_running_task"}
 
 
 @router.post("/rest/{friendly_name}")
