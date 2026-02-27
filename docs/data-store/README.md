@@ -165,8 +165,9 @@ results = []
 for ns in namespaces:
     if "summary" in ns:
         store = data_store.use_namespace(ns)
-        for key in store.list_keys():
-            if query in str(store.get(key)):
+        all_data = store.get_all()  # single indexed query per namespace
+        for key, value in all_data.items():
+            if query in str(value):
                 results.append({"namespace": ns, "key": key})
 ```
 
@@ -193,6 +194,7 @@ for ns in namespaces:
 
 | Method | Description |
 |--------|-------------|
+| `get_all()` | Retrieve all key-value pairs in current namespace (single query) |
 | `get_many(keys)` | Retrieve multiple values |
 | `set_many(items, metadata=None)` | Store multiple values |
 
@@ -203,6 +205,8 @@ See [API Reference](api.md) for complete documentation.
 The data store uses the same database backend as the rest of Gofannon (CouchDB, Firestore, or DynamoDB). Documents are stored in a dedicated `agent_data_store` collection/database.
 
 Document IDs are constructed as: `{user_id}:{namespace}:{base64_encoded_key}`
+
+Queries like `list_keys()`, `list_namespaces()`, and `get_all()` use indexed `find()` calls instead of full table scans. On CouchDB a Mango index on `[userId, namespace]` is automatically created at service startup and on first write to a new namespace. Firestore and DynamoDB use their native query mechanisms. The in-memory backend falls back to Python-side filtering.
 
 ## Limitations
 
@@ -228,6 +232,6 @@ If you encounter issues:
 
 ---
 
-**Documentation Version**: 1.0
-**Last Updated**: 2026-02-05
+**Documentation Version**: 1.1
+**Last Updated**: 2026-02-11
 **Maintainer**: Gofannon Development Team

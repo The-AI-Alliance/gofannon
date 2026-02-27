@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from fastapi import HTTPException
 import couchdb
 from .base import DatabaseService
@@ -17,6 +17,11 @@ class CouchDBService(DatabaseService):
         except Exception as e:
             print(f"Failed to connect to CouchDB server at {url}: {e}")
             raise ConnectionError(f"Could not connect to CouchDB: {e}") from e
+
+        # Track which indexes have already been ensured this process lifetime
+        # so we don't issue redundant HTTP calls to CouchDB on every save.
+        # Key: (db_name, tuple(sorted(fields)))
+        self._ensured_indexes: set = set()
 
     def _get_or_create_db(self, db_name: str):
         try:
@@ -61,3 +66,61 @@ class CouchDBService(DatabaseService):
         db = self._get_or_create_db(db_name)
         # Using a simple all-docs query. For more complex queries, a view would be needed.
         return [dict(row.doc) for row in db.view('_all_docs', include_docs=True)]
+
+    def find(
+        self,
+        db_name: str,
+        selector: Dict[str, Any],
+        fields: Optional[List[str]] = None,
+        limit: int = 10000,
+    ) -> List[Dict[str, Any]]:
+        """Query using CouchDB Mango selector (uses indexes instead of full scan).
+
+        Falls back to the base-class in-Python filter if the Mango
+        request fails for any reason (e.g. missing _find endpoint on
+        an old CouchDB version).
+        """
+        try:
+            db = self._get_or_create_db(db_name)
+            query: Dict[str, Any] = {"selector": selector, "limit": limit}
+            if fields:
+                # Always include _id so callers can identify docs
+                field_set = set(fields) | {"_id"}
+                query["fields"] = list(field_set)
+            return [dict(row) for row in db.find(query)]
+        except Exception as e:
+            print(f"CouchDB Mango find failed, falling back to list_all filter: {e}")
+            return super().find(db_name, selector, fields, limit)
+
+    def ensure_index(
+        self,
+        db_name: str,
+        fields: List[str],
+        index_name: Optional[str] = None,
+    ) -> None:
+        """Create a Mango index if it doesn't already exist.
+
+        Idempotent — CouchDB ignores duplicate index creation, and we
+        also track which indexes have been ensured this process lifetime
+        so we don't make redundant HTTP calls on every save.
+        """
+        cache_key = (db_name, tuple(sorted(fields)))
+        if cache_key in self._ensured_indexes:
+            return
+
+        try:
+            db = self._get_or_create_db(db_name)
+            name = index_name or f"idx-{'_'.join(fields)}"
+            # CouchDB POST to _index is idempotent — if the index
+            # already exists with the same definition it returns
+            # {"result": "exists"} and does nothing.
+            db.resource.post_json("_index", body={
+                "index": {"fields": fields},
+                "name": name,
+                "type": "json",
+            })
+            self._ensured_indexes.add(cache_key)
+        except Exception as e:
+            # Index creation is best-effort — queries still work
+            # (just slower) if the index is missing.
+            print(f"Warning: failed to ensure index on {db_name} {fields}: {e}")

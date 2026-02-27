@@ -100,6 +100,43 @@ for ns, size in sorted(ns_sizes.items(), key=lambda x: -x[1]):
 "
 ```
 
+### Index Management
+
+The data store automatically creates a Mango index on `[userId, namespace]` at service startup. These commands help verify and manage it.
+
+**List all indexes:**
+```bash
+curl -s http://admin:password@localhost:5984/agent_data_store/_index | jq '.indexes[] | {name: .name, fields: .def.fields}'
+```
+
+**Verify the standard index exists:**
+```bash
+curl -s http://admin:password@localhost:5984/agent_data_store/_index | \
+  jq '.indexes[] | select(.name == "idx-user-namespace")'
+```
+
+**Recreate the index manually (if missing after restore):**
+```bash
+curl -X POST http://admin:password@localhost:5984/agent_data_store/_index \
+  -H "Content-Type: application/json" \
+  -d '{
+    "index": { "fields": ["userId", "namespace"] },
+    "name": "idx-user-namespace",
+    "type": "json"
+  }'
+```
+
+**Test that a query uses the index (not a full scan):**
+```bash
+curl -X POST http://admin:password@localhost:5984/agent_data_store/_explain \
+  -H "Content-Type: application/json" \
+  -d '{
+    "selector": { "userId": "test-user", "namespace": "default" },
+    "fields": ["key"]
+  }' | jq '.index'
+# Should show "idx-user-namespace", not "_all_docs"
+```
+
 ## Data Management
 
 ### Delete User's Data
