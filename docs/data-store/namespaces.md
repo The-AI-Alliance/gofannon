@@ -147,8 +147,9 @@ async def run(input_dict: dict, tools: dict) -> dict:
             continue
             
         store = data_store.use_namespace(ns)
-        for key in store.list_keys():
-            value = store.get(key)
+        # Load all data in one query instead of list_keys + get per key
+        all_data = store.get_all()
+        for key, value in all_data.items():
             if query in str(value).lower():
                 results.append({
                     "namespace": ns,
@@ -169,11 +170,11 @@ async def run(input_dict: dict, tools: dict) -> dict:
     source = data_store.use_namespace(source_ns)
     target = data_store.use_namespace(target_ns)
     
-    copied = 0
-    for key in source.list_keys():
-        value = source.get(key)
-        target.set(key, value)
-        copied += 1
+    # Load all source data in one query
+    all_data = source.get_all()
+    
+    # Bulk write to target
+    copied = target.set_many(all_data)
     
     return {"copied": copied, "from": source_ns, "to": target_ns}
 ```

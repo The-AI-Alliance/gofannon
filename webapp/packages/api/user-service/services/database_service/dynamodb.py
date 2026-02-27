@@ -1,7 +1,8 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from decimal import Decimal
 from fastapi import HTTPException
 import boto3
+from boto3.dynamodb.conditions import Attr
 from botocore.exceptions import ClientError
 from .base import DatabaseService
 
@@ -144,3 +145,58 @@ class DynamoDBService(DatabaseService):
             return [dict(item) for item in items]
         except ClientError as e:
             raise HTTPException(status_code=500, detail=f"Failed to list documents: {e}")
+
+    def find(
+        self,
+        db_name: str,
+        selector: Dict[str, Any],
+        fields: Optional[List[str]] = None,
+        limit: int = 10000,
+    ) -> List[Dict[str, Any]]:
+        """Query using DynamoDB scan with server-side FilterExpression.
+
+        DynamoDB doesn't support secondary indexes on arbitrary fields
+        without explicit GSI creation, so this is still a scan — but
+        the filter runs server-side, reducing data transfer.
+
+        For high-throughput workloads, consider adding a GSI on
+        (userId, namespace) to the agent_data_store table.
+        """
+        try:
+            table = self._get_or_create_table(db_name)
+
+            # Build filter expression from selector
+            filter_expr = None
+            for field, value in selector.items():
+                condition = Attr(field).eq(value)
+                filter_expr = condition if filter_expr is None else (filter_expr & condition)
+
+            # Build projection expression if fields requested
+            scan_kwargs = {}
+            if filter_expr is not None:
+                scan_kwargs["FilterExpression"] = filter_expr
+            if fields:
+                # Always include _id
+                field_set = set(fields) | {"_id"}
+                # DynamoDB projection uses comma-separated field names
+                scan_kwargs["ProjectionExpression"] = ", ".join(
+                    f"#f_{i}" for i in range(len(field_set))
+                )
+                scan_kwargs["ExpressionAttributeNames"] = {
+                    f"#f_{i}": f for i, f in enumerate(field_set)
+                }
+            scan_kwargs["Limit"] = limit
+
+            response = table.scan(**scan_kwargs)
+            items = response.get("Items", [])
+
+            while "LastEvaluatedKey" in response and len(items) < limit:
+                scan_kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+                scan_kwargs["Limit"] = limit - len(items)
+                response = table.scan(**scan_kwargs)
+                items.extend(response.get("Items", []))
+
+            return [dict(item) for item in items[:limit]]
+        except Exception as e:
+            print(f"DynamoDB find failed, falling back to list_all filter: {e}")
+            return super().find(db_name, selector, fields, limit)
