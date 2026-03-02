@@ -191,6 +191,47 @@ print(f"Cleaned up {deleted_count} temporary keys")
 
 **Warning:** This permanently deletes all data in the namespace. Use with caution.
 
+## Bulk Retrieval
+
+### `get_all()`
+
+Retrieve all key-value pairs in the current namespace in a single query.
+
+This is much more efficient than `list_keys()` followed by `get()` per key when you need the full contents of a namespace. Internally it issues one indexed `find()` call instead of 1 + N round trips.
+
+**Parameters:** None
+
+**Returns:** Dictionary mapping keys to values.
+
+**Example:**
+```python
+# Load an entire namespace in one shot
+files = data_store.use_namespace(f"files:{repo}")
+all_files = files.get_all()
+
+for path, content in all_files.items():
+    print(f"{path}: {len(content)} chars")
+```
+
+**Performance comparison:**
+```python
+# Before (N+1 queries):
+files = data_store.use_namespace(f"files:{repo}")
+for key in files.list_keys():        # 1 query
+    content = files.get(key)          # N queries
+
+# After (1 query):
+files = data_store.use_namespace(f"files:{repo}")
+all_files = files.get_all()           # 1 query
+for key, content in all_files.items():
+    ...
+```
+
+**Notes:**
+- Returns an empty dict if the namespace has no data
+- Access tracking metadata is updated for each document when the proxy's agent name is set
+- Access tracking is best-effort — if a metadata save fails the data is still returned
+
 ## Batch Operations
 
 ### `get_many(keys)`
@@ -263,10 +304,12 @@ async def run(input_dict: dict, tools: dict) -> dict:
     files = data_store.use_namespace(files_ns)
     summaries = data_store.use_namespace(f"summary:{repo}")
     
+    # Load all summaries in one query (instead of list_keys + get per key)
+    all_summaries = summaries.get_all()
+    
     # Search through summaries
     results = []
-    for key in summaries.list_keys():
-        summary = summaries.get(key)
+    for key, summary in all_summaries.items():
         if query.lower() in str(summary).lower():
             results.append({
                 "file": key,

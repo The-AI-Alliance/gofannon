@@ -81,23 +81,43 @@ for ns in namespaces:
 
 **Possible Causes:**
 
-1. **Large values:** Keep individual values under 1MB
-2. **Many keys:** Use batch operations (`get_many`, `set_many`)
-3. **Database issues:** Check database health
+1. **N+1 query pattern:** Using `list_keys()` then `get()` per key
+2. **Large values:** Keep individual values under 1MB
+3. **Missing indexes:** Mango index may not be created
+4. **Database issues:** Check database health
 
 **Solutions:**
 
-1. **Use batch operations:**
+1. **Use `get_all()` instead of the N+1 loop:**
 ```python
-# Instead of
-for key in keys:
+# Instead of (1 + N queries):
+for key in data_store.list_keys():
     data_store.get(key)
 
-# Use
-results = data_store.get_many(keys)
+# Use (1 query):
+all_data = data_store.get_all()
 ```
 
-2. **Check database connectivity:**
+2. **Use batch operations for selective reads:**
+```python
+# Instead of N individual gets:
+for key in selected_keys:
+    data_store.get(key)
+
+# Use:
+results = data_store.get_many(selected_keys)
+```
+
+3. **Verify the Mango index exists (CouchDB):**
+```bash
+curl -s http://admin:password@localhost:5984/agent_data_store/_index | jq '.indexes[].name'
+# Should include "idx-user-namespace"
+
+# If missing, restart the API service — the index is auto-created on startup
+docker compose restart api
+```
+
+4. **Check database connectivity:**
 ```bash
 # For CouchDB
 curl -s http://localhost:5984/_up

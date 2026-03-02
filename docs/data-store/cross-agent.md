@@ -223,11 +223,12 @@ async def run(input_dict: dict, tools: dict) -> dict:
             "total": meta["total_tasks"]
         }
     
-    # Collect all results
-    results = []
-    for i in range(meta["total_tasks"]):
-        task = work.get(f"task:{i}")
-        results.append(task["result"])
+    # Collect all results in one query
+    all_tasks = work.get_all()
+    results = [
+        all_tasks[f"task:{i}"]["result"]
+        for i in range(meta["total_tasks"])
+    ]
     
     return {"status": "complete", "results": results}
 ```
@@ -282,8 +283,9 @@ async def run(input_dict: dict, tools: dict) -> dict:
         repo = ns.replace("summary:", "")
         summaries = data_store.use_namespace(ns)
         
-        for path in summaries.list_keys():
-            summary = summaries.get(path)
+        # Load all summaries in one query instead of list_keys + get per key
+        all_summaries = summaries.get_all()
+        for path, summary in all_summaries.items():
             if query.lower() in str(summary).lower():
                 results.append({
                     "repo": repo,

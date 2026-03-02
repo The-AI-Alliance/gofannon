@@ -28,11 +28,39 @@ else
   echo "_users database created: $response"
 fi
 
-# You can add commands to create other essential databases here if needed, e.g.:
-# echo "Creating sessions database if it does not exist..."
-# curl -s -X PUT "http://couchdb:5984/sessions" -u "${COUCHDB_USER}:${COUCHDB_PASSWORD}" -H "Content-Type: application/json"
-# echo "Creating agents database if it does not exist..."
-# curl -s -X PUT "http://couchdb:5984/agents" -u "${COUCHDB_USER}:${COUCHDB_PASSWORD}" -H "Content-Type: application/json"
+# --- Agent Data Store: database + indexes ---
+# Create the agent_data_store database and its Mango indexes so that
+# queries by userId/namespace are fast from the very first request.
+# These are idempotent — CouchDB returns {"result":"exists"} if the
+# index already exists with the same definition.
+
+echo "Creating agent_data_store database if it does not exist..."
+response=$(curl -s -X PUT "http://couchdb:5984/agent_data_store" \
+  -u "${COUCHDB_USER}:${COUCHDB_PASSWORD}" \
+  -H "Content-Type: application/json")
+
+if echo "$response" | grep -q "error"; then
+  if ! echo "$response" | grep -q "file_exists"; then
+    echo "Warning: error creating agent_data_store: $response"
+  else
+    echo "agent_data_store database already exists."
+  fi
+else
+  echo "agent_data_store database created: $response"
+fi
+
+echo "Creating Mango index idx-user-namespace on agent_data_store..."
+response=$(curl -s -X POST "http://couchdb:5984/agent_data_store/_index" \
+  -u "${COUCHDB_USER}:${COUCHDB_PASSWORD}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "index": {
+      "fields": ["userId", "namespace"]
+    },
+    "name": "idx-user-namespace",
+    "type": "json"
+  }')
+echo "  Index result: $response"
 
 # Disable logging of non-essential info to reduce noise
 echo "Setting CouchDB logging level to 'warning'..."

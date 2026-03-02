@@ -144,22 +144,38 @@ Metadata is merged on updates—new fields are added, existing fields are overwr
 
 ## Indexes
 
-For optimal query performance, create these indexes:
+For optimal query performance, the data store creates indexes automatically. On CouchDB a Mango index is created at service startup via `_ensure_standard_indexes()` and re-ensured on first write to each new namespace via `_ensure_namespace_indexed()`. Both calls are idempotent.
 
-### CouchDB Design Document
+### CouchDB Mango Index
+
+Created automatically — no manual setup required:
 
 ```json
 {
-    "_id": "_design/data_store",
-    "views": {
-        "by_user_namespace": {
-            "map": "function(doc) { if (doc.userId && doc.namespace) { emit([doc.userId, doc.namespace], null); } }"
-        },
-        "by_user": {
-            "map": "function(doc) { if (doc.userId) { emit(doc.userId, doc.namespace); } }"
-        }
-    }
+    "index": { "fields": ["userId", "namespace"] },
+    "name": "idx-user-namespace",
+    "type": "json"
 }
+```
+
+This index covers `list_keys()`, `list_namespaces()`, and `get_all()`. All three use `find()` with a Mango selector instead of scanning `_all_docs`.
+
+You can verify the index exists:
+
+```bash
+curl -s http://admin:password@localhost:5984/agent_data_store/_index | jq
+```
+
+If you need to recreate it manually (e.g. after a database restore):
+
+```bash
+curl -X POST http://admin:password@localhost:5984/agent_data_store/_index \
+  -H "Content-Type: application/json" \
+  -d '{
+    "index": { "fields": ["userId", "namespace"] },
+    "name": "idx-user-namespace",
+    "type": "json"
+  }'
 ```
 
 ### DynamoDB
@@ -182,28 +198,42 @@ Composite Index:
 
 ## Query Patterns
 
+All queries below use the `idx-user-namespace` Mango index (on CouchDB) or equivalent backend mechanism.
+
 ### List Keys in Namespace
 
 ```python
-# Pseudocode for list_keys(user_id, namespace)
-SELECT key FROM agent_data_store
-WHERE userId = {user_id} AND namespace = {namespace}
+# list_keys(user_id, namespace) — uses find() with field projection
+db.find("agent_data_store",
+    selector={"userId": user_id, "namespace": namespace},
+    fields=["key"])
 ```
 
 ### List Namespaces
 
 ```python
-# Pseudocode for list_namespaces(user_id)
-SELECT DISTINCT namespace FROM agent_data_store
-WHERE userId = {user_id}
+# list_namespaces(user_id) — uses find() with field projection
+db.find("agent_data_store",
+    selector={"userId": user_id},
+    fields=["namespace"])
+# Deduplicated in Python to return unique namespace names
+```
+
+### Get All (Bulk Retrieve)
+
+```python
+# get_all(user_id, namespace) — single indexed query, no projection
+db.find("agent_data_store",
+    selector={"userId": user_id, "namespace": namespace})
+# Returns full documents; mapped to {key: value} dict in Python
 ```
 
 ### Get Document
 
 ```python
-# Pseudocode for get(user_id, namespace, key)
+# get(user_id, namespace, key) — direct ID lookup, no index needed
 doc_id = f"{user_id}:{namespace}:{base64_encode(key)}"
-SELECT * FROM agent_data_store WHERE _id = {doc_id}
+db.get("agent_data_store", doc_id)
 ```
 
 ## Migration Considerations

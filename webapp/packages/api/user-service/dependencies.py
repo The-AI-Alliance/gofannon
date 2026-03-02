@@ -103,10 +103,6 @@ async def _execute_agent_code(
                 llm_settings=self.llm_settings,
             )
 
-            # Unwrap outputText if present, so callers get the content directly
-            # This prevents double-wrapping when agents return {"outputText": "..."}
-            if isinstance(result, dict) and "outputText" in result and len(result) == 1:
-                return result["outputText"]
             return result
 
     # Helper to look up a model's context window from provider config

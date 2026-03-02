@@ -194,10 +194,11 @@ async def run(input_dict: dict, tools: dict) -> dict:
     summary = {}
     for ns in matching:
         store = data_store.use_namespace(ns)
-        keys = store.list_keys()
+        # get_all loads every key-value pair in one indexed query
+        all_data = store.get_all()
         summary[ns] = {
-            "key_count": len(keys),
-            "keys": keys[:5]  # First 5
+            "key_count": len(all_data),
+            "keys": list(all_data.keys())[:5]  # First 5
         }
     
     return {"pattern": pattern, "matches": len(matching), "summary": summary}

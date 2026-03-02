@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from fastapi import HTTPException
 from firebase_admin import firestore
 from .base import DatabaseService
@@ -51,3 +51,36 @@ class FirestoreDBService(DatabaseService):
             data['_id'] = doc.id
             results.append(data)
         return results
+
+    def find(
+        self,
+        db_name: str,
+        selector: Dict[str, Any],
+        fields: Optional[List[str]] = None,
+        limit: int = 10000,
+    ) -> List[Dict[str, Any]]:
+        """Query using Firestore's native where() filters.
+
+        Firestore automatically indexes all fields, so equality
+        queries are efficient without explicit index creation.
+        Composite queries on 2+ fields may require a composite index
+        in Firestore — these are created automatically or via the
+        Firebase console when first needed.
+        """
+        try:
+            query = self.db.collection(db_name)
+            for field, value in selector.items():
+                query = query.where(field, "==", value)
+            query = query.limit(limit)
+
+            results = []
+            for doc in query.stream():
+                data = doc.to_dict()
+                data["_id"] = doc.id
+                if fields:
+                    data = {f: data.get(f) for f in set(fields) | {"_id"}}
+                results.append(data)
+            return results
+        except Exception as e:
+            print(f"Firestore find failed, falling back to list_all filter: {e}")
+            return super().find(db_name, selector, fields, limit)
