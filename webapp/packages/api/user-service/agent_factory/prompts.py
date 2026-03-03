@@ -457,7 +457,6 @@ When processing files from repositories or data stores, skip non-code files that
 ```python
 # Directories to skip entirely
 SKIP_DIRS = {{
-    'docs', 'doc', 'documentation',
     'node_modules', 'vendor', 'third_party', 'third-party',
     'dist', 'build', 'out', 'target',
     '__pycache__', '.pytest_cache', '.mypy_cache', 'coverage', '.next', '.nuxt',
@@ -478,7 +477,7 @@ SKIP_FILES = {{
     'README.md', 'README.rst', 'README.txt', 'README',
     'CHANGELOG.md', 'CHANGELOG', 'CONTRIBUTING.md', 'CODE_OF_CONDUCT.md',
     '.gitignore', '.dockerignore', '.prettierrc', '.eslintrc', '.editorconfig',
-    'Makefile', 'Dockerfile', '.npmrc', '.yarnrc',
+    '.npmrc', '.yarnrc',
     'tsconfig.json', 'jsconfig.json', 'babel.config.js',
     'webpack.config.js', 'rollup.config.js', 'vite.config.js', 'jest.config.js',
 }}
