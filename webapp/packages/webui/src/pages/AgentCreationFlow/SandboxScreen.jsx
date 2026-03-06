@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAgentFlow } from './AgentCreationFlowContextValue';
 import agentService from '../../services/agentService';
@@ -14,6 +14,7 @@ import {
   IconButton,
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import StopIcon from '@mui/icons-material/Stop';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import observabilityService from '../../services/observabilityService';
 
@@ -76,6 +77,22 @@ const SandboxScreen = () => {
   const [output, setOutput] = useState(null);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const abortControllerRef = useRef(null);
+  const timerRef = useRef(null);
+
+  // Cleanup abort controller and timer on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        agentService.cancelRun();
+      }
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, []);
 
   // Update formData when inputSchema changes
   useEffect(() => {
@@ -96,7 +113,20 @@ const SandboxScreen = () => {
     setIsLoading(true);
     setError(null);
     setOutput(null);
+    setElapsedTime(0);
     observabilityService.log({ eventType: 'user-action', message: 'User running agent in sandbox.' });
+
+    // Cancel any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    // Start elapsed time counter
+    timerRef.current = setInterval(() => {
+      setElapsedTime(prev => prev + 1);
+    }, 1000);
 
     try {
       // Extract LLM settings from agent's invokable models
@@ -107,18 +137,41 @@ const SandboxScreen = () => {
         reasoningEffort: invokableModel.parameters.reasoning_effort || invokableModel.parameters.reasoningEffort,
       } : undefined;
 
-      const response = await agentService.runCodeInSandbox(generatedCode, formData, tools, gofannonAgents, llmSettings);
+      const response = await agentService.runCodeInSandbox(generatedCode, formData, tools, gofannonAgents, llmSettings, controller.signal);
       if (response.error) {
         setError(response.error);
       } else {
         setOutput(response.result);
       }
     } catch (err) {
-      setError(err.message || 'An unexpected error occurred.');
-      observabilityService.logError(err, { context: 'Agent Sandbox Execution' });
+      if (err.name === 'AbortError') {
+        setError('Agent run was cancelled.');
+      } else {
+        setError(err.message || 'An unexpected error occurred.');
+        observabilityService.logError(err, { context: 'Agent Sandbox Execution' });
+      }
     } finally {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      abortControllerRef.current = null;
       setIsLoading(false);
     }
+  };
+
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      agentService.cancelRun();
+      observabilityService.log({ eventType: 'user-action', message: 'User cancelled agent sandbox run.' });
+    }
+  };
+
+  const formatElapsed = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
   // Renders form fields based on the input schema.
@@ -183,14 +236,31 @@ const SandboxScreen = () => {
         <Box component="form" noValidate autoComplete="off">
           <Typography variant="h6" sx={{ mb: 1 }}>Input</Typography>
           {renderFormFields()}
-          <Button
-            variant="contained"
-            onClick={handleRun}
-            disabled={isLoading || !generatedCode}
-            startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <PlayArrowIcon />}
-          >
-            {isLoading ? 'Running...' : 'Run Agent'}
-          </Button>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Button
+              variant="contained"
+              onClick={handleRun}
+              disabled={isLoading || !generatedCode}
+              startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <PlayArrowIcon />}
+            >
+              {isLoading ? 'Running...' : 'Run Agent'}
+            </Button>
+            {isLoading && (
+              <>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  onClick={handleCancel}
+                  startIcon={<StopIcon />}
+                >
+                  Cancel
+                </Button>
+                <Typography variant="body2" color="text.secondary">
+                  {formatElapsed(elapsedTime)}
+                </Typography>
+              </>
+            )}
+          </Box>
         </Box>
       )}
 

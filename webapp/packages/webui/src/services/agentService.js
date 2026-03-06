@@ -69,7 +69,7 @@ class AgentService {
       throw error;
     }
   }
-  async runCodeInSandbox(code, inputDict, tools, gofannonAgents, llmSettings) {
+  async runCodeInSandbox(code, inputDict, tools, gofannonAgents, llmSettings, signal) {
     
     const requestBody = {
       code,
@@ -89,6 +89,7 @@ class AgentService {
           ...authHeaders,
         },
         body: JSON.stringify(requestBody),
+        signal,
       });
 
       const data = await response.json();
@@ -103,6 +104,27 @@ class AgentService {
     } catch (error) {
       console.error('[AgentService] Error running code in sandbox:', error);
       throw error;
+    }
+  }
+
+  cancelRun() {
+    // Fire-and-forget with keepalive so it survives page navigation/unmount
+    console.log('[AgentService] cancelRun called');
+    try {
+      this._getAuthHeaders().then(authHeaders => {
+        console.log('[AgentService] sending cancel-run fetch', authHeaders);
+        fetch(`${API_BASE_URL}/agents/cancel-run`, {
+          method: 'POST',
+          keepalive: true,
+          headers: authHeaders,
+        }).then(r => {
+          console.log('[AgentService] cancel-run response', r.status);
+        }).catch(err => {
+          console.error('[AgentService] cancel-run fetch failed', err);
+        });
+      }).catch(() => {});
+    } catch (error) {
+      console.error('[AgentService] Error cancelling run:', error);
     }
   }
 
