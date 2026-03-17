@@ -177,6 +177,24 @@ async def _execute_agent_code(
                 elif "reasoning_effort" in parameters:
                     # User explicitly disabled reasoning, remove it
                     parameters = {k: v for k, v in parameters.items() if k != "reasoning_effort"}
+        
+        model_info = APP_PROVIDER_CONFIG.get(provider, {}).get("models", {}).get(model, {})
+        model_max = model_info.get("parameters", {}).get("max_tokens", {}).get("max")
+        if model_max and parameters.get("max_tokens", 0) > model_max:
+            parameters = {**parameters, "max_tokens": model_max}
+
+        # Auto-scale timeout based on request complexity when no explicit timeout is set.
+        # Opus with reasoning_effort=high and max_tokens=128000 can legitimately take
+        # 15-25 minutes on Bedrock. A 600s default kills these calls unnecessarily.
+        if timeout is None:
+            max_tokens = parameters.get("max_tokens", 4096)
+            reasoning = parameters.get("reasoning_effort", "disable")
+
+            if reasoning in ("high",) and max_tokens >= 64000:
+                timeout = 1800  # 30 min for heavy reasoning + large output
+            elif reasoning in ("medium", "high") or max_tokens >= 64000:
+                timeout = 1200  # 20 min for moderate complexity
+            # else: falls through to DEFAULT_LLM_TIMEOUT (600s) in llm_service.py
 
         # Auto-scale timeout based on request complexity when no explicit timeout is set.
         # Opus with reasoning_effort=high and max_tokens=128000 can legitimately take
