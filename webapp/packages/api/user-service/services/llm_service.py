@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 from config import settings
 from config.provider_config import PROVIDER_CONFIG
 from services.database_service import get_database_service
@@ -16,6 +17,12 @@ ensure_litellm_logging()
 # Configure litellm defaults
 litellm.drop_params = True
 litellm.set_verbose = False
+
+# Default timeout (seconds) for LLM calls. Override with LLM_TIMEOUT_SECONDS env var.
+DEFAULT_LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT_SECONDS", "600"))
+
+# Max retries on timeout. Override with LLM_TIMEOUT_RETRIES env var.
+MAX_TIMEOUT_RETRIES = int(os.getenv("LLM_TIMEOUT_RETRIES", "0"))
 
 def _extract_response_cost(response_obj: Any) -> Optional[float]:
     standard_logging = None
@@ -46,10 +53,14 @@ async def call_llm(
     user_service: Optional[UserService] = None,
     user_id: Optional[str] = None,
     user_basic_info: Optional[Dict[str, Any]] = None,
+    timeout: Optional[int] = None,
 ) -> Tuple[str, Any]:
     """
     Calls the specified language model using litellm, handling different API styles.
     Returns a tuple of (content, thoughts).
+
+    Args:
+        timeout: Per-call timeout in seconds. Defaults to LLM_TIMEOUT_SECONDS env var (600).
     """
     model_config = PROVIDER_CONFIG.get(provider, {}).get("models", {}).get(model, {})
     api_style = model_config.get("api_style")
@@ -72,6 +83,10 @@ async def call_llm(
 
     if tools:
         kwargs["tools"] = tools
+
+    # Set timeout for the LLM call
+    effective_timeout = timeout or DEFAULT_LLM_TIMEOUT
+    kwargs["timeout"] = effective_timeout
 
     if user_service is None:
         user_service = get_user_service(get_database_service(settings))
@@ -279,61 +294,78 @@ async def call_llm(
         if reasoning_effort != 'disable':
             kwargs['reasoning_effort'] = reasoning_effort
 
-        try:
-            response = await litellm.acompletion(**kwargs)
-        except Exception as e:
-            observability = get_observability_service()
-            
-            # Check for authentication errors and provide user-friendly message
-            error_str = str(e).lower()
-            if "invalid_api_key" in error_str or "authentication" in error_str or "api key" in error_str:
-                key_source = "user-specific" if api_key else "environment variable"
-                error_msg = f"Invalid API key for {provider}. Please check your {key_source} API key in your profile settings."
-                observability.log(
-                    level="ERROR",
-                    event_type="invalid_api_key",
-                    message=error_msg,
-                    user_id=user_id,
-                    metadata={
-                        "provider": provider,
-                        "key_source": key_source,
-                        "original_error": str(e)[:200],
-                    }
-                )
-                raise ValueError(error_msg) from e
-            
-            # Check for context window overflow errors
-            if "prompt is too long" in error_str or "context_length_exceeded" in error_str or "maximum context length" in error_str:
-                context_window = model_config.get("context_window", "unknown")
-                error_msg = (
-                    f"Prompt exceeded {model}'s context window of {context_window} tokens. "
-                    f"Use hierarchical consolidation to process data in smaller groups."
-                )
-                observability.log(
-                    level="ERROR",
-                    event_type="context_window_exceeded",
-                    message=error_msg,
-                    user_id=user_id,
-                    metadata={
-                        "provider": provider,
-                        "model": model,
-                        "context_window": context_window,
-                        "original_error": str(e)[:500],
-                    }
-                )
-                raise ValueError(error_msg) from e
+        last_exception = None
+        for attempt in range(1 + MAX_TIMEOUT_RETRIES):
+            try:
+                response = await litellm.acompletion(**kwargs)
+                break  # Success
+            except litellm.Timeout as e:
+                last_exception = e
+                if attempt < MAX_TIMEOUT_RETRIES:
+                    wait_secs = 5 * (attempt + 1)
+                    print(
+                        f"  Timeout on attempt {attempt + 1}/{1 + MAX_TIMEOUT_RETRIES} "
+                        f"for {model_string} (timeout={effective_timeout}s). "
+                        f"Retrying in {wait_secs}s...",
+                        flush=True,
+                    )
+                    await asyncio.sleep(wait_secs)
+                    continue
+                # Final attempt failed — fall through to error handling
+                raise
+            except Exception as e:
+                observability = get_observability_service()
+                
+                # Check for authentication errors and provide user-friendly message
+                error_str = str(e).lower()
+                if "invalid_api_key" in error_str or "authentication" in error_str or "api key" in error_str:
+                    key_source = "user-specific" if api_key else "environment variable"
+                    error_msg = f"Invalid API key for {provider}. Please check your {key_source} API key in your profile settings."
+                    observability.log(
+                        level="ERROR",
+                        event_type="invalid_api_key",
+                        message=error_msg,
+                        user_id=user_id,
+                        metadata={
+                            "provider": provider,
+                            "key_source": key_source,
+                            "original_error": str(e)[:200],
+                        }
+                    )
+                    raise ValueError(error_msg) from e
+                
+                # Check for context window overflow errors
+                if "prompt is too long" in error_str or "context_length_exceeded" in error_str or "maximum context length" in error_str:
+                    context_window = model_config.get("context_window", "unknown")
+                    error_msg = (
+                        f"Prompt exceeded {model}'s context window of {context_window} tokens. "
+                        f"Use hierarchical consolidation to process data in smaller groups."
+                    )
+                    observability.log(
+                        level="ERROR",
+                        event_type="context_window_exceeded",
+                        message=error_msg,
+                        user_id=user_id,
+                        metadata={
+                            "provider": provider,
+                            "model": model,
+                            "context_window": context_window,
+                            "original_error": str(e)[:500],
+                        }
+                    )
+                    raise ValueError(error_msg) from e
 
-            observability.log_exception(
-                e,
-                user_id=user_id,
-                metadata={
-                    "context": "litellm.acompletion",
-                    "model": kwargs.get('model'),
-                    "provider": provider,
-                    "tools": kwargs.get('tools'),
-                }
-            )
-            raise
+                observability.log_exception(
+                    e,
+                    user_id=user_id,
+                    metadata={
+                        "context": "litellm.acompletion",
+                        "model": kwargs.get('model'),
+                        "provider": provider,
+                        "tools": kwargs.get('tools'),
+                    }
+                )
+                raise
         message = response.choices[0].message
         content = message.content if isinstance(message.content, str) else ""
         

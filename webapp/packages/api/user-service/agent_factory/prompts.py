@@ -397,13 +397,36 @@ for i, batch in enumerate(batches):
 final_result, _ = await call_llm(..., f"Consolidate: {{batch_results}}", ...)
 ```
 
-**Always use hierarchical (tree-style) consolidation** that groups results by exact token budget:
+**Always use hierarchical (tree-style) consolidation** that groups results by exact token budget.
+
+**IMPORTANT:** Consolidation is summarization — use lighter parameters to avoid timeouts:
+- **Disable reasoning_effort** for consolidation calls (it's not needed for merging summaries)
+- **Cap max_tokens** at 16384 for consolidation (summaries don't need 128K output)
+- **Set a timeout** to fail fast and fall back to keeping individual results
+
 ```python
 # Hierarchical consolidation — merge groups that fit in the context window
 CONSOLIDATION_TEMPLATE_TOKENS = count_tokens(consolidation_instructions, provider, model)
 MAX_CONSOLIDATION_CONTENT = SAFE_INPUT_LIMIT - CONSOLIDATION_TEMPLATE_TOKENS
 
+# Use lighter parameters for consolidation to avoid timeouts
+consolidation_params = {{**parameters}}
+consolidation_params.pop("reasoning_effort", None)  # Consolidation doesn't need extended thinking
+consolidation_params["max_tokens"] = min(consolidation_params.get("max_tokens", 16384), 16384)
+
+# Timeout for each consolidation call (seconds). Shorter than batch processing
+# since consolidation prompts are smaller and don't need deep reasoning.
+CONSOLIDATION_TIMEOUT = 300  # 5 minutes
+
+# Maximum consolidation rounds to prevent infinite loops
+MAX_CONSOLIDATION_ROUNDS = 5
+
+print(f"Consolidating {{len(batch_results)}} batch results...", flush=True)
+
+consolidation_round = 0
 while len(batch_results) > 1:
+    consolidation_round += 1
+    prev_count = len(batch_results)
     next_level = []
     group = []
     group_tokens = 0
@@ -418,11 +441,13 @@ while len(batch_results) > 1:
                     messages=[{{"role": "user", "content":
                         f"Consolidate these analyses into a unified summary:\\n\\n"
                         + "\\n---\\n".join(group)}}],
-                    parameters=parameters,
+                    parameters=consolidation_params,
+                    timeout=CONSOLIDATION_TIMEOUT,
                 )
                 next_level.append(consolidated)
             except Exception as e:
-                # If consolidation fails, keep the individual results
+                # If consolidation fails (timeout, etc.), keep the individual results
+                print(f"  Consolidation group failed ({{type(e).__name__}}), keeping {{len(group)}} individual results", flush=True)
                 next_level.extend(group)
             group = []
             group_tokens = 0
@@ -441,15 +466,31 @@ while len(batch_results) > 1:
                     messages=[{{"role": "user", "content":
                         f"Consolidate these analyses into a unified summary:\\n\\n"
                         + "\\n---\\n".join(group)}}],
-                    parameters=parameters,
+                    parameters=consolidation_params,
+                    timeout=CONSOLIDATION_TIMEOUT,
                 )
                 next_level.append(consolidated)
             except Exception as e:
+                print(f"  Consolidation group failed ({{type(e).__name__}}), keeping {{len(group)}} individual results", flush=True)
                 next_level.extend(group)
 
+    print(f"  Round {{consolidation_round}}: consolidated {{prev_count}} results into {{len(next_level)}}", flush=True)
     batch_results = next_level
 
-final_result = batch_results[0]
+    # Circuit breaker: if no progress was made (all groups failed), stop looping
+    if len(batch_results) >= prev_count:
+        print(f"  Consolidation made no progress (still {{len(batch_results)}} results). "
+              f"Joining remaining results as-is.", flush=True)
+        break
+
+    # Safety cap on rounds
+    if consolidation_round >= MAX_CONSOLIDATION_ROUNDS:
+        print(f"  Hit max consolidation rounds ({{MAX_CONSOLIDATION_ROUNDS}}). "
+              f"Joining {{len(batch_results)}} remaining results as-is.", flush=True)
+        break
+
+# Join whatever we have — either a single consolidated result or multiple pieces
+final_result = "\\n\\n---\\n\\n".join(batch_results)
 ```
 
 ### Skip Lists for Efficiency
