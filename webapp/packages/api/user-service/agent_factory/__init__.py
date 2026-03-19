@@ -203,6 +203,7 @@ result = await gofannon_client.call(agent_name='{agent.name}', input_dict={{...}
             tools=None,  # Don't pass tools - we want code generation, not tool execution
             user_id=user_id,
             user_basic_info=user_basic_info,
+            timeout=1800,
         )
 
     # ---- Friendly Name and Docstring Generation Task ----
