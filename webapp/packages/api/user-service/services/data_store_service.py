@@ -23,7 +23,7 @@ DATA_STORE_DB = "agent_data_store"
 # Standard indexes that every data store database should have.
 # Each entry is (fields, index_name).
 _STANDARD_INDEXES = [
-    (["userId", "namespace"], "idx-user-namespace"),
+    (["userId", "namespace"], "user-namespace-index"),
 ]
 
 
