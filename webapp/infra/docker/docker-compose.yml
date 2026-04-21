@@ -33,6 +33,7 @@ services:
       - COUCHDB_URL=${COUCHDB_URL:-http://couchdb:5984/}
       - COUCHDB_USER=${COUCHDB_USER:-admin}
       - COUCHDB_PASSWORD=${COUCHDB_PASSWORD:-password}
+      - ERL_FLAGS=+S 2:2
     env_file:
       - ./.env
     depends_on:
@@ -59,12 +60,13 @@ services:
     command: server /data --console-address ":9001"
 
   couchdb:
-    image: couchdb:3.3
+    image: couchdb:3.4
     ports:
       - "5984:5984"
     environment:
       - COUCHDB_USER=${COUCHDB_USER:-admin}
       - COUCHDB_PASSWORD=${COUCHDB_PASSWORD:-password}
+      - ERL_FLAGS=+S 2:2
     volumes:
       - couchdb-data:/opt/couchdb/data
     networks:
