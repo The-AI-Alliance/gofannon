@@ -1,0 +1,142 @@
+# Phase B auth configuration example.
+#
+# Point the user-service at this file via the AUTH_CONFIG_PATH env var:
+#   export AUTH_CONFIG_PATH=/path/to/auth.yaml
+#
+# When AUTH_CONFIG_PATH is unset, Phase B is disabled and the legacy
+# Firebase auth path is the only active path.
+
+auth:
+  # List of providers. Each has a ``type``, an ``enabled`` flag, and a
+  # provider-specific ``config`` block.
+  providers:
+    # Dev-stub provider: local development only. DO NOT enable in prod.
+    - type: dev_stub
+      enabled: true
+      config:
+        display_name: "Dev stub login"
+        users:
+          - uid: alice
+            display_name: Alice Dev
+            email: alice@dev.local
+            workspaces:
+              - id: project:tomcat
+                role: admin
+                display_name: Apache Tomcat
+              - id: project:httpd
+                role: member
+                display_name: Apache HTTPD
+          - uid: bob
+            display_name: Bob Emeritus
+            email: bob@dev.local
+            workspaces: []       # tests the emeritus-deny path
+
+          - uid: site_admin_1
+            display_name: Site Admin (test)
+            email: admin@dev.local
+            workspaces: []       # no project membership; gets in via site_admins below
+
+    # ASF provider: real oauth.apache.org + LDAP lookup.
+    # Disable for non-ASF deployments.
+    - type: asf
+      enabled: false
+      config:
+        display_name: "Apache Software Foundation"
+        # Optional: override endpoints for staging or testing.
+        # oauth_init_url: https://oauth.apache.org/auth
+        # oauth_callback_url: https://oauth.apache.org/token
+        ldap:
+          server: ldaps://ldap-eu.apache.org
+          # bind_dn: uid=svcaccount,ou=people,dc=apache,dc=org
+          # bind_password: ${LDAP_BIND_PASSWORD}
+          timeout_seconds: 10
+        # Override display names for specific projects; the rest fall
+        # back to "Apache <Project>".
+        project_display_names:
+          tomcat: "Apache Tomcat"
+          httpd: "Apache HTTP Server"
+
+
+    # Google Workspace provider.
+    # Requires a Google Cloud OAuth client (Web application). Users sign
+    # in with @{hosted_domain} accounts; workspace memberships come from
+    # Google Groups via the Admin SDK Directory API.
+    #
+    # Scopes (requested at login): openid, email, profile,
+    #   admin.directory.group.readonly (user-consent variant, no DWD needed).
+    - type: google
+      enabled: false
+      config:
+        display_name: "Sign in with Google"
+        client_id: "123456789-abc.apps.googleusercontent.com"
+        client_secret: "${GOOGLE_OAUTH_CLIENT_SECRET}"
+        hosted_domain: acme.com          # hard tenant filter
+        mode: allowlist                  # or "open_domain"
+        allowed_groups:
+          - engineering@acme.com
+          - data-platform@acme.com
+        group_display_names:
+          engineering@acme.com: "Engineering"
+          data-platform@acme.com: "Data Platform"
+
+    # Microsoft Entra ID (Azure AD) provider.
+    # Requires an app registration with delegated GroupMember.Read.All
+    # Graph permission (admin consent typically required). Workspace
+    # memberships are Entra security groups — use group object IDs, not
+    # display names.
+    - type: microsoft
+      enabled: false
+      config:
+        display_name: "Sign in with Microsoft"
+        tenant_id: "11111111-2222-3333-4444-555555555555"   # or "common" / "organizations"
+        client_id: "..."
+        client_secret: "${MICROSOFT_OAUTH_CLIENT_SECRET}"
+        mode: allowlist                  # or "open_tenant"
+        allowed_groups:
+          - "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        # Optional: subset of allowed_groups that confer the 'admin' role.
+        admin_groups:
+          - "ffffffff-gggg-hhhh-iiii-jjjjjjjjjjjj"
+        group_display_names:
+          "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee": "Data Platform"
+
+    # GitHub provider.
+    # Create an OAuth app (not a GitHub App) at
+    #   https://github.com/settings/developers
+    # Scope ``read:org`` is required for org membership visibility; some
+    # orgs additionally gate third-party access via policy enforcement,
+    # which breaks this endpoint unless the user has approved the app.
+    - type: github
+      enabled: false
+      config:
+        display_name: "Sign in with GitHub"
+        client_id: "..."
+        client_secret: "${GITHUB_OAUTH_CLIENT_SECRET}"
+        mode: allowlist                  # or "open_github"
+        allowed_orgs:
+          - acme-corp
+          - acme-internal
+        org_display_names:
+          acme-corp: "ACME Corporation"
+
+  # Global site admins. UIDs here get the ``is_site_admin`` flag on
+  # every session regardless of workspace membership, and are allowed
+  # to log in even if they have zero provider-derived memberships.
+  # Format: "{provider_type}:{external_id}".
+  site_admins:
+    - dev_stub:site_admin_1
+    # - asf:infra_admin_1
+    # - asf:infra_admin_2     # recommend >= 2 for peer review
+
+  # Session cookie lifetime. Sessions expire at a hard wall; they
+  # don't slide. Re-login is required after this.
+  session_ttl_hours: 24
+
+  # How often the background refresher re-queries providers for
+  # workspace memberships. Also the minimum gap between on-demand
+  # refreshes via POST /auth/refresh-workspaces.
+  workspace_refresh_minutes: 15
+
+  # Keep the legacy Firebase auth path active alongside Phase B.
+  # During rollout you want both; post-migration, set to false.
+  legacy_firebase_enabled: true
