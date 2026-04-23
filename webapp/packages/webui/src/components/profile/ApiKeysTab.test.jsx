@@ -25,6 +25,7 @@ describe('ApiKeysTab', () => {
       anthropicApiKey: null,
       geminiApiKey: null,
       perplexityApiKey: null,
+    openrouterApiKey: null,
     });
 
     renderWithTheme(<ApiKeysTab />);
@@ -38,6 +39,7 @@ describe('ApiKeysTab', () => {
       anthropicApiKey: null,
       geminiApiKey: null,
       perplexityApiKey: null,
+    openrouterApiKey: null,
     });
 
     renderWithTheme(<ApiKeysTab />);
@@ -47,6 +49,7 @@ describe('ApiKeysTab', () => {
       expect(screen.getByText('Anthropic')).toBeInTheDocument();
       expect(screen.getByText('Google Gemini')).toBeInTheDocument();
       expect(screen.getByText('Perplexity')).toBeInTheDocument();
+      expect(screen.getByText('OpenRouter')).toBeInTheDocument();
     });
   });
 
@@ -56,13 +59,14 @@ describe('ApiKeysTab', () => {
       anthropicApiKey: null,
       geminiApiKey: null,
       perplexityApiKey: null,
+    openrouterApiKey: null,
     });
 
     renderWithTheme(<ApiKeysTab />);
 
     await waitFor(() => {
       const notConfiguredChips = screen.getAllByText('Not configured');
-      expect(notConfiguredChips.length).toBe(4);
+      expect(notConfiguredChips.length).toBe(5);
     });
   });
 
@@ -72,13 +76,14 @@ describe('ApiKeysTab', () => {
       anthropicApiKey: null,
       geminiApiKey: null,
       perplexityApiKey: null,
+    openrouterApiKey: null,
     });
 
     renderWithTheme(<ApiKeysTab />);
 
     await waitFor(() => {
       expect(screen.getByText('Configured')).toBeInTheDocument();
-      expect(screen.getAllByText('Not configured').length).toBe(3);
+      expect(screen.getAllByText('Not configured').length).toBe(4);
     });
   });
 
@@ -88,13 +93,14 @@ describe('ApiKeysTab', () => {
       anthropicApiKey: null,
       geminiApiKey: null,
       perplexityApiKey: null,
+    openrouterApiKey: null,
     });
 
     renderWithTheme(<ApiKeysTab />);
 
     await waitFor(() => {
       const addKeyButtons = screen.getAllByRole('button', { name: /add key/i });
-      expect(addKeyButtons.length).toBe(4);
+      expect(addKeyButtons.length).toBe(5);
     });
   });
 
@@ -104,6 +110,7 @@ describe('ApiKeysTab', () => {
       anthropicApiKey: null,
       geminiApiKey: null,
       perplexityApiKey: null,
+    openrouterApiKey: null,
     });
 
     renderWithTheme(<ApiKeysTab />);
@@ -120,6 +127,7 @@ describe('ApiKeysTab', () => {
       anthropicApiKey: null,
       geminiApiKey: null,
       perplexityApiKey: null,
+    openrouterApiKey: null,
     });
 
     renderWithTheme(<ApiKeysTab />);
@@ -144,12 +152,14 @@ describe('ApiKeysTab', () => {
         anthropicApiKey: null,
         geminiApiKey: null,
         perplexityApiKey: null,
+      openrouterApiKey: null,
       })
       .mockResolvedValueOnce({
         openaiApiKey: 'sk-new-key',
         anthropicApiKey: null,
         geminiApiKey: null,
         perplexityApiKey: null,
+      openrouterApiKey: null,
       });
 
     userService.updateApiKey.mockResolvedValueOnce({});
@@ -182,12 +192,14 @@ describe('ApiKeysTab', () => {
         anthropicApiKey: null,
         geminiApiKey: null,
         perplexityApiKey: null,
+      openrouterApiKey: null,
       })
       .mockResolvedValueOnce({
         openaiApiKey: null,
         anthropicApiKey: null,
         geminiApiKey: null,
         perplexityApiKey: null,
+      openrouterApiKey: null,
       });
 
     userService.deleteApiKey.mockResolvedValueOnce({});
@@ -213,6 +225,7 @@ describe('ApiKeysTab', () => {
       anthropicApiKey: null,
       geminiApiKey: null,
       perplexityApiKey: null,
+    openrouterApiKey: null,
     });
 
     userService.updateApiKey.mockRejectedValueOnce(new Error('Failed to save'));
@@ -244,6 +257,7 @@ describe('ApiKeysTab', () => {
       anthropicApiKey: null,
       geminiApiKey: null,
       perplexityApiKey: null,
+    openrouterApiKey: null,
     });
 
     renderWithTheme(<ApiKeysTab />);
@@ -269,6 +283,7 @@ describe('ApiKeysTab', () => {
       anthropicApiKey: null,
       geminiApiKey: null,
       perplexityApiKey: null,
+    openrouterApiKey: null,
     });
 
     renderWithTheme(<ApiKeysTab />);
@@ -286,6 +301,7 @@ describe('ApiKeysTab', () => {
       anthropicApiKey: null,
       geminiApiKey: null,
       perplexityApiKey: null,
+    openrouterApiKey: null,
     });
 
     renderWithTheme(<ApiKeysTab />);
@@ -308,6 +324,7 @@ describe('ApiKeysTab', () => {
       anthropicApiKey: null,
       geminiApiKey: null,
       perplexityApiKey: null,
+    openrouterApiKey: null,
     });
 
     renderWithTheme(<ApiKeysTab />);
@@ -341,12 +358,14 @@ describe('ApiKeysTab', () => {
         anthropicApiKey: null,
         geminiApiKey: null,
         perplexityApiKey: null,
+      openrouterApiKey: null,
       })
       .mockResolvedValueOnce({
         openaiApiKey: 'sk-new-key',
         anthropicApiKey: null,
         geminiApiKey: null,
         perplexityApiKey: null,
+      openrouterApiKey: null,
       });
 
     userService.updateApiKey.mockResolvedValueOnce({});

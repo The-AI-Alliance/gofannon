@@ -29,6 +29,7 @@ const PROVIDERS = [
   { id: 'anthropic', name: 'Anthropic', description: 'Claude models' },
   { id: 'gemini', name: 'Google Gemini', description: 'Google Gemini models' },
   { id: 'perplexity', name: 'Perplexity', description: 'Perplexity AI models' },
+  { id: 'openrouter', name: 'OpenRouter', description: 'Unified access to xAI Grok, DeepSeek, Qwen, Llama, and many other models' },
 ];
 
 const ApiKeyRow = ({ provider, apiKey, onSave, onDelete, isLoading }) => {

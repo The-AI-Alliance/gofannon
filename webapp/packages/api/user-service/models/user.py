@@ -43,6 +43,7 @@ class ApiKeys(BaseModel):
     anthropic_api_key: Optional[str] = Field(default=None, alias="anthropicApiKey")
     gemini_api_key: Optional[str] = Field(default=None, alias="geminiApiKey")
     perplexity_api_key: Optional[str] = Field(default=None, alias="perplexityApiKey")
+    openrouter_api_key: Optional[str] = Field(default=None, alias="openrouterApiKey")
 
     model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
 

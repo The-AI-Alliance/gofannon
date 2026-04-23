@@ -6,6 +6,17 @@ from fastapi import HTTPException
 from models.user import User, UsageEntry, ApiKeys
 
 
+# Maps PROVIDER_CONFIG keys to the corresponding field on the ApiKeys model.
+# Keep this in sync with models/user.py's ApiKeys class and config/provider_config.py.
+PROVIDER_KEY_MAP: Dict[str, str] = {
+    "openai": "openai_api_key",
+    "anthropic": "anthropic_api_key",
+    "gemini": "gemini_api_key",
+    "perplexity": "perplexity_api_key",
+    "openrouter": "openrouter_api_key",
+}
+
+
 class UserService:
     def __init__(self, db_service):
         self.db = db_service
@@ -110,16 +121,8 @@ class UserService:
     def update_api_key(self, user_id: str, provider: str, api_key: str, basic_info: Optional[dict] = None) -> User:
         """Update a specific API key for a provider"""
         user = self.get_user(user_id, basic_info)
-        
-        # Map provider names to ApiKeys field names
-        provider_key_map = {
-            "openai": "openai_api_key",
-            "anthropic": "anthropic_api_key",
-            "gemini": "gemini_api_key",
-            "perplexity": "perplexity_api_key",
-        }
-        
-        key_field = provider_key_map.get(provider)
+
+        key_field = PROVIDER_KEY_MAP.get(provider)
         if not key_field:
             raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
         
@@ -130,16 +133,8 @@ class UserService:
     def delete_api_key(self, user_id: str, provider: str, basic_info: Optional[dict] = None) -> User:
         """Delete (clear) a specific API key for a provider"""
         user = self.get_user(user_id, basic_info)
-        
-        # Map provider names to ApiKeys field names
-        provider_key_map = {
-            "openai": "openai_api_key",
-            "anthropic": "anthropic_api_key",
-            "gemini": "gemini_api_key",
-            "perplexity": "perplexity_api_key",
-        }
-        
-        key_field = provider_key_map.get(provider)
+
+        key_field = PROVIDER_KEY_MAP.get(provider)
         if not key_field:
             raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
         
@@ -157,17 +152,9 @@ class UserService:
         from config.provider_config import PROVIDER_CONFIG
         
         user = self.get_user(user_id, basic_info)
-        
-        # Map provider names to ApiKeys field names
-        provider_key_map = {
-            "openai": "openai_api_key",
-            "anthropic": "anthropic_api_key",
-            "gemini": "gemini_api_key",
-            "perplexity": "perplexity_api_key",
-        }
-        
+
         # First, check user's stored API keys
-        key_field = provider_key_map.get(provider)
+        key_field = PROVIDER_KEY_MAP.get(provider)
         if key_field:
             user_key = getattr(user.api_keys, key_field)
             if user_key:
