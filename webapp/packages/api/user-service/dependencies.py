@@ -448,14 +448,15 @@ def get_available_providers(user_id: Optional[str] = None, user_basic_info: Opti
         all_deployments = db_service.list_all("deployments")
         gofannon_models: Dict[str, Any] = {}
         for deployment_doc in all_deployments:
+            dep_id = deployment_doc.get("_id")
+            agent_id = deployment_doc.get("agentId")
             try:
-                agent_id = deployment_doc["agentId"]
                 agent_doc = db_service.get("agents", agent_id)
                 agent = Agent(**agent_doc)
 
-                friendly_name = deployment_doc["_id"]
+                friendly_name = dep_id
 
-                parameters = agent.input_schema
+                parameters = agent.input_schema or {}
                 formatted_params = {}
                 for name, schema in parameters.items():
                     formatted_params[name] = {
@@ -469,8 +470,24 @@ def get_available_providers(user_id: Optional[str] = None, user_basic_info: Opti
                     "description": agent.description,
                     "parameters": formatted_params,
                 }
+            except HTTPException as agent_load_e:
+                if agent_load_e.status_code == 404:
+                    # Orphan: agent was deleted but deployment doc remained.
+                    # Self-heal by removing the stale deployment.
+                    print(
+                        f"Removing orphan deployment '{dep_id}' "
+                        f"(agent '{agent_id}' not found)"
+                    )
+                    try:
+                        db_service.delete("deployments", dep_id)
+                    except Exception as del_e:
+                        print(
+                            f"Failed to delete orphan deployment '{dep_id}': {del_e}"
+                        )
+                    continue
+                print(f"Skipping deployed agent '{dep_id}' due to error: {agent_load_e}")
             except Exception as agent_load_e:
-                print(f"Skipping deployed agent '{deployment_doc.get('_id')}' due to error: {agent_load_e}")
+                print(f"Skipping deployed agent '{dep_id}' due to error: {agent_load_e}")
 
         if gofannon_models:
             available_providers["gofannon"] = {"models": gofannon_models}
@@ -533,18 +550,44 @@ async def deploy_agent(agent_id: str, db: DatabaseService):
 
 
 async def undeploy_agent(agent_id: str, db: DatabaseService):
-    agent_doc = db.get("agents", agent_id)
-    agent = Agent(**agent_doc)
-    friendly_name = agent.friendly_name
-    if not friendly_name:
-        return
+    """Remove all deployment docs that point at this agent.
 
+    Scans the `deployments` collection by the `agentId` field rather than
+    trusting `agent.friendly_name`, so that:
+      - Renames (friendly_name changed after deployment) are handled.
+      - Orphans from prior partial-failure deletes are cleaned up.
+      - Callers don't need to pre-check with `get_agent_deployment`.
+    """
     try:
-        db.delete("deployments", friendly_name)
-    except HTTPException as e:
-        if e.status_code == 404:
-            return
-        raise e
+        deployments = db.find("deployments", {"agentId": agent_id})
+    except Exception as e:
+        # Fallback: if find() fails for any reason, fall back to the
+        # friendly_name lookup so we still delete the primary deployment.
+        print(f"undeploy_agent: find() failed ({e}); falling back to friendly_name lookup")
+        deployments = []
+        try:
+            agent_doc = db.get("agents", agent_id)
+            agent = Agent(**agent_doc)
+            if agent.friendly_name:
+                try:
+                    deployments = [db.get("deployments", agent.friendly_name)]
+                except HTTPException as get_e:
+                    if get_e.status_code != 404:
+                        raise
+        except HTTPException as agent_e:
+            if agent_e.status_code != 404:
+                raise
+
+    for dep in deployments:
+        dep_id = dep.get("_id")
+        if not dep_id:
+            continue
+        try:
+            db.delete("deployments", dep_id)
+        except HTTPException as e:
+            if e.status_code == 404:
+                continue
+            raise
 
 
 async def get_agent_deployment(agent_id: str, db: DatabaseService):
@@ -571,20 +614,41 @@ async def list_deployments(db: DatabaseService):
         all_deployments_docs = db.list_all("deployments")
         deployment_infos = []
         for dep_doc in all_deployments_docs:
+            dep_id = dep_doc.get("_id")
+            agent_id = dep_doc.get("agentId")
             try:
-                agent_doc = db.get("agents", dep_doc["agentId"])
+                agent_doc = db.get("agents", agent_id)
                 agent = Agent(**agent_doc)
                 dep_info = {
-                    "friendlyName": dep_doc["_id"],
-                    "agentId": dep_doc["agentId"],
+                    "friendlyName": dep_id,
+                    "agentId": agent_id,
                     "description": agent.description,
                     "inputSchema": agent.input_schema,
                     "outputSchema": agent.output_schema,
                 }
                 deployment_infos.append(dep_info)
+            except HTTPException as e:
+                if e.status_code == 404:
+                    # Orphan: agent was deleted but deployment doc remained.
+                    # Self-heal by removing the stale deployment.
+                    print(
+                        f"Removing orphan deployment '{dep_id}' "
+                        f"(agent '{agent_id}' not found)"
+                    )
+                    try:
+                        db.delete("deployments", dep_id)
+                    except Exception as del_e:
+                        print(f"Failed to delete orphan deployment '{dep_id}': {del_e}")
+                    continue
+                print(
+                    f"Skipping deployment '{dep_id}' due to error fetching "
+                    f"agent '{agent_id}': {e}"
+                )
+                continue
             except Exception as e:
                 print(
-                    f"Skipping deployment '{dep_doc['_id']}' due to error fetching agent '{dep_doc['agentId']}': {e}"
+                    f"Skipping deployment '{dep_id}' due to error fetching "
+                    f"agent '{agent_id}': {e}"
                 )
                 continue
         return deployment_infos

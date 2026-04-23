@@ -452,11 +452,17 @@ async def delete_agent(
     user: dict = Depends(get_current_user),
     logger: ObservabilityService = Depends(get_logger)
 ):
-    """Deletes an agent by its ID."""
+    """Deletes an agent by its ID.
+
+    Always runs undeploy_agent first, which scans the deployments collection
+    by the `agentId` field and removes every matching deployment doc. That
+    covers friendly_name renames and pre-existing orphans.
+    """
     try:
-        deployment = await get_agent_deployment(agent_id, db)
-        if deployment.get("is_deployed"):
-            await undeploy_agent(agent_id, db)  
+        # undeploy_agent is now idempotent and self-healing: safe to call
+        # unconditionally, including when there are no deployments or when
+        # the agent's friendly_name no longer matches any deployment.
+        await undeploy_agent(agent_id, db)
         db.delete("agents", agent_id)
         logger.log("INFO", "user_action", f"Agent '{agent_id}' deleted.", metadata={"agent_id": agent_id, "request": get_sanitized_request_data(req)})
         return

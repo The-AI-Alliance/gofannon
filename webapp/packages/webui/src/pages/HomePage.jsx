@@ -48,7 +48,11 @@ const HomePage = () => {
             }
           })
         );
-        setAgents(withDeployment);
+        setAgents(
+          withDeployment.sort((a, b) =>
+            (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+          )
+        );
       } catch (err) {
         console.error('Failed to fetch agents:', err);
       } finally {

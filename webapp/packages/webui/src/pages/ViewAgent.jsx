@@ -31,8 +31,11 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Tooltip,
+  InputAdornment,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PublishIcon from '@mui/icons-material/Publish';
 import SaveIcon from '@mui/icons-material/Save';
@@ -81,6 +84,9 @@ const ViewAgent = () => {
   const [loadingProviders, setLoadingProviders] = useState(false);
   const [modelDialogOpen, setModelDialogOpen] = useState(false);
   const [modelDialogMode, setModelDialogMode] = useState('invokable');
+  // For invokable models: index being edited in-place, or null for "add new".
+  // Composer is always a single config so it doesn't need an index.
+  const [editingInvokableIndex, setEditingInvokableIndex] = useState(null);
   const [dialogProvider, setDialogProvider] = useState('');
   const [dialogModel, setDialogModel] = useState('');
   const [dialogParamSchema, setDialogParamSchema] = useState({});
@@ -285,8 +291,11 @@ const ViewAgent = () => {
     setIsSaving(true);
 
     try {
+      // Keep friendlyName in lockstep with name on every save so the
+      // deployment slug never drifts from the display name.
+      const canonicalName = sanitizeAgentName(agent.name);
       const updatePayload = {
-        name: agent.name,
+        name: canonicalName,
         description: agent.description,
         code: agent.code,
         tools: agent.tools,
@@ -297,7 +306,7 @@ const ViewAgent = () => {
         invokableModels: agent.invokableModels,
         composerModelConfig: agent.composerModelConfig,
         docstring: agent.docstring,
-        friendlyName: agent.friendlyName,
+        friendlyName: canonicalName,
       };
       await agentService.updateAgent(agentId, updatePayload);
       setSuccessMessage('Agent updated successfully!');
@@ -315,7 +324,7 @@ const ViewAgent = () => {
     
     // Validate required fields
     if (!agent.name || !agent.name.trim()) {
-      setError('Agent name is required. Generate code first to get a name, or set one manually.');
+      setError('Agent name is required. Set one in the Name & Description section.');
       return;
     }
     if (!agent.description || !agent.description.trim()) {
@@ -332,8 +341,11 @@ const ViewAgent = () => {
     setIsSaving(true);
 
     try {
+      // name is the canonical identifier; friendlyName is always kept
+      // identical so the deployment URL slug matches.
+      const canonicalName = sanitizeAgentName(agent.name);
       const agentData = {
-        name: agent.name,
+        name: canonicalName,
         description: agent.description,
         code: agent.code,
         tools: agent.tools,
@@ -344,14 +356,17 @@ const ViewAgent = () => {
         invokableModels: agent.invokableModels,
         composerModelConfig: agent.composerModelConfig,
         docstring: agent.docstring,
-        friendlyName: agent.friendlyName,
+        friendlyName: canonicalName,
       };
-      await agentService.saveAgent(agentData);
-      setSuccessMessage('Agent saved successfully! Redirecting...');
+      const savedAgent = await agentService.saveAgent(agentData);
+      setSuccessMessage('Agent saved successfully!');
       // Clear session storage since agent is now saved
       sessionStorage.removeItem(sessionStorageKey);
-      // Redirect to home after short delay
-      setTimeout(() => navigate('/'), 1500);
+      // Stay on the agent: navigate to the persisted detail page (replace so
+      // Back doesn't return to the creation flow), not home.
+      if (savedAgent && savedAgent._id) {
+        navigate(`/agent/${savedAgent._id}`, { replace: true });
+      }
     } catch (err) {
       setError(err.message || 'Failed to save agent.');
     } finally {
@@ -391,18 +406,30 @@ const ViewAgent = () => {
 
       const response = await agentService.generateCode(agentConfig);
       
-      setAgent(prev => ({
-        ...prev,
-        code: response.code,
-        docstring: response.docstring,
-        friendlyName: response.friendlyName,
-        name: response.friendlyName,
-      }));
+      setAgent(prev => {
+        // Only adopt the LLM-proposed friendlyName if the user hasn't named
+        // the agent yet. Otherwise preserve what they typed. Whatever wins,
+        // name and friendlyName stay in lockstep and get sanitized.
+        const hadUserName = !!(prev.name && prev.name.trim());
+        const proposed = response.friendlyName || '';
+        const resolvedRaw = hadUserName ? prev.name : proposed;
+        const resolved = sanitizeAgentName(resolvedRaw);
+        return {
+          ...prev,
+          code: response.code,
+          docstring: response.docstring,
+          friendlyName: resolved,
+          name: resolved,
+        };
+      });
 
       if (isCreationFlow) {
         agentFlowContext.setGeneratedCode(response.code);
         agentFlowContext.setDocstring(response.docstring);
-        agentFlowContext.setFriendlyName(response.friendlyName);
+        // Mirror the resolved name — if the user had already set one, keep it.
+        const hadUserName = !!(agent?.name && agent.name.trim());
+        const resolved = sanitizeAgentName(hadUserName ? agent.name : (response.friendlyName || ''));
+        agentFlowContext.setFriendlyName(resolved);
       }
 
       setSuccessMessage('Code generated successfully!');
@@ -413,7 +440,25 @@ const ViewAgent = () => {
     }
   };
 
+  // Agent names are used as slugs for deployment URLs and for Gofannon
+  // inter-agent dispatch. Only [A-Za-z0-9_] is valid. Any other character
+  // the user types is substituted with '_' live so what-you-see-is-what-
+  // you-save. friendlyName is always kept identical to name.
+  const sanitizeAgentName = (value) => (value || '').replace(/[^A-Za-z0-9_]/g, '_');
+
   const handleFieldChange = (field, value) => {
+    if (field === 'name') {
+      const cleaned = sanitizeAgentName(value);
+      setAgent((prev) => ({ ...prev, name: cleaned, friendlyName: cleaned }));
+      setSuccessMessage('');
+      syncToContext('name', cleaned);
+      // Keep the creation-flow context's friendlyName in sync too so the
+      // deploy screen and sandbox see the same value.
+      if (isCreationFlow) {
+        agentFlowContext.setFriendlyName(cleaned);
+      }
+      return;
+    }
     setAgent((prev) => ({ ...prev, [field]: value }));
     setSuccessMessage('');
     syncToContext(field, value);
@@ -543,8 +588,46 @@ const ViewAgent = () => {
   };
 
   // ========== Model Dialog Functions ==========
-  const openModelDialog = (mode) => {
+  // openModelDialog(mode)                   → add-new (invokable) or set-from-scratch (composer)
+  // openModelDialog(mode, existing)         → edit composer, or preload dialog with existing values
+  // openModelDialog('invokable', existing, i) → edit invokable model at index i in place
+  const openModelDialog = (mode, existing = null, editIndex = null) => {
     setModelDialogMode(mode);
+    setEditingInvokableIndex(mode === 'invokable' ? editIndex : null);
+
+    // If we're editing an existing config, preload dialog state from it.
+    // Only do so when the provider/model still exist in the currently
+    // available providers set — otherwise fall through to defaults to avoid
+    // showing a dead selection.
+    const existingProviderExists =
+      existing && providers[existing.provider] &&
+      providers[existing.provider].models?.[existing.model];
+
+    if (existingProviderExists) {
+      setDialogProvider(existing.provider);
+      setDialogModel(existing.model);
+      const modelParams = providers[existing.provider].models[existing.model].parameters || {};
+      setDialogParamSchema(modelParams);
+      // Merge: start from the existing saved params, then make sure any
+      // params the user hadn't set keep their schema defaults. This lets
+      // new params added to a model since the agent was configured show
+      // up with sensible defaults instead of undefined.
+      const merged = {};
+      Object.keys(modelParams).forEach(key => {
+        if (modelParams[key].default !== null && modelParams[key].default !== undefined) {
+          if (key === 'top_p' && existing.provider === 'anthropic') return;
+          merged[key] = modelParams[key].default;
+        }
+      });
+      Object.assign(merged, existing.parameters || {});
+      setDialogParams(merged);
+      setDialogBuiltInTool(existing.builtInTool || '');
+      setModelDialogOpen(true);
+      return;
+    }
+
+    // No existing config (or its provider/model is no longer available):
+    // fall back to the first available provider and its defaults.
     const defaultProvider = Object.keys(providers)[0] || '';
     setDialogProvider(defaultProvider);
     const models = Object.keys(providers[defaultProvider]?.models || {});
@@ -598,7 +681,7 @@ const ViewAgent = () => {
     setDialogBuiltInTool('');
   };
 
-  const handleAddInvokableModel = () => {
+  const handleSaveInvokableModel = () => {
     if (!dialogProvider || !dialogModel) return;
     const newModel = {
       provider: dialogProvider,
@@ -606,9 +689,19 @@ const ViewAgent = () => {
       parameters: dialogParams,
       builtInTool: dialogBuiltInTool || null,
     };
-    const newInvokableModels = [...(agent.invokableModels || []), newModel];
+    let newInvokableModels;
+    if (editingInvokableIndex !== null && editingInvokableIndex >= 0) {
+      // Replace in place
+      newInvokableModels = (agent.invokableModels || []).map((m, i) =>
+        i === editingInvokableIndex ? newModel : m
+      );
+    } else {
+      // Append
+      newInvokableModels = [...(agent.invokableModels || []), newModel];
+    }
     setAgent(prev => ({ ...prev, invokableModels: newInvokableModels }));
     syncToContext('invokableModels', newInvokableModels);
+    setEditingInvokableIndex(null);
     setModelDialogOpen(false);
   };
 
@@ -877,9 +970,26 @@ const ViewAgent = () => {
                     label="Agent Name"
                     value={agent.name || ''}
                     onChange={(e) => handleFieldChange('name', e.target.value)}
-                    placeholder="A short, descriptive name for your agent"
+                    placeholder="my_agent_name"
                     sx={{ mb: 2 }}
-                    helperText="This will be auto-generated when you generate code, but you can change it"
+                    required
+                    helperText="Used as the deployment URL slug (/rest/<name>) and for inter-agent calls."
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <Tooltip
+                            arrow
+                            title={
+                              "Names must be letters, digits, and underscores only. " +
+                              "Spaces and other punctuation are converted to underscores as you type. " +
+                              "This becomes the URL slug when the agent is deployed, so pick something stable."
+                            }
+                          >
+                            <HelpOutlineIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+                          </Tooltip>
+                        </InputAdornment>
+                      ),
+                    }}
                 />
                 <TextField 
                     fullWidth
@@ -952,7 +1062,7 @@ const ViewAgent = () => {
                     <Button 
                         size="small" 
                         startIcon={<EditIcon />} 
-                        onClick={() => openModelDialog('composer')}
+                        onClick={() => openModelDialog('composer', agent.composerModelConfig)}
                         sx={{ ml: 1, mt: 1 }}
                         disabled={loadingProviders}
                     >
@@ -972,12 +1082,14 @@ const ViewAgent = () => {
                     {agent.invokableModels?.length > 0 ? (
                         <Box sx={{ mt: 1 }}>
                             {agent.invokableModels.map((m, idx) => (
-                                <Chip 
-                                    key={idx}
-                                    label={`${m.provider}/${m.model}${m.builtInTool ? ` + ${m.builtInTool}` : ''}`} 
-                                    sx={{ mr: 1, mb: 1 }}
-                                    onDelete={() => handleRemoveInvokableModel(idx)}
-                                />
+                                <Tooltip key={idx} title="Click to edit. X to remove." arrow>
+                                    <Chip 
+                                        label={`${m.provider}/${m.model}${m.builtInTool ? ` + ${m.builtInTool}` : ''}`} 
+                                        sx={{ mr: 1, mb: 1, cursor: 'pointer' }}
+                                        onClick={() => openModelDialog('invokable', m, idx)}
+                                        onDelete={() => handleRemoveInvokableModel(idx)}
+                                    />
+                                </Tooltip>
                             ))}
                         </Box>
                     ) : (
@@ -1130,9 +1242,16 @@ const ViewAgent = () => {
         {/* Model Config Dialog */}
         <ModelConfigDialog
             open={modelDialogOpen}
-            onClose={() => setModelDialogOpen(false)}
-            onSave={modelDialogMode === 'composer' ? handleSetComposerModel : handleAddInvokableModel}
-            title={modelDialogMode === 'composer' ? 'Set Composer Model' : 'Add Invokable Model'}
+            onClose={() => {
+              setModelDialogOpen(false);
+              setEditingInvokableIndex(null);
+            }}
+            onSave={modelDialogMode === 'composer' ? handleSetComposerModel : handleSaveInvokableModel}
+            title={
+              modelDialogMode === 'composer'
+                ? (agent?.composerModelConfig ? 'Edit Composer Model' : 'Set Composer Model')
+                : (editingInvokableIndex !== null ? 'Edit Invokable Model' : 'Add Invokable Model')
+            }
             providers={providers}
             selectedProvider={dialogProvider}
             setSelectedProvider={handleDialogProviderChange}

@@ -53,7 +53,11 @@ const SavedAgentsPage = () => {
             }
           })
         );
-        setAgents(withDeployment);
+        setAgents(
+          withDeployment.sort((a, b) =>
+            (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+          )
+        );
       } catch (err) {
         setError('Failed to load saved agents.');
         console.error(err);
