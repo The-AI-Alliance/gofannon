@@ -607,7 +607,7 @@ async def run_agent_code(
             "email": user.get("email"),
             "name": user.get("name") or user.get("displayName"),
         }
-        result = await _execute_agent_code(
+        result, ops_log = await _execute_agent_code(
             code=request.code,
             input_dict=request.input_dict,
             tools=request.tools,
@@ -629,7 +629,11 @@ async def run_agent_code(
             )
 
         logger.log("INFO", "sandbox_run", "Agent code executed successfully.", metadata={"request": get_sanitized_request_data(req)})
-        return RunCodeResponse(result=result, schema_warnings=schema_warnings or None)
+        return RunCodeResponse(
+            result=result,
+            schema_warnings=schema_warnings or None,
+            ops_log=ops_log or None,
+        )
 
     except Exception as e:
         error_str = f"{type(e).__name__}: {e}"

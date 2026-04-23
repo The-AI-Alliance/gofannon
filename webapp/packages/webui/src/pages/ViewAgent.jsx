@@ -58,6 +58,7 @@ import CodeEditor from '../components/CodeEditor';
 import SpecViewerModal from '../components/SpecViewerModal';
 import ModelConfigDialog from '../components/ModelConfigDialog';
 import SchemaEditor from '../components/SchemaEditor';
+import DataStoreConfigAccordion from '../components/DataStoreConfigAccordion';
 import AgentChainView from '../components/AgentChainView';
 import ToolsSelectionDialog from './AgentCreationFlow/ToolsSelectionDialog';
 
@@ -308,6 +309,7 @@ const ViewAgent = () => {
         composerModelConfig: agent.composerModelConfig,
         docstring: agent.docstring,
         friendlyName: canonicalName,
+        dataStoreConfig: agent.dataStoreConfig || [],
       };
       await agentService.updateAgent(agentId, updatePayload);
       setSuccessMessage('Agent updated successfully!');
@@ -358,6 +360,7 @@ const ViewAgent = () => {
         composerModelConfig: agent.composerModelConfig,
         docstring: agent.docstring,
         friendlyName: canonicalName,
+        dataStoreConfig: agent.dataStoreConfig || [],
       };
       const savedAgent = await agentService.saveAgent(agentData);
       setSuccessMessage('Agent saved successfully!');
@@ -1029,6 +1032,20 @@ const ViewAgent = () => {
                         />
                     </Grid>
                 </Grid>
+            </AccordionDetails>
+        </Accordion>
+
+        {/* Data Store Configuration Section */}
+        <Accordion>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography>Data Store Configuration</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+                <DataStoreConfigAccordion
+                    agentName={agent.friendlyName || agent.name}
+                    value={agent.dataStoreConfig || []}
+                    onChange={(newConfig) => setAgent(prev => ({ ...prev, dataStoreConfig: newConfig }))}
+                />
             </AccordionDetails>
         </Accordion>
 

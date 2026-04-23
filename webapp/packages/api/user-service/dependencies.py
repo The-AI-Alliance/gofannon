@@ -161,8 +161,11 @@ async def _execute_agent_code(
             if not agent_to_run:
                 raise ValueError(f"Gofannon agent '{agent_name}' not found or not imported for this run.")
 
-            # Recursive call to the execution helper
-            result = await _execute_agent_code(
+            # Recursive call to the execution helper. We discard the ops_log
+            # here — only the top-level sandbox run surfaces ops to the UI;
+            # nested calls into other agents would add noise (and tracking
+            # them would require merging logs across the recursion tree).
+            result, _nested_ops = await _execute_agent_code(
                 code=agent_to_run.code,
                 input_dict=input_dict,
                 tools=agent_to_run.tools,
@@ -297,13 +300,16 @@ async def _execute_agent_code(
                 **kwargs
             )
 
-    # Create data store proxy for agent access
+    # Create data store proxy for agent access, with a shared ops_log so the
+    # sandbox UI can show live operation timelines.
     data_store_service = get_data_store_service(db)
+    data_store_ops_log: List[Dict[str, Any]] = []
     data_store_proxy = AgentDataStoreProxy(
         service=data_store_service,
         user_id=user_id or "anonymous",
         agent_name=agent_name or "unknown",
-        default_namespace="default"
+        default_namespace="default",
+        ops_log=data_store_ops_log,
     )
 
     exec_globals = {
@@ -333,7 +339,10 @@ async def _execute_agent_code(
         raise ValueError("Code did not define an 'async def run(input_dict, tools)' function.")
 
     result = await run_function(input_dict=input_dict, tools=tools)
-    return result
+    # Return both the agent's return value and the accumulated ops log so
+    # the sandbox UI can render the live timeline. Callers that don't want
+    # ops (run_deployed_agent, nested agent calls) can discard the second tuple.
+    return result, data_store_ops_log
 
 
 async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Request):
@@ -393,7 +402,7 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
                     reasoning_effort=request.parameters.get("reasoning_effort") or request.parameters.get("reasoningEffort"),
                 )
 
-            result = await _execute_agent_code(
+            result, _ops = await _execute_agent_code(
                 code=agent.code,
                 input_dict=input_dict,
                 tools=agent.tools,
@@ -874,7 +883,7 @@ async def run_deployed_agent(
         agent_data = db.get("agents", agent_id)
         agent = Agent(**agent_data)
 
-        result = await _execute_agent_code(
+        result, _ops = await _execute_agent_code(
             code=agent.code,
             input_dict=input_dict,
             tools=agent.tools,

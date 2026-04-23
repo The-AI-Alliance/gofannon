@@ -2,7 +2,7 @@
 from pydantic import BaseModel, Field
 from pydantic.config import ConfigDict
 from pydantic.alias_generators import to_camel
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Literal, Optional, Union
 from .chat import ProviderConfig
 from datetime import datetime
 
@@ -12,6 +12,23 @@ import uuid
 class SwaggerSpec(BaseModel):
     name: str
     content: str
+
+
+class DataStoreNamespaceConfig(BaseModel):
+    """Per-agent declaration of a data-store namespace the agent uses.
+
+    Advisory: the runtime doesn't enforce access mode — an agent with
+    ``access="read"`` can still technically call ``data_store.set(...)``.
+    This metadata exists so the editor UI can surface what data each agent
+    touches and so the data-store viewer can show which agents have
+    declared reliance on which namespace.
+    """
+    namespace: str
+    access: Literal["read", "write", "both"] = "both"
+    description: Optional[str] = None
+
+    model_config = ConfigDict(populate_by_name=True)
+
 
 class GenerateCodeRequest(BaseModel):
     tools: Dict[str, List[str]]
@@ -48,6 +65,9 @@ class CreateAgentRequest(BaseModel):
     gofannon_agents: Optional[List[str]] = Field(default_factory=list, alias="gofannonAgents")
     composer_thoughts: Optional[Any] = Field(None, alias="composerThoughts")
     composer_model_config: Optional[ProviderConfig] = Field(None, alias="composerModelConfig")
+    data_store_config: Optional[List[DataStoreNamespaceConfig]] = Field(
+        default_factory=list, alias="dataStoreConfig"
+    )
 
     model_config = ConfigDict(
         populate_by_name=True,   
@@ -70,6 +90,9 @@ class UpdateAgentRequest(BaseModel):
     gofannon_agents: Optional[List[str]] = Field(default=None, alias="gofannonAgents")
     composer_thoughts: Optional[Any] = Field(None, alias="composerThoughts")
     composer_model_config: Optional[ProviderConfig] = Field(None, alias="composerModelConfig")
+    data_store_config: Optional[List[DataStoreNamespaceConfig]] = Field(
+        default=None, alias="dataStoreConfig"
+    )
     model_config = ConfigDict(
         populate_by_name=True,
         alias_generator=to_camel,
@@ -110,6 +133,11 @@ class RunCodeResponse(BaseModel):
     # Populated when output_schema was provided on the request and the
     # agent's return value doesn't match it. Empty or missing means OK.
     schema_warnings: Optional[List[str]] = Field(default=None, alias="schemaWarnings")
+    # Accumulated data-store operations performed during the sandbox run,
+    # in chronological order. Each entry is a dict: {op, namespace, agent,
+    # ts, key?, valuePreview?, found?, count?}. Used by the sandbox UI's
+    # live Data Store panel. None when the agent didn't touch the data store.
+    ops_log: Optional[List[Dict[str, Any]]] = Field(default=None, alias="opsLog")
     model_config = ConfigDict(populate_by_name=True)
 
 class Deployment(BaseModel):

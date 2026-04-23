@@ -73,7 +73,7 @@ async def run(input_dict, tools):
 """
     db_service = Mock()
 
-    result = await _execute_agent_code(code, {"message": "hello"}, {}, [], db_service)
+    result, _ops = await _execute_agent_code(code, {"message": "hello"}, {}, [], db_service)
 
     assert result == {"outputText": "hello"}
 
@@ -128,7 +128,7 @@ async def run(input_dict, tools):
     # We need to patch call_llm at the module level before exec_globals is created
     monkeypatch.setattr(dependencies_module, "call_llm", fake_call_llm)
 
-    result = await _execute_agent_code(
+    result, _ops = await _execute_agent_code(
         code, 
         {"message": "test prompt"}, 
         {}, 
@@ -184,7 +184,7 @@ async def test_process_chat_gofannon_flow(monkeypatch):
     fake_logger = FakeLogger()
 
     async def fake_execute_agent_code(*, code, input_dict, tools, gofannon_agents, db, user_id=None, user_basic_info=None, llm_settings=None):
-        return {"outputText": f"agent:{input_dict['inputText']}"}
+        return ({"outputText": f"agent:{input_dict['inputText']}"}, [])
 
     monkeypatch.setattr(dependencies_module, "get_database_service", lambda _settings: db_service)
     monkeypatch.setattr(dependencies_module, "get_user_service", lambda _db: fake_user_service)

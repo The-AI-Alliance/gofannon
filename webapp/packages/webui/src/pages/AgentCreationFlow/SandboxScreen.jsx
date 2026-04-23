@@ -10,6 +10,7 @@ import {
   TextField,
   CircularProgress,
   Alert,
+  AlertTitle,
   Divider,
   IconButton,
   FormControlLabel,
@@ -20,6 +21,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import observabilityService from '../../services/observabilityService';
+import SandboxDataPanel from '../../components/SandboxDataPanel';
 
 // Default value per schema type, used when initializing the form.
 const defaultValueForType = (type) => {
@@ -130,6 +132,19 @@ const SandboxScreen = () => {
   const [output, setOutput] = useState(null);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  // Warnings from the server-side output-schema validator. Advisory only —
+  // the agent ran successfully, but its return value didn't match the
+  // declared output_schema (e.g. returned {"outputText": ...} instead of
+  // the declared keys). See validate_output_against_schema in dependencies.py.
+  const [schemaWarnings, setSchemaWarnings] = useState(null);
+  // Data-store ops log from the most recent sandbox run. Backend populates
+  // RunCodeResponse.ops_log when the agent touched the data store.
+  const [opsLog, setOpsLog] = useState(null);
+
+  // Read the declared output schema so we can send it to the sandbox for
+  // validation. Falls back to null when unavailable — the backend treats
+  // a missing output_schema as "skip validation".
+  const outputSchema = agentData?.outputSchema || agentFlowContext.outputSchema || null;
 
   // Update formData when inputSchema changes.
   // Default values per type so each control gets a sensible starting point.
@@ -151,6 +166,8 @@ const SandboxScreen = () => {
     setIsLoading(true);
     setError(null);
     setOutput(null);
+    setSchemaWarnings(null);
+    setOpsLog(null);
     observabilityService.log({ eventType: 'user-action', message: 'User running agent in sandbox.' });
 
     try {
@@ -176,11 +193,25 @@ const SandboxScreen = () => {
         reasoningEffort: invokableModel.parameters.reasoning_effort || invokableModel.parameters.reasoningEffort,
       } : undefined;
 
-      const response = await agentService.runCodeInSandbox(generatedCode, castInput, tools, gofannonAgents, llmSettings);
+      const response = await agentService.runCodeInSandbox(
+        generatedCode, castInput, tools, gofannonAgents, llmSettings, outputSchema
+      );
       if (response.error) {
         setError(response.error);
       } else {
         setOutput(response.result);
+        // Schema warnings (advisory): surfaced above the Output panel.
+        // Backend sends camelCase via RunCodeResponse alias; accept both.
+        const warnings = response.schemaWarnings || response.schema_warnings;
+        if (warnings && warnings.length) {
+          setSchemaWarnings(warnings);
+        }
+        // Data-store ops log from the live panel. Null/empty when the
+        // agent didn't touch the data store.
+        const ops = response.opsLog || response.ops_log;
+        if (ops && ops.length) {
+          setOpsLog(ops);
+        }
       }
     } catch (err) {
       setError(err.message || 'An unexpected error occurred.');
@@ -281,7 +312,17 @@ const SandboxScreen = () => {
   };
 
   return (
-    <Paper sx={{ p: 3, maxWidth: 800, margin: 'auto', mt: 4 }}>
+    <Box sx={{
+      maxWidth: 1400,
+      margin: 'auto',
+      mt: 4,
+      px: 2,
+      display: 'flex',
+      flexDirection: { xs: 'column', lg: 'row' },
+      gap: 2,
+      alignItems: 'stretch',
+    }}>
+      <Paper sx={{ p: 3, flexGrow: 1, minWidth: 0 }}>
       {/* Header with back button */}
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
         <IconButton size="small" onClick={() => navigate(-1)} sx={{ mr: 1 }}>
@@ -340,17 +381,36 @@ const SandboxScreen = () => {
 
       {output && (
         <Box>
+          {schemaWarnings && schemaWarnings.length > 0 && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              <AlertTitle>Output does not match declared schema</AlertTitle>
+              The agent ran successfully, but its return value doesn&apos;t match the
+              output schema you declared. Consider regenerating the code, or
+              adjusting the schema to match what the agent actually produces.
+              <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 20 }}>
+                {schemaWarnings.map((w, i) => (
+                  <li key={i}><code>{w}</code></li>
+                ))}
+              </ul>
+            </Alert>
+          )}
           <Typography variant="h6" sx={{ mb: 1 }}>Output</Typography>
           <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.900', overflowX: 'auto', maxHeight: '500px', overflowY: 'auto' }}>
             <pre style={{ whiteSpace: 'pre', wordBreak: 'keep-all', color: 'lightgreen', margin: 0, fontFamily: 'monospace', fontSize: '0.85rem' }}>
-              {typeof output === 'object' && output.outputText 
-                ? output.outputText 
-                : JSON.stringify(output, null, 2)}
+              {JSON.stringify(output, null, 2)}
             </pre>
           </Paper>
         </Box>
       )}
-    </Paper>
+      </Paper>
+
+      {/* Data-store side panel. Always rendered (empty state shows hint text)
+          so the layout doesn't jump when a run adds ops. Collapses below
+          the main panel on narrow screens. */}
+      <Box sx={{ width: { xs: '100%', lg: 380 }, flexShrink: 0, mt: { xs: 2, lg: 0 } }}>
+        <SandboxDataPanel opsLog={opsLog} />
+      </Box>
+    </Box>
   );
 };
 
