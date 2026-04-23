@@ -43,8 +43,19 @@ from models.demo import (
     GenerateDemoCodeRequest,
     GenerateDemoCodeResponse,
 )
+from models.data_store import (
+    ClearNamespaceResponse,
+    DataStoreRecord,
+    NamespaceListResponse,
+    NamespaceStats,
+    SetRecordRequest,
+)
 from models.user import User, ApiKeys
 from services.database_service import DatabaseService
+from services.data_store_service import (
+    DataStoreService,
+    get_data_store_service,
+)
 from services.mcp_client_service import McpClientService, get_mcp_client_service
 from services.observability_service import (
     ObservabilityService,
@@ -716,3 +727,173 @@ async def delete_demo_app(demo_id: str, db: DatabaseService = Depends(get_db), u
     """Deletes a demo app."""
     db.delete("demos", demo_id)
     return
+
+
+# ---------------------------------------------------------------------------
+# Data store routes
+#
+# The underlying DataStoreService is also used directly by the agent runtime
+# (see AgentDataStoreProxy). These HTTP routes expose the same service for
+# the Data Store Viewer UI: browsing namespaces, inspecting records, and
+# admin edits.
+# ---------------------------------------------------------------------------
+
+def _get_data_store_dep(db: DatabaseService = Depends(get_db)) -> DataStoreService:
+    return get_data_store_service(db)
+
+
+def _namespace_stats_from_docs(docs: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """Aggregate raw record docs into per-namespace stats.
+
+    Returned shape:
+      { namespace: {recordCount, sizeBytes, agents, updatedAt} }
+
+    Agents are the deduped union of createdByAgent and lastAccessedByAgent
+    across every record. sizeBytes is a JSON-size estimate — cheap to compute
+    and good enough for the UI's "1.2 MB" chips.
+    """
+    import json as _json
+    buckets: Dict[str, Dict[str, Any]] = {}
+    for doc in docs:
+        ns = doc.get("namespace") or "default"
+        b = buckets.setdefault(ns, {
+            "recordCount": 0, "sizeBytes": 0, "agents": set(), "updatedAt": None,
+        })
+        b["recordCount"] += 1
+        try:
+            b["sizeBytes"] += len(_json.dumps(doc.get("value")))
+        except (TypeError, ValueError):
+            pass
+        for agent_field in ("createdByAgent", "lastAccessedByAgent"):
+            v = doc.get(agent_field)
+            if v:
+                b["agents"].add(v)
+        updated = doc.get("updatedAt")
+        if updated and (b["updatedAt"] is None or updated > b["updatedAt"]):
+            b["updatedAt"] = updated
+    # Convert sets to sorted lists for serialization stability
+    return {
+        ns: {**b, "agents": sorted(b["agents"])}
+        for ns, b in buckets.items()
+    }
+
+
+@router.get("/data-store/namespaces", response_model=NamespaceListResponse)
+async def list_data_store_namespaces(
+    db: DatabaseService = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """List every namespace with aggregate stats for the current user."""
+    user_id = user.get("uid", "anonymous")
+    # list_all + filter: simpler than adding a new service method, and
+    # record counts are typically small. Could move to indexed query later.
+    all_docs = db.find("agent_data_store", {"userId": user_id})
+    stats_map = _namespace_stats_from_docs(all_docs)
+    namespaces = [
+        NamespaceStats(namespace=ns, **data)
+        for ns, data in sorted(stats_map.items())
+    ]
+    total_count = sum(ns.record_count for ns in namespaces)
+    total_size = sum(ns.size_bytes for ns in namespaces)
+    return NamespaceListResponse(
+        namespaces=namespaces,
+        total_record_count=total_count,
+        total_size_bytes=total_size,
+    )
+
+
+@router.get("/data-store/namespaces/{namespace}", response_model=NamespaceStats)
+async def get_namespace_stats(
+    namespace: str,
+    db: DatabaseService = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Stats for a single namespace (record count, size, agents, last update)."""
+    user_id = user.get("uid", "anonymous")
+    docs = db.find("agent_data_store", {"userId": user_id, "namespace": namespace})
+    stats = _namespace_stats_from_docs(docs)
+    if namespace not in stats:
+        return NamespaceStats(namespace=namespace, recordCount=0, sizeBytes=0, agents=[])
+    return NamespaceStats(namespace=namespace, **stats[namespace])
+
+
+@router.get("/data-store/namespaces/{namespace}/records", response_model=List[DataStoreRecord])
+async def list_records(
+    namespace: str,
+    db: DatabaseService = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """List every record in a namespace (full docs, not paginated).
+
+    Returns the raw records including values. For large namespaces a paginated
+    endpoint may be needed later; for now the UI handles up-to-several-thousand
+    rows without issue.
+    """
+    user_id = user.get("uid", "anonymous")
+    docs = db.find("agent_data_store", {"userId": user_id, "namespace": namespace})
+    return [DataStoreRecord(**doc) for doc in docs]
+
+
+@router.get("/data-store/namespaces/{namespace}/records/{key:path}", response_model=DataStoreRecord)
+async def get_record(
+    namespace: str,
+    key: str,
+    store: DataStoreService = Depends(_get_data_store_dep),
+    user: dict = Depends(get_current_user),
+):
+    """Get a single record by key. Uses :path so keys can contain slashes."""
+    user_id = user.get("uid", "anonymous")
+    doc = store.get(user_id, namespace, key)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Record '{key}' not found in '{namespace}'")
+    return DataStoreRecord(**doc)
+
+
+@router.put("/data-store/namespaces/{namespace}/records/{key:path}", response_model=DataStoreRecord)
+async def set_record(
+    namespace: str,
+    key: str,
+    request: SetRecordRequest,
+    store: DataStoreService = Depends(_get_data_store_dep),
+    user: dict = Depends(get_current_user),
+):
+    """Admin edit of a record. Not intended for agent writes — those go
+    through AgentDataStoreProxy during execution.
+    """
+    user_id = user.get("uid", "anonymous")
+    doc = store.set(
+        user_id=user_id,
+        namespace=namespace,
+        key=key,
+        value=request.value,
+        agent_name=None,  # admin edit, not an agent write
+        metadata=request.metadata,
+    )
+    return DataStoreRecord(**doc)
+
+
+@router.delete("/data-store/namespaces/{namespace}/records/{key:path}", status_code=204)
+async def delete_record(
+    namespace: str,
+    key: str,
+    store: DataStoreService = Depends(_get_data_store_dep),
+    user: dict = Depends(get_current_user),
+):
+    """Delete a single record."""
+    user_id = user.get("uid", "anonymous")
+    deleted = store.delete(user_id, namespace, key)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Record '{key}' not found in '{namespace}'")
+    return
+
+
+@router.delete("/data-store/namespaces/{namespace}", response_model=ClearNamespaceResponse)
+async def clear_namespace(
+    namespace: str,
+    store: DataStoreService = Depends(_get_data_store_dep),
+    user: dict = Depends(get_current_user),
+):
+    """Delete every record in a namespace."""
+    user_id = user.get("uid", "anonymous")
+    count = store.clear_namespace(user_id, namespace)
+    return ClearNamespaceResponse(namespace=namespace, deleted_count=count)

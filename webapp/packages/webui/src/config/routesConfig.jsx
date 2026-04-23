@@ -8,6 +8,8 @@ import SavedAgentsPage from '../pages/SavedAgentsPage';
 import DeployedApisPage from '../pages/DeployedApisPage';
 import DemoAppsPage from '../pages/DemoAppsPage';
 import ViewDemoAppPage from '../pages/ViewDemoAppPage';
+import DataStoresPage from '../pages/DataStoresPage';
+import DataStoreBrowser from '../pages/DataStoreBrowser';
 import SandboxScreen from '../pages/AgentCreationFlow/SandboxScreen';
 import DeployScreen from '../pages/AgentCreationFlow/DeployScreen';
 import SelectApisScreen from '../pages/DemoCreationFlow/SelectApisScreen';
@@ -48,6 +50,14 @@ export const defaultRoutes = [
   {
     path: '/demo-apps',
     element: <DemoAppsPage />,
+  },
+  {
+    path: '/data-stores',
+    element: <DataStoresPage />,
+  },
+  {
+    path: '/data-stores/:namespace',
+    element: <DataStoreBrowser />,
   },
   {
     path: '/profile/:section?',
