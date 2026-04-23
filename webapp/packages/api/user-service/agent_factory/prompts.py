@@ -861,11 +861,18 @@ You can use it to call tools as described in the documentation.
 {input_schema}
 ```
 
-**Output Schema:**
-The function **MUST** return a dictionary that conforms to the following output schema.
+**Output Schema (STRICT):**
+The function **MUST** return a dict whose **top-level keys EXACTLY match** the output schema below — no extras, no omissions, no renames. If the schema declares `{{"summary": "string", "issues": "list"}}` then the function returns `{{"summary": ..., "issues": [...]}}`. Do **not** wrap results in a generic `outputText` or `result` field unless that key is explicitly declared in the schema. Do **not** stringify structured values; return lists as lists, objects as objects, numbers as numbers.
+
 ```json
 {output_schema}
 ```
+
+**Concrete examples of correct vs incorrect returns for the schema above:**
+- ✅ `{{"summary": "The PR refactors X.", "issues": ["missing tests", "typo in README"]}}`
+- ❌ `{{"outputText": "Summary: ..."}}`  — wrong keys
+- ❌ `{{"summary": "...", "issues": "missing tests, typo"}}`  — issues should be a list, not a string
+- ❌ `{{"summary": "...", "issues": ["..."], "metadata": {{}}}}`  — extra keys not in schema
 
 **Instructions:**
 Your task is to implement the logic for this function based on the user's request.

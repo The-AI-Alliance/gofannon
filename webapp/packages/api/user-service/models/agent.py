@@ -98,11 +98,19 @@ class RunCodeRequest(BaseModel):
     tools: Dict[str, List[str]]
     gofannon_agents: Optional[List[str]] = Field(default=[], alias="gofannonAgents")
     llm_settings: Optional[LlmSettings] = Field(default=None, alias="llmSettings")
+    # Optional: when provided, the sandbox validates the agent's return value
+    # against this schema and surfaces any mismatches as schema_warnings in
+    # the response. Advisory only — never fails the run.
+    output_schema: Optional[Dict[str, Any]] = Field(default=None, alias="outputSchema")
     model_config = ConfigDict(populate_by_name=True)
 
 class RunCodeResponse(BaseModel):
     result: Optional[Any] = None
     error: Optional[str] = None
+    # Populated when output_schema was provided on the request and the
+    # agent's return value doesn't match it. Empty or missing means OK.
+    schema_warnings: Optional[List[str]] = Field(default=None, alias="schemaWarnings")
+    model_config = ConfigDict(populate_by_name=True)
 
 class Deployment(BaseModel):
     id: str = Field(..., alias="_id") # This will be the friendly_name

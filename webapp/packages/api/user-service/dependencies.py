@@ -36,6 +36,76 @@ from typing import Generator
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 
+def validate_output_against_schema(
+    result: Any,
+    output_schema: Optional[Dict[str, Any]],
+) -> List[str]:
+    """Return a list of human-readable warnings about schema mismatches.
+
+    This is advisory only — we never fail a run for schema drift because the
+    composer LLM's output compliance is best-effort. Warnings surface back to
+    the sandbox UI so the user can tell their agent is returning the wrong
+    shape (e.g. the classic "returned {outputText: ...} instead of the
+    declared keys"), and can regenerate or manually edit the code.
+
+    Checks performed:
+      - Result must be a dict (required by the agent framework).
+      - Every declared output key must be present.
+      - No extra keys beyond those declared.
+      - Each value's Python type must match the declared type string.
+        Declared types: "string" | "integer" | "float" | "boolean" | "list" | "json"
+        "json" accepts anything (used as an escape hatch).
+    """
+    if not output_schema:
+        return []
+    warnings: List[str] = []
+    if not isinstance(result, dict):
+        return [
+            f"Output is not a dict (got {type(result).__name__}). "
+            f"Expected keys: {sorted(output_schema.keys())}."
+        ]
+    declared = set(output_schema.keys())
+    actual = set(result.keys())
+    missing = declared - actual
+    extra = actual - declared
+    if missing:
+        warnings.append(f"Missing required output keys: {sorted(missing)}")
+    if extra:
+        warnings.append(
+            f"Unexpected output keys not in schema: {sorted(extra)}. "
+            f"The composer LLM may have ignored the output schema — "
+            f"try regenerating the code, or update the schema."
+        )
+    # Type checks on keys that are present (missing ones already warned above)
+    type_checks = {
+        "string": (str,),
+        "integer": (int,),
+        "float": (int, float),        # ints are valid floats
+        "boolean": (bool,),
+        "list": (list,),
+        "json": None,                 # any type
+    }
+    for key in declared & actual:
+        declared_type = output_schema[key]
+        allowed = type_checks.get(declared_type)
+        if allowed is None:
+            continue  # unknown or "json" type: skip
+        value = result[key]
+        # bool is a subclass of int in Python; treat it as its own type so
+        # {"count": True} doesn't silently pass a declared "integer" field.
+        if declared_type == "integer" and isinstance(value, bool):
+            warnings.append(
+                f"Output '{key}' is a boolean but schema declares integer."
+            )
+            continue
+        if not isinstance(value, allowed):
+            warnings.append(
+                f"Output '{key}' has type {type(value).__name__} "
+                f"but schema declares {declared_type}."
+            )
+    return warnings
+
+
 def get_db() -> Generator[DatabaseService, None, None]:
     yield get_database_service(settings)
 

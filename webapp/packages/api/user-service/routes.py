@@ -23,6 +23,7 @@ from dependencies import (
     require_admin_access,
     run_deployed_agent as run_deployed_agent_logic,
     undeploy_agent,
+    validate_output_against_schema,
 )
 from models.agent import (
     Agent,
@@ -590,8 +591,18 @@ async def run_agent_code(
             user_basic_info=user_basic_info,
         )
 
+        # Advisory schema check: surface mismatches as warnings in the response.
+        # Never fails the run — LLM compliance is best-effort.
+        schema_warnings = validate_output_against_schema(result, request.output_schema)
+        if schema_warnings:
+            logger.log(
+                "WARNING", "output_schema_mismatch",
+                f"Agent output did not match declared schema: {schema_warnings}",
+                metadata={"warnings": schema_warnings}
+            )
+
         logger.log("INFO", "sandbox_run", "Agent code executed successfully.", metadata={"request": get_sanitized_request_data(req)})
-        return RunCodeResponse(result=result)
+        return RunCodeResponse(result=result, schema_warnings=schema_warnings or None)
 
     except Exception as e:
         error_str = f"{type(e).__name__}: {e}"
