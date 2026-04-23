@@ -30,7 +30,7 @@ def _configure_cors(app: FastAPI) -> None:
     print(f"Configured allowed CORS origins: {allowed_origins}")
 
     cors_options = {
-        "allow_origins": ["*"],
+        "allow_origins": allowed_origins,
         "allow_credentials": True,
         "allow_methods": ["*"],
         "allow_headers": ["*"],
