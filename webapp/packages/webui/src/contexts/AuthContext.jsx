@@ -89,7 +89,26 @@ export const AuthProvider = ({ children }) => {
     logout,
     loginWithEmail,
     loginWithProvider,
-    loginAsMockUser 
+    loginAsMockUser,
+    // Phase B: refresh workspace memberships from the provider. When
+    // the active authService doesn't support this (Firebase / mock),
+    // the function throws — callers should only render the trigger
+    // (e.g. user-menu item) when in session mode.
+    refreshWorkspaces: async () => {
+      if (typeof authService.refreshWorkspaces !== 'function') {
+        throw new Error('Workspace refresh is only available with session auth.');
+      }
+      const diff = await authService.refreshWorkspaces();
+      // Update the user object so UI elements bound to
+      // user.workspaces re-render with the new list.
+      setUser(authService.getCurrentUser());
+      return diff;
+    },
+    // Whether the current auth mode supports Phase B session features
+    // like workspace refresh, workspace switcher, etc. Passed through
+    // so components (ProfileMenu) can conditionally render those UI
+    // bits without poking at module internals.
+    isSessionAuth: typeof authService.refreshWorkspaces === 'function',
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

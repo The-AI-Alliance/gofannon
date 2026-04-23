@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+// Install the fetch credentials shim before any service issues a request.
+// Side-effect import — the module installs itself once on load.
+// See services/fetchInterceptor.js for rationale.
+import './services/fetchInterceptor';
 import config from './config';
 import { useAuth } from './contexts/AuthContextValue';
 import { useLocation } from 'react-router-dom';
