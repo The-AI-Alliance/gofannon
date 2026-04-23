@@ -58,6 +58,7 @@ import CodeEditor from '../components/CodeEditor';
 import SpecViewerModal from '../components/SpecViewerModal';
 import ModelConfigDialog from '../components/ModelConfigDialog';
 import SchemaEditor from '../components/SchemaEditor';
+import AgentChainView from '../components/AgentChainView';
 import ToolsSelectionDialog from './AgentCreationFlow/ToolsSelectionDialog';
 
 const ViewAgent = () => {
@@ -1109,6 +1110,22 @@ const ViewAgent = () => {
                 </Box>
             </AccordionDetails>
         </Accordion>
+
+        {/* Chain View Section */}
+        {agentId && (
+            <Accordion>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Typography>Chain View</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Visual map of this agent&apos;s transitive dependencies: other
+                        Gofannon agents it calls and the MCP tool servers it uses.
+                    </Typography>
+                    <AgentChainView agentId={agentId} />
+                </AccordionDetails>
+            </Accordion>
+        )}
 
         {/* Docstring Section */}
         {agent.docstring && (

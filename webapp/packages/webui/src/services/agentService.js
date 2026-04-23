@@ -169,6 +169,25 @@ class AgentService {
     }
   }
 
+  async getChain(agentId) {
+    try {
+      const authHeaders = await this._getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/agents/${agentId}/chain`, {
+        headers: {
+          'Accept': 'application/json',
+          ...authHeaders,
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch chain for agent ${agentId}.`);
+      }
+      return await response.json(); // { root, nodes, edges }
+    } catch (error) {
+      console.error(`[AgentService] Error fetching chain for ${agentId}:`, error);
+      throw error;
+    }
+  }
+
   async updateAgent(agentId, agentData) {
     try {
       const authHeaders = await this._getAuthHeaders();

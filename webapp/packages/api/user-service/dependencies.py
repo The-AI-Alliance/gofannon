@@ -679,6 +679,139 @@ async def get_agent_deployment(agent_id: str, db: DatabaseService):
         raise e
 
 
+async def build_agent_chain(
+    root_agent_id: str,
+    db: DatabaseService,
+    max_depth: int = 8,
+) -> Dict[str, Any]:
+    """Recursively walk an agent's gofannon_agents dependencies and MCP tool
+    references to produce a nodes/edges graph suitable for rendering in the UI.
+
+    Cycle handling: if agent A transitively calls back to agent A, the edge
+    is still emitted but marked ``cyclic=True`` and the walk doesn't recurse
+    through it. This way the UI can display the cycle without us looping
+    forever on malformed graphs.
+
+    Depth cap: ``max_depth`` prevents pathological nesting. Agents reached
+    beyond the cap are emitted as ``truncated=True`` leaf nodes.
+
+    Node shapes::
+
+        {"id": "<agent_id>",  "type": "agent",
+         "name": "...", "description": "...",
+         "input_schema": {...}, "output_schema": {...},
+         "missing": False, "truncated": False}
+        {"id": "mcp:<url>",   "type": "mcp_server",
+         "url": "...", "tool_count": N, "tools": ["...", ...]}
+
+    Edge shapes::
+
+        {"from": "<agent_id>", "to": "<other_agent_id>",
+         "type": "calls", "cyclic": False}
+        {"from": "<agent_id>", "to": "mcp:<url>",
+         "type": "uses_tools", "tools": [...]}
+    """
+    nodes: Dict[str, Dict[str, Any]] = {}
+    edges: List[Dict[str, Any]] = []
+
+    async def visit(agent_id: str, depth: int, path: set):
+        # Already visited (cycle): don't recurse, but let the caller still add
+        # the edge. Returning None signals the caller to mark the edge cyclic.
+        if agent_id in path:
+            return "cycle"
+        # Depth cap: emit a truncated placeholder and stop.
+        if depth > max_depth:
+            if agent_id not in nodes:
+                try:
+                    agent_doc = db.get("agents", agent_id)
+                    agent = Agent(**agent_doc)
+                    nodes[agent_id] = {
+                        "id": agent_id,
+                        "type": "agent",
+                        "name": agent.name,
+                        "description": agent.description,
+                        "input_schema": agent.input_schema,
+                        "output_schema": agent.output_schema,
+                        "missing": False,
+                        "truncated": True,
+                    }
+                except HTTPException:
+                    nodes[agent_id] = {
+                        "id": agent_id, "type": "agent", "name": "(missing)",
+                        "description": "", "input_schema": {}, "output_schema": {},
+                        "missing": True, "truncated": True,
+                    }
+            return "ok"
+
+        # Already have this node from a different path — still walk its
+        # children (shared dependency), but don't re-add it.
+        already_have_node = agent_id in nodes
+
+        if not already_have_node:
+            try:
+                agent_doc = db.get("agents", agent_id)
+                agent = Agent(**agent_doc)
+            except HTTPException as e:
+                if e.status_code == 404:
+                    nodes[agent_id] = {
+                        "id": agent_id, "type": "agent", "name": "(missing)",
+                        "description": "",
+                        "input_schema": {}, "output_schema": {},
+                        "missing": True, "truncated": False,
+                    }
+                    return "ok"
+                raise
+            nodes[agent_id] = {
+                "id": agent_id,
+                "type": "agent",
+                "name": agent.name,
+                "description": agent.description,
+                "input_schema": agent.input_schema,
+                "output_schema": agent.output_schema,
+                "missing": False,
+                "truncated": False,
+            }
+        else:
+            # Load again for traversal — cheap, and avoids caching Agent
+            # objects alongside the nodes dict.
+            agent_doc = db.get("agents", agent_id)
+            agent = Agent(**agent_doc)
+
+        # MCP tool edges
+        for url, tool_names in (agent.tools or {}).items():
+            mcp_node_id = f"mcp:{url}"
+            if mcp_node_id not in nodes:
+                nodes[mcp_node_id] = {
+                    "id": mcp_node_id,
+                    "type": "mcp_server",
+                    "url": url,
+                    "tool_count": len(tool_names or []),
+                    "tools": list(tool_names or []),
+                }
+            edges.append({
+                "from": agent_id,
+                "to": mcp_node_id,
+                "type": "uses_tools",
+                "tools": list(tool_names or []),
+            })
+
+        # Gofannon agent edges (and recurse)
+        for dep_id in (agent.gofannon_agents or []):
+            new_path = path | {agent_id}
+            outcome = await visit(dep_id, depth + 1, new_path)
+            edges.append({
+                "from": agent_id,
+                "to": dep_id,
+                "type": "calls",
+                "cyclic": outcome == "cycle",
+            })
+
+        return "ok"
+
+    await visit(root_agent_id, 0, set())
+    return {"root": root_agent_id, "nodes": nodes, "edges": edges}
+
+
 async def list_deployments(db: DatabaseService):
     try:
         all_deployments_docs = db.list_all("deployments")
@@ -773,6 +906,7 @@ __all__ = [
     "get_agent_deployment",
     "list_deployments",
     "run_deployed_agent",
+    "build_agent_chain",
     "_execute_agent_code",
     "oauth2_scheme",
 ]

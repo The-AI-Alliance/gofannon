@@ -10,6 +10,7 @@ from pydantic.config import ConfigDict
 from config import settings
 from dependencies import (
     _execute_agent_code,
+    build_agent_chain,
     deploy_agent,
     fetch_spec_content,
     get_agent_deployment,
@@ -443,6 +444,21 @@ async def get_agent(agent_id: str, db: DatabaseService = Depends(get_db), user: 
     """Retrieves a specific agent by its ID."""
     agent_doc = db.get("agents", agent_id)
     return Agent(**agent_doc)
+
+
+@router.get("/agents/{agent_id}/chain")
+async def get_agent_chain(
+    agent_id: str,
+    db: DatabaseService = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Return the transitive call graph for an agent.
+
+    Walks gofannon_agents dependencies recursively (bounded depth, cycle-safe)
+    and emits an MCP-server leaf node per distinct tool URL. Used by the
+    Chain View UI to show what other agents and tools this agent reaches.
+    """
+    return await build_agent_chain(agent_id, db)
 
 
 @router.delete("/agents/{agent_id}", status_code=204)
