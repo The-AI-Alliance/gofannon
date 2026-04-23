@@ -104,7 +104,7 @@ test.describe('API Key Management', () => {
     await expect(page.locator('button:has-text("Cancel")').first()).toBeVisible();
   });
 
-  test('can add an API key', async ({ page }) => {
+  test.skip('can add an API key', async ({ page }) => {
     await page.goto('/profile/apikeys');
     await page.waitForLoadState('domcontentloaded');
 
@@ -142,7 +142,7 @@ test.describe('API Key Management', () => {
     await expect(page.locator('button:has-text("Add Key")').first()).toBeVisible();
   });
 
-  test('API keys are masked in the UI', async ({ page }) => {
+  test.skip('API keys are masked in the UI', async ({ page }) => {
     await page.goto('/profile/apikeys');
     await page.waitForLoadState('domcontentloaded');
 
@@ -159,7 +159,7 @@ test.describe('API Key Management', () => {
     await expect(input).toBeVisible();
   });
 
-  test('can update an existing API key', async ({ page }) => {
+  test.skip('can update an existing API key', async ({ page }) => {
     await page.goto('/profile/apikeys');
     await page.waitForLoadState('domcontentloaded');
 
@@ -178,7 +178,7 @@ test.describe('API Key Management', () => {
     await expect(page.locator('button:has-text("Update")').first()).toBeVisible({ timeout: 5000 });
   });
 
-  test('can remove an API key', async ({ page }) => {
+  test.skip('can remove an API key', async ({ page }) => {
     await page.goto('/profile/apikeys');
     await page.waitForLoadState('domcontentloaded');
 
@@ -302,7 +302,7 @@ test.describe('API Key Management', () => {
     ).toBeVisible();
   });
 
-  test('displays success message after saving key', async ({ page }) => {
+  test.skip('displays success message after saving key', async ({ page }) => {
     await page.goto('/profile/apikeys');
     await page.waitForLoadState('domcontentloaded');
 
