@@ -12,10 +12,64 @@ import {
   Alert,
   Divider,
   IconButton,
+  FormControlLabel,
+  Switch,
+  Tooltip,
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import observabilityService from '../../services/observabilityService';
+
+// Default value per schema type, used when initializing the form.
+const defaultValueForType = (type) => {
+  switch (type) {
+    case 'integer':
+    case 'float':
+      return '';       // empty string lets the user clear the field; cast on submit
+    case 'boolean':
+      return false;
+    case 'list':
+    case 'json':
+      return '';       // user types JSON; parse on submit
+    default:
+      return '';
+  }
+};
+
+// Cast the form value to the declared type before sending to the backend.
+// Throws on invalid input (caught by handleRun).
+const castValueForType = (type, value) => {
+  switch (type) {
+    case 'integer': {
+      if (value === '' || value === null || value === undefined) return null;
+      const n = Number(value);
+      if (!Number.isInteger(n)) throw new Error(`must be an integer, got "${value}"`);
+      return n;
+    }
+    case 'float': {
+      if (value === '' || value === null || value === undefined) return null;
+      const n = Number(value);
+      if (Number.isNaN(n)) throw new Error(`must be a number, got "${value}"`);
+      return n;
+    }
+    case 'boolean':
+      return Boolean(value);
+    case 'list':
+    case 'json': {
+      if (value === '' || value === null || value === undefined) {
+        return type === 'list' ? [] : null;
+      }
+      try {
+        return JSON.parse(value);
+      } catch (e) {
+        throw new Error(`must be valid JSON, got parse error: ${e.message}`);
+      }
+    }
+    default:
+      return value ?? '';
+  }
+};
 
 const SandboxScreen = () => {
   const { agentId } = useParams();
@@ -77,11 +131,12 @@ const SandboxScreen = () => {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Update formData when inputSchema changes
+  // Update formData when inputSchema changes.
+  // Default values per type so each control gets a sensible starting point.
   useEffect(() => {
     if (inputSchema) {
       const newFormState = Object.keys(inputSchema).reduce((acc, key) => {
-        acc[key] = ''; // default to empty string
+        acc[key] = defaultValueForType(inputSchema[key]);
         return acc;
       }, {});
       setFormData(newFormState);
@@ -99,6 +154,20 @@ const SandboxScreen = () => {
     observabilityService.log({ eventType: 'user-action', message: 'User running agent in sandbox.' });
 
     try {
+      // Cast each field per its declared schema type before sending to the
+      // agent. Throws with a field-named message on parse failures.
+      let castInput;
+      try {
+        castInput = Object.entries(inputSchema || {}).reduce((acc, [key, type]) => {
+          acc[key] = castValueForType(type, formData[key]);
+          return acc;
+        }, {});
+      } catch (castErr) {
+        setError(`Input validation failed: ${castErr.message}`);
+        setIsLoading(false);
+        return;
+      }
+
       // Extract LLM settings from agent's invokable models
       const invokableModel = agentData?.invokableModels?.[0] || agentFlowContext.invokableModels?.[0];
       const llmSettings = invokableModel?.parameters ? {
@@ -107,7 +176,7 @@ const SandboxScreen = () => {
         reasoningEffort: invokableModel.parameters.reasoning_effort || invokableModel.parameters.reasoningEffort,
       } : undefined;
 
-      const response = await agentService.runCodeInSandbox(generatedCode, formData, tools, gofannonAgents, llmSettings);
+      const response = await agentService.runCodeInSandbox(generatedCode, castInput, tools, gofannonAgents, llmSettings);
       if (response.error) {
         setError(response.error);
       } else {
@@ -121,29 +190,93 @@ const SandboxScreen = () => {
     }
   };
 
-  // Renders form fields based on the input schema.
+  // Renders form fields based on the input schema type.
   const renderFormFields = () => {
     if (!inputSchema || Object.keys(inputSchema).length === 0) {
       return <Typography color="text.secondary">No input schema defined.</Typography>;
     }
     return Object.entries(inputSchema).map(([key, type]) => {
-      // Simple implementation for string types as per the default schema.
-      if (type === 'string') {
+      const value = formData[key];
+
+      if (type === 'integer' || type === 'float') {
         return (
           <TextField
             key={key}
             fullWidth
-            multiline
-            minRows={3}
-            maxRows={10}
-            label={key}
-            value={formData[key] || ''}
+            type="number"
+            label={`${key} (${type})`}
+            value={value ?? ''}
             onChange={(e) => handleInputChange(key, e.target.value)}
+            inputProps={type === 'integer' ? { step: 1 } : { step: 'any' }}
             sx={{ mb: 2 }}
           />
         );
       }
-      return <Typography key={key}>Unsupported input type: {type} for key: {key}</Typography>;
+
+      if (type === 'boolean') {
+        return (
+          <FormControlLabel
+            key={key}
+            sx={{ display: 'block', mb: 2 }}
+            control={
+              <Switch
+                checked={Boolean(value)}
+                onChange={(e) => handleInputChange(key, e.target.checked)}
+              />
+            }
+            label={`${key} (boolean)`}
+          />
+        );
+      }
+
+      if (type === 'list' || type === 'json') {
+        const placeholder = type === 'list'
+          ? '["item1", "item2"]'
+          : '{"key": "value"}';
+        const tooltip = type === 'list'
+          ? 'Enter a JSON array. Example: ["apple", "banana", "cherry"]'
+          : 'Enter any valid JSON. Object, array, number, string, boolean, or null.';
+        return (
+          <Box key={key} sx={{ mb: 2, position: 'relative' }}>
+            <TextField
+              fullWidth
+              multiline
+              minRows={3}
+              maxRows={10}
+              label={`${key} (${type})`}
+              placeholder={placeholder}
+              value={value ?? ''}
+              onChange={(e) => handleInputChange(key, e.target.value)}
+              InputProps={{
+                sx: { fontFamily: 'monospace', fontSize: '0.9rem' },
+                endAdornment: (
+                  <Tooltip title={tooltip} arrow placement="top">
+                    <HelpOutlineIcon
+                      fontSize="small"
+                      sx={{ color: 'text.secondary', alignSelf: 'flex-start', mt: 1 }}
+                    />
+                  </Tooltip>
+                ),
+              }}
+            />
+          </Box>
+        );
+      }
+
+      // string (and any unknown type) → plain multiline TextField
+      return (
+        <TextField
+          key={key}
+          fullWidth
+          multiline
+          minRows={3}
+          maxRows={10}
+          label={`${key}${type !== 'string' ? ` (${type})` : ''}`}
+          value={value ?? ''}
+          onChange={(e) => handleInputChange(key, e.target.value)}
+          sx={{ mb: 2 }}
+        />
+      );
     });
   };
 
