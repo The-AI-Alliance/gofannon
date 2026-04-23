@@ -8,8 +8,8 @@ const STORAGE_STATE = path.resolve("./tests/e2e/.auth/storageState.json");
  */
 export default defineConfig({
   webServer: {
-    command: "pnpm run dev -- --port 3001",
-    url: "http://localhost:3001",
+    command: "pnpm run dev -- --port 3000",
+    url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },
@@ -30,7 +30,7 @@ export default defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: "http://localhost:3001",
+    baseURL: "http://localhost:3000",
 
     // Every test starts with this storage state loaded. globalSetup
     // writes it once at the start of the run; individual tests can
