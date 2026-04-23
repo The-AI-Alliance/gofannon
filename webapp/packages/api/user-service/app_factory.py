@@ -59,7 +59,26 @@ def create_app() -> FastAPI:
     app.add_middleware(ObservabilityMiddleware)
     _configure_cors(app)
 
-    from routes import router
+    # Phase B: initialize the auth provider registry from AUTH_CONFIG.
+    # When no providers are configured (or Phase B is disabled), this
+    # is a no-op — ProviderRegistry with no entries. The auth router
+    # is only mounted when at least one provider is enabled.
+    try:
+        from config import settings as app_settings
+        from auth import init_registry
+        providers_cfg = (app_settings.AUTH_CONFIG or {}).get("providers") or []
+        registry = init_registry(providers_cfg)
+    except Exception as e:
+        # Don't fail app startup over an auth config error; Phase B
+        # just stays disabled and the legacy Firebase path keeps working.
+        print(f"Warning: auth registry init failed: {e}")
+        registry = None
 
+    from routes import router
     _include_routers(app, [RouterConfig(router=router)])
+
+    if registry is not None and registry.has_any():
+        from routes_auth import router as auth_router
+        _include_routers(app, [RouterConfig(router=auth_router)])
+
     return app
