@@ -15,7 +15,7 @@ from .base import (
     Membership,
     UserInfo,
 )
-from .providers import AsfProvider, DevStubProvider
+from .providers import AsfProvider, DevStubProvider, GitHubProvider, GoogleProvider, MicrosoftProvider
 
 
 # Map provider type -> class. Adding GitHub/Google/Microsoft later is a
@@ -23,6 +23,9 @@ from .providers import AsfProvider, DevStubProvider
 _PROVIDER_CLASSES: Dict[str, Type[AuthProvider]] = {
     "asf": AsfProvider,
     "dev_stub": DevStubProvider,
+    "github": GitHubProvider,
+    "google": GoogleProvider,
+    "microsoft": MicrosoftProvider,
 }
 
 
