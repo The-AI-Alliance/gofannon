@@ -1,79 +1,64 @@
-![logo](https://the-ai-alliance.github.io/gofannon/assets/images/logo_1000x1260.png)
-<!-- ![CI](https://github.com/The-AI-Alliance/gofannon/actions/workflows/main.yml/badge.svg) -->
-![PyPI](https://img.shields.io/pypi/v/gofannon)
-![License](https://img.shields.io/github/license/The-AI-Alliance/gofannon)
-![Issues](https://img.shields.io/github/issues/The-AI-Alliance/gofannon)
-![GitHub stars](https://img.shields.io/github/stars/The-AI-Alliance/gofannon?style=social)
+<p align="center">
+  <img src="https://raw.githubusercontent.com/The-AI-Alliance/gofannon/main/website/static/img/logo_1000x1260.png" alt="Gofannon" width="200">
+</p>
 
-# `gofannon`  
-  
-**[gofannon](https://the-ai-alliance.github.io/gofannon/)** is now a web app that helps subject matter experts rapidly prototype AI agents and the web UIs that wrap them. Build flows, preview interactions, and share working agent-driven experiences without having to become a framework specialist.
+# Gofannon
 
-Professional support and advisory services are available from **AtA Systems**—learn more at [ramenata.ai](https://ramenata.ai).
+[![PyPI](https://img.shields.io/pypi/v/gofannon)](https://pypi.org/project/gofannon/)
+[![License](https://img.shields.io/github/license/The-AI-Alliance/gofannon)](LICENSE)
+[![Issues](https://img.shields.io/github/issues/The-AI-Alliance/gofannon)](https://github.com/The-AI-Alliance/gofannon/issues)
 
-## 🌟🌟 What you can do 🌟🌟
-1. **Prototype agents fast**
-   - Compose tools, data sources, and decision paths through a guided interface.
-   - Preview responses and iterate with real-time feedback.
-2. **Design lightweight web UIs**
-   - Pair your agents with forms, chat surfaces, and dashboards to validate user journeys quickly.
-   - Export or embed prototypes to share with stakeholders.
-3. **Stay flexible**
-   - Keep using your preferred AI stack—gofannon focuses on prototyping and handoff, not lock-in.
-4. **Get expert help when you need it**
-   - AtA Systems offers professional support, integration help, and custom extensions for teams building on gofannon.
+Gofannon is a provider- and model-agnostic toolkit and web application for prototyping AI agents and the lightweight web UIs that wrap them. Subject matter experts compose tools, data sources, and decision paths through a guided interface, preview agent interactions in real time, and hand off working agent-driven experiences without committing to a single AI framework or model provider.
 
-## 🎓🎓 Why the name `gofannon`? 🎓🎓
+## What you can do
 
-See [`why_the_name_gofannon`](https://the-ai-alliance.github.io/gofannon/about/the_name_gofannon/) for the rich story on why we chose to honor this Celtic Diety
+- **Prototype agents quickly.** Compose tools, data sources, and decision paths through a guided interface, and iterate with real-time feedback.
+- **Design lightweight web UIs.** Pair agents with forms, chat surfaces, and dashboards to validate user journeys; export or embed prototypes to share with stakeholders.
+- **Stay flexible.** Gofannon supports multiple model providers (OpenAI, Anthropic, Gemini, and others via LiteLLM) and is designed to keep your work portable across them.
 
-## ⚡️⚡️Quickstart ⚡️⚡️
+## Quickstart
 
-```bash  
+```bash
 git clone https://github.com/The-AI-Alliance/gofannon.git
 cd gofannon/webapp/infra/docker
 docker-compose up --build
 ```
-For more information, see our [quickstart guide](https://github.com/The-AI-Alliance/gofannon/blob/main/docs/quickstart/README.md).
 
-## 🏆🏆 Acknowledgments 🏆🏆
+See the [quickstart guide](docs/quickstart/README.md) for details, including required environment configuration.
 
-We would like to thank the open-source community for their contributions and support in making this project possible.
+## Documentation
 
-<a href="https://github.com/The-AI-Alliance/gofannon/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=The-AI-Alliance/gofannon" />
-</a>
+Full documentation lives in [`docs/`](docs/) and is published at <https://the-ai-alliance.github.io/gofannon/>. Highlights:
 
-Made with [contrib.rocks](https://contrib.rocks).
+- [Quickstart](docs/quickstart/README.md)
+- [Developer quickstart](docs/developers-quickstart.md)
+- [API reference](docs/api.md)
+- [LLM provider configuration](docs/llm-provider-configuration.md)
+- [Testing](docs/testing/README.md)
 
-## 🗞️🗞️ Stay Up To Date 🗞️🗞️
+## About the name
 
-Star `gofannon` for good karma (and to receive updates in your github feed).
+Gofannon is the Welsh god of smithcraft. See [About the name](docs/about-name-origin.md) for the story behind the choice.
 
-![gif showng how to star](https://the-ai-alliance.github.io/gofannon/assets/images/github-star.gif)
+## Roadmap
 
-## 🚲🚲 Roadmap  🚲🚲
-  
-For a detailed overview of planned features and their current status, please refer to the [ROADMAP](https://github.com/The-AI-Alliance/gofannon/blob/main/ROADMAP.md).   
+Planned features and their current status are tracked in [ROADMAP.md](ROADMAP.md).
 
-## 📘📘 Documentation 📘📘
+## Community
 
-Documentation can be found [here](https://github.com/The-AI-Alliance/gofannon/tree/main/docs). Each tool comes with its own documentation, which can be found in the docs/ directory. The documentation provides detailed information on how to use each tool, including required parameters and example usage.
+- Report bugs or request features in [GitHub Issues](https://github.com/The-AI-Alliance/gofannon/issues).
+- Ask questions and discuss ideas in [GitHub Discussions](https://github.com/The-AI-Alliance/gofannon/discussions).
 
-### Testing Documentation
+## Contributing
 
-For information about running tests and contributing code with tests, see the [Testing Documentation](https://github.com/The-AI-Alliance/gofannon/tree/main/docs/testing):
-- [Testing Overview](https://github.com/The-AI-Alliance/gofannon/blob/main/docs/testing/README.md) - Quick start and testing strategy
-- [Unit Testing Guide](https://github.com/The-AI-Alliance/gofannon/blob/main/docs/testing/unit-testing.md) - How to write unit tests
-- [Contributing Tests](https://github.com/The-AI-Alliance/gofannon/blob/main/docs/testing/contributing.md) - PR requirements
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get started, including the "good first issue" label for newcomers and contribution guides for adding tools, integrating new agentic frameworks, and extending the web UI.
 
-## ☎️☎️ Contact Us ☎️☎️
+## Acknowledgments
 
-[Contact Information](https://the-ai-alliance.github.io/gofannon/community/contact.html)
+Thanks to the open-source community for contributions and support that have made this project possible.
 
-## 🧑‍⚖️🧑‍⚖️ License 🧑‍⚖️🧑‍⚖️
-  
-This project is licensed under the ASFv2 License. See the [LICENSE](https://github.com/The-AI-Alliance/gofannon/blob/main/LICENSE) file for more details.
+[![Contributors](https://contrib.rocks/image?repo=The-AI-Alliance/gofannon)](https://github.com/The-AI-Alliance/gofannon/graphs/contributors)
 
-  
-  
+## License
+
+Gofannon is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the full text.
