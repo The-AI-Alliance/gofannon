@@ -1,34 +1,33 @@
 // webapp/tests/e2e/global-setup.js
 //
-// Playwright global setup: writes a single storageState file that every
-// test inherits, containing a logged-in mock user in localStorage.
+// Playwright global setup: walks the dev_stub login flow once at the
+// start of the run, captures the resulting session cookie via
+// storageState, and saves it for every test to inherit.
 //
 // Why this approach vs. per-test login:
-//   - The mock authService in webui reads from localStorage on mount
-//     (``getCurrentUser`` → ``localStorage.getItem('user')``). Seeding
-//     the key makes ``AuthContext`` see a user on the very first render,
-//     so routes stay mounted and tests can start interacting immediately.
+//   - Login is multiple redirects + a server-rendered picker page.
+//     Doing it once amortizes the cost across the whole suite.
 //   - Per-test login steps couple every test file to the login UI.
 //     Changing how login works would break all tests at once; this
 //     decouples them.
 //
-// NB: this only works against the dev-mode ``mock`` auth provider. When
-// running E2E against a real Firebase or session-auth backend, replace
-// this file with one that performs a real sign-in and saves the resulting
-// cookie/token via ``context.storageState({path: ...})``.
+// NB: this requires the dev_stub provider to be enabled in the
+// running backend (default in dev). For E2E against a deployment
+// using real OAuth providers, replace this file with one that
+// performs the appropriate sign-in.
 
 const { chromium } = require('@playwright/test');
 const path = require('path');
 const fs = require('fs');
 
 const STORAGE_STATE_PATH = path.join(__dirname, '.auth', 'storageState.json');
+const API_BASE = process.env.E2E_API_BASE || 'http://localhost:8000';
+const STUB_USER = process.env.E2E_STUB_USER || 'alice';
 
 async function globalSetup(config) {
-  // The config passes ``use.baseURL`` through to us. Fall back to 3001
-  // since that's what the webServer config spawns.
   const baseURL = config.projects?.[0]?.use?.baseURL
     || config.use?.baseURL
-    || 'http://localhost:3001';
+    || 'http://localhost:3000';
 
   fs.mkdirSync(path.dirname(STORAGE_STATE_PATH), { recursive: true });
 
@@ -36,18 +35,34 @@ async function globalSetup(config) {
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  // Visit the app once so the origin exists in storage state (localStorage
-  // is partitioned by origin; Playwright won't save localStorage for an
-  // origin it hasn't visited).
-  await page.goto(baseURL);
-  // Seed the mock user. Matches the shape ``mockAuth.getCurrentUser``
-  // expects: ``{uid, email}`` at minimum.
-  await page.evaluate(() => {
-    window.localStorage.setItem('user', JSON.stringify({
-      uid: 'e2e-test-user',
-      email: 'e2e@gofannon.local',
-    }));
-  });
+  // Walk the dev_stub login flow:
+  //   1. GET /auth/login/dev_stub  → 302 → /auth/dev-stub-picker
+  //      Sets gofannon_auth_state cookie for CSRF.
+  //   2. Picker page renders one <a> per configured user. The link's
+  //      href encodes the uid as ?code=<uid>&state=<token>.
+  //   3. Clicking the alice link hits /auth/callback/dev_stub which
+  //      validates state, creates a session, sets gofannon_sid cookie,
+  //      and 302s to return_to.
+  await page.goto(
+    `${API_BASE}/auth/login/dev_stub?return_to=${encodeURIComponent(baseURL + '/')}`
+  );
+  // Picker uses <a> elements, not <button>s. Match the link by its
+  // href containing code=<uid> — most robust against text/styling
+  // changes.
+  await page.locator(`a[href*="code=${STUB_USER}"]`).click();
+  await page.waitForURL(`${baseURL}/`, { timeout: 10000 });
+
+  // Sanity-check we actually got authenticated. If /auth/me returns
+  // 401 the storageState would be useless and the failure mode
+  // downstream is confusing ("AccountCircle not found, timeout").
+  const meResp = await page.request.get(`${API_BASE}/auth/me`);
+  if (!meResp.ok()) {
+    throw new Error(
+      `globalSetup: /auth/me returned ${meResp.status()} after dev_stub login. ` +
+      `Verify dev_stub is enabled in the backend's auth config and ${API_BASE} ` +
+      `is reachable from the test runner.`
+    );
+  }
 
   await context.storageState({ path: STORAGE_STATE_PATH });
   await browser.close();
