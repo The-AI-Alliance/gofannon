@@ -330,12 +330,15 @@ const ViewAgent = () => {
       setError('Agent name is required. Set one in the Name & Description section.');
       return;
     }
-    if (!agent.description || !agent.description.trim()) {
-      setError('Agent description is required.');
+    if (!agent.code || !agent.code.trim()) {
+      setError('Agent code is required. Generate or paste code before saving.');
       return;
     }
-    if (!agent.code || !agent.code.trim()) {
-      setError('Agent code is required. Please generate code before saving.');
+    // Description is only required when there's no code yet (it's the
+    // input to the LLM-driven generator). Once code exists — generated
+    // or pasted — description becomes optional metadata.
+    if ((!agent.description || !agent.description.trim()) && !agent.code) {
+      setError('Agent description is required.');
       return;
     }
 
@@ -1160,17 +1163,24 @@ const ViewAgent = () => {
             </Accordion>
         )}
 
-        {/* Agent Code Section */}
-        {hasCode && (
-            <Accordion defaultExpanded>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                    <Typography>Agent Code</Typography>
-                </AccordionSummary>
-                <AccordionDetails>
-                    <CodeEditor code={agent.code} onCodeChange={(newCode) => handleFieldChange('code', newCode)} isReadOnly={false}/>
-                </AccordionDetails>
-            </Accordion>
-        )}
+        {/* Agent Code Section. Always visible so users can either Generate
+            code with the LLM or paste it directly without going through the
+            generator. Default-expanded when there's already code or in the
+            creation flow (where the user is actively building the agent);
+            collapsed otherwise to keep existing-agent views tidy. */}
+        <Accordion defaultExpanded={hasCode || isCreationFlow}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography>Agent Code</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+                {!hasCode && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                        Paste agent code here, or use the Generate Code button below to write it for you.
+                    </Typography>
+                )}
+                <CodeEditor code={agent.code || ''} onCodeChange={(newCode) => handleFieldChange('code', newCode)} isReadOnly={false}/>
+            </AccordionDetails>
+        </Accordion>
 
         {/* Deployments Section */}
         {!isCreationFlow && deployment?.is_deployed && (
