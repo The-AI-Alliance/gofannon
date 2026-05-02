@@ -77,8 +77,10 @@ if ! docker ps --format '{{.Names}}' | grep -Eq '(^|-)api(-|$)'; then
   warn "api container not detected — E2E tests will fail"
   DOCKER_OK=0
 fi
-if ! docker ps --format '{{.Names}}' | grep -Eq '(^|-)webui(-|$)'; then
-  warn "webui container not detected — E2E tests will fail"
+# webui isn't a container in dev — vite runs on the host and listens
+# on port 3000. Probe the port instead of the container name.
+if ! curl -fsS -o /dev/null -m 2 http://localhost:3000; then
+  warn "nothing listening on port 3000 — E2E tests will fail. Start ./dev-tail.sh first."
   DOCKER_OK=0
 fi
 [[ $DOCKER_OK == 1 ]] && ok "Docker services detected"

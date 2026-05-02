@@ -228,16 +228,31 @@ const DataStoreConfigAccordion = ({ agentName, value, onChange }) => {
 
   useEffect(() => {
     let cancelled = false;
-    dataStoreService.listNamespaces().then(
-      (data) => {
-        if (cancelled) return;
-        const nss = (data?.namespaces) || [];
-        setSuggestions(nss.map((n) => n.namespace));
-        setExistingStats(Object.fromEntries(nss.map((n) => [n.namespace, n.recordCount])));
-      },
-      () => { /* ignore */ }
-    );
-    return () => { cancelled = true; };
+    const fetchNamespaces = () => {
+      dataStoreService.listNamespaces().then(
+        (data) => {
+          if (cancelled) return;
+          const nss = (data?.namespaces) || [];
+          setSuggestions(nss.map((n) => n.namespace));
+          setExistingStats(Object.fromEntries(nss.map((n) => [n.namespace, n.recordCount])));
+        },
+        () => { /* ignore */ }
+      );
+    };
+    fetchNamespaces();
+
+    // Refetch when the tab regains focus so suggestions reflect
+    // namespaces created in other tabs/pages without a hard refresh.
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchNamespaces();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, []);
 
   const usedNamespaces = new Set(configs.map((c) => c.namespace));

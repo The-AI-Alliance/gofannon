@@ -86,9 +86,27 @@ const HomePage = () => {
       }
     };
 
-    fetchAgents();
-    fetchDemos();
-    fetchDataStores();
+    const fetchAll = () => {
+      fetchAgents();
+      fetchDemos();
+      fetchDataStores();
+    };
+
+    fetchAll();
+
+    // Refetch when the tab regains focus. Without this, namespaces
+    // created in another tab/page (e.g., the agent sandbox) don't
+    // appear here until a hard refresh — confusing the user about
+    // what state actually exists.
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchAll();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, []);
 
   const filteredAgents = agentFilter === 'deployed' 

@@ -137,10 +137,24 @@ const sessionAuth = {
 
   onAuthStateChanged(callback) {
     this._listeners.add(callback);
-    // Fire once with the cached state. Then kick off a /auth/me fetch
-    // to resolve the actual state. The AuthContext's initial load
-    // expects to eventually see either a user or null.
-    callback(this._currentUser);
+    // Unlike Firebase's onAuthStateChanged, we don't have a cached
+    // user available synchronously on first mount — we have to ask
+    // the backend whether the session cookie is valid via /auth/me.
+    //
+    // Firing callback(null) here unconditionally caused a real bug:
+    // AuthContext saw user=null,loading=false on first paint, so
+    // PrivateRoute bounced to /login. By the time /auth/me resolved
+    // and we emitted the real user, LoginPage was already mounted
+    // and its 'if (user) navigate(/)' effect sent them to home —
+    // which is why refreshing /agent/<id> always landed on /.
+    //
+    // Only fire synchronously if we already have a resolved user
+    // (covers later listener subscriptions after the first fetch).
+    // Otherwise, kick off _fetchMe and let _emit() send the real
+    // value when it lands. AuthContext keeps loading=true until then.
+    if (this._currentUser !== null) {
+      callback(this._currentUser);
+    }
     this._fetchMe().then(() => this._emit());
     return () => { this._listeners.delete(callback); };
   },
