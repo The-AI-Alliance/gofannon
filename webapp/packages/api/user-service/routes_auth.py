@@ -11,6 +11,7 @@ This router is included by app_factory only when at least one auth
 provider is enabled (``ProviderRegistry.has_any()``). Pre-Phase-B
 deployments mount only ``routes.router`` with no auth routes.
 """
+import os
 import secrets
 from typing import Optional
 
@@ -184,7 +185,17 @@ async def login_callback(
         is_site_admin=decision.site_admin,
     )
 
-    redirect_url = return_to or "/"
+    # Resolve return_to against FRONTEND_URL when relative. The cookie
+    # stores a frontend path (e.g. "/login"); without prefixing, the
+    # browser would resolve it against the API host (port 8000) and 404.
+    raw_target = return_to or "/"
+    if raw_target.startswith(("http://", "https://")):
+        redirect_url = raw_target
+    else:
+        frontend_base = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+        if not raw_target.startswith("/"):
+            raw_target = "/" + raw_target
+        redirect_url = frontend_base + raw_target
     resp = RedirectResponse(url=redirect_url, status_code=302)
     resp.set_cookie(
         key=SessionService.cookie_name(),

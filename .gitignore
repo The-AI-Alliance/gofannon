@@ -177,3 +177,4 @@ website/docs/
 
 .vscode/
 .claude/
+.dev-auth.local.yaml
