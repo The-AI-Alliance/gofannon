@@ -281,7 +281,16 @@ EventRow.propTypes = {
   onOpenDetail: PropTypes.func.isRequired,
 };
 
-const AgentGroup = ({ group, onOpenDetail }) => {
+// Heuristic for "this stdout/log line probably represents an error
+// the agent caught and printed". Useful for bucket badges; doesn't
+// affect coloring of structural error events (those are already red).
+const looksLikeUserError = (ev) => {
+  if (ev.type !== 'stdout' && ev.type !== 'log') return false;
+  const m = (ev.message || '').toUpperCase();
+  return m.includes('ERROR') || m.includes('FAIL') || m.includes('TRACEBACK');
+};
+
+const AgentGroup = ({ group, onOpenBucket, onOpenDetail }) => {
   const outcomeIcon = group.outcome === 'error'
     ? <ErrorOutlineIcon sx={{ fontSize: 14, color: 'error.main' }} />
     : group.outcome === 'running'
@@ -289,6 +298,44 @@ const AgentGroup = ({ group, onOpenDetail }) => {
     : <CheckCircleIcon sx={{ fontSize: 14, color: 'success.main' }} />;
 
   const duration = group.endEvent?.duration_ms;
+
+  // Walk the children once. Structural events render inline; stdout/log
+  // events get accumulated into per-position buckets so the order
+  // relative to structural events is preserved (e.g. you see
+  // "agent prints stuff → llm.call → agent prints more" rather than
+  // "agent prints everything → llm.call"). Each contiguous run of
+  // bucketable events becomes one bucket row.
+  const renderItems = [];
+  let pendingBucket = null;
+
+  const flushBucket = () => {
+    if (pendingBucket && pendingBucket.events.length > 0) {
+      renderItems.push({ kind: 'bucket', ...pendingBucket });
+    }
+    pendingBucket = null;
+  };
+
+  for (let idx = 0; idx < group.events.length; idx++) {
+    const ev = group.events[idx];
+    // Nested agent group.
+    if (ev.events && Array.isArray(ev.events)) {
+      flushBucket();
+      renderItems.push({ kind: 'nested', group: ev, idx });
+      continue;
+    }
+    // Bucketable: stdout/log.
+    if (ev.type === 'stdout' || ev.type === 'log') {
+      if (!pendingBucket) {
+        pendingBucket = { events: [], firstIdx: idx };
+      }
+      pendingBucket.events.push(ev);
+      continue;
+    }
+    // Anything else is structural — render inline.
+    flushBucket();
+    renderItems.push({ kind: 'event', event: ev, idx });
+  }
+  flushBucket();
 
   return (
     <Box sx={{ mb: 1.5 }}>
@@ -307,17 +354,91 @@ const AgentGroup = ({ group, onOpenDetail }) => {
         )}
       </Box>
       <Box sx={{ pl: 2, borderLeft: 1, borderColor: 'divider' }}>
-        {group.events.map((ev, idx) => {
-          // Nested agent group — render recursively.
-          if (ev.events && Array.isArray(ev.events)) {
-            return <AgentGroup key={`nested-${idx}`} group={ev} onOpenDetail={onOpenDetail} />;
+        {renderItems.map((item) => {
+          if (item.kind === 'nested') {
+            return (
+              <AgentGroup
+                key={`nested-${item.idx}`}
+                group={item.group}
+                onOpenBucket={onOpenBucket}
+                onOpenDetail={onOpenDetail}
+              />
+            );
           }
+          if (item.kind === 'event') {
+            return (
+              <EventRow
+                key={`${item.event.ts}-${item.idx}`}
+                event={item.event}
+                onOpenDetail={onOpenDetail}
+              />
+            );
+          }
+          // Bucket. Show count + (if any) error-flavored count, with
+          // a one-line preview of the most recent error-looking line
+          // so common failure modes are visible without clicking.
+          const errorishEvents = item.events.filter(looksLikeUserError);
+          const lastErrorish = errorishEvents[errorishEvents.length - 1];
+          const lineWord = item.events.length === 1 ? 'line' : 'lines';
           return (
-            <EventRow
-              key={`${ev.ts}-${idx}`}
-              event={ev}
-              onOpenDetail={onOpenDetail}
-            />
+            <Box
+              key={`bucket-${item.firstIdx}`}
+              sx={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 1.5,
+                py: 0.5,
+                cursor: 'pointer',
+                '&:hover': { bgcolor: 'action.hover' },
+                borderRadius: 0.5,
+                px: 1,
+                mx: -1,
+                ...(errorishEvents.length > 0 && {
+                  bgcolor: 'error.lighter',
+                  borderLeft: 3,
+                  borderColor: 'error.main',
+                }),
+              }}
+              onClick={() => onOpenBucket(group.name, item.events)}
+            >
+              <Typography
+                variant="caption"
+                sx={{ color: 'text.secondary', fontFamily: 'monospace', flexShrink: 0, minWidth: 70 }}
+              >
+                {formatTime(item.events[0].ts)}
+              </Typography>
+              <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
+                  <strong>{item.events.length} {lineWord}</strong>
+                  {' '}of stdout/log output
+                  {errorishEvents.length > 0 && (
+                    <span style={{ color: 'var(--mui-palette-error-main, #d32f2f)' }}>
+                      {' · '}{errorishEvents.length} with errors
+                    </span>
+                  )}
+                  {' · '}
+                  <span style={{ textDecoration: 'underline' }}>click to view</span>
+                </Typography>
+                {lastErrorish && (
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      display: 'block',
+                      fontFamily: 'monospace',
+                      fontSize: '0.7rem',
+                      color: 'error.main',
+                      mt: 0.25,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                    title={lastErrorish.message}
+                  >
+                    Latest: {lastErrorish.message}
+                  </Typography>
+                )}
+              </Box>
+            </Box>
           );
         })}
       </Box>
@@ -327,10 +448,11 @@ const AgentGroup = ({ group, onOpenDetail }) => {
 
 AgentGroup.propTypes = {
   group: PropTypes.object.isRequired,
+  onOpenBucket: PropTypes.func.isRequired,
   onOpenDetail: PropTypes.func.isRequired,
 };
 
-const RunSection = ({ run, index, onOpenDetail }) => {
+const RunSection = ({ run, index, onOpenBucket, onOpenDetail }) => {
   const groups = useMemo(() => groupEventsByAgent(run.events || []), [run.events]);
   const totalDuration = run.duration_ms;
   const isError = run.outcome === 'error';
@@ -376,7 +498,7 @@ const RunSection = ({ run, index, onOpenDetail }) => {
         </Typography>
       ) : (
         groups.map((g, i) => (
-          <AgentGroup key={`g-${i}`} group={g} onOpenDetail={onOpenDetail} />
+          <AgentGroup key={`g-${i}`} group={g} onOpenBucket={onOpenBucket} onOpenDetail={onOpenDetail} />
         ))
       )}
     </Box>
@@ -386,6 +508,7 @@ const RunSection = ({ run, index, onOpenDetail }) => {
 RunSection.propTypes = {
   run: PropTypes.object.isRequired,
   index: PropTypes.number.isRequired,
+  onOpenBucket: PropTypes.func.isRequired,
   onOpenDetail: PropTypes.func.isRequired,
 };
 
@@ -395,6 +518,9 @@ RunSection.propTypes = {
 
 const SandboxProgressLog = ({ runs }) => {
   const [detailEvent, setDetailEvent] = useState(null);
+  // When set, the side sheet shows all events in a bucket (one agent's
+  // stdout/log slice) instead of a single event's full content.
+  const [detailBucket, setDetailBucket] = useState(null);
 
   // Newest runs first.
   const runsNewestFirst = useMemo(
@@ -448,7 +574,14 @@ const SandboxProgressLog = ({ runs }) => {
                   key={run.run_id || i}
                   run={run}
                   index={runsNewestFirst.length - 1 - i}
-                  onOpenDetail={setDetailEvent}
+                  onOpenBucket={(agentName, events) => {
+                    setDetailEvent(null);
+                    setDetailBucket({ agentName, events });
+                  }}
+                  onOpenDetail={(ev) => {
+                    setDetailBucket(null);
+                    setDetailEvent(ev);
+                  }}
                 />
               ))}
             </Stack>
@@ -456,12 +589,15 @@ const SandboxProgressLog = ({ runs }) => {
         </AccordionDetails>
       </Accordion>
 
-      {/* Side sheet for full stack traces / multi-line content */}
+      {/* Side sheet — single event view (stack traces, multi-line
+          content) or bucket view (all stdout/log lines for one
+          agent). The two modes are mutually exclusive; opening one
+          closes the other. */}
       <Drawer
         anchor="right"
-        open={Boolean(detailEvent)}
-        onClose={() => setDetailEvent(null)}
-        PaperProps={{ sx: { width: { xs: '100%', sm: 600 }, maxWidth: '100%' } }}
+        open={Boolean(detailEvent || detailBucket)}
+        onClose={() => { setDetailEvent(null); setDetailBucket(null); }}
+        PaperProps={{ sx: { width: { xs: '100%', sm: 700 }, maxWidth: '100%' } }}
       >
         {detailEvent && (
           <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -504,6 +640,56 @@ const SandboxProgressLog = ({ runs }) => {
               >
                 {detailFull?.full || detailEvent.message || ''}
               </Box>
+            </Box>
+          </Box>
+        )}
+        {detailBucket && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', p: 2, borderBottom: 1, borderColor: 'divider' }}>
+              <Box sx={{ flexGrow: 1 }}>
+                <Typography variant="h6">Output</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {detailBucket.agentName} · {detailBucket.events.length} line{detailBucket.events.length === 1 ? '' : 's'}
+                </Typography>
+              </Box>
+              <Tooltip title="Close">
+                <IconButton onClick={() => setDetailBucket(null)} size="small">
+                  <CloseIcon />
+                </IconButton>
+              </Tooltip>
+            </Box>
+            {/* Each line on its own row with a timestamp gutter so you
+                can correlate output with structural events. Errors get
+                a red left border. Monospace throughout. */}
+            <Box sx={{ flexGrow: 1, overflow: 'auto', fontFamily: 'monospace', fontSize: '0.78rem' }}>
+              {detailBucket.events.map((ev, idx) => {
+                const isErr = looksLikeUserError(ev);
+                return (
+                  <Box
+                    key={`${ev.ts}-${idx}`}
+                    sx={{
+                      display: 'flex',
+                      gap: 1.5,
+                      px: 2,
+                      py: 0.25,
+                      ...(isErr && {
+                        bgcolor: 'error.lighter',
+                        borderLeft: 3,
+                        borderColor: 'error.main',
+                        pl: 1.5,
+                      }),
+                    }}
+                  >
+                    <Box sx={{ color: 'text.secondary', flexShrink: 0, minWidth: 70 }}>
+                      {formatTime(ev.ts)}
+                    </Box>
+                    <Box sx={{ flexGrow: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                      {ev.type === 'log' && ev.level && <span style={{ opacity: 0.7 }}>[{ev.level}] </span>}
+                      {ev.message}
+                    </Box>
+                  </Box>
+                );
+              })}
             </Box>
           </Box>
         )}

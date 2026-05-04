@@ -1,8 +1,11 @@
 from datetime import datetime
+import asyncio
+import json
 import traceback
 import uuid
 from typing import Optional, Dict, Any, List
 
+from fastapi.responses import StreamingResponse
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from pydantic import BaseModel, Field
 from pydantic.config import ConfigDict
@@ -646,6 +649,157 @@ async def list_deployments_route(db: DatabaseService = Depends(get_db), user: di
     """Lists all deployed agents/APIs with their relevant details."""
     deployments = await list_deployments_logic(db)
     return [DeployedApi(**dep) for dep in deployments]
+
+
+@router.post("/agents/run-code/stream")
+async def run_agent_code_stream(
+    request: RunCodeRequest,
+    req: Request,
+    user: dict = Depends(get_current_user),
+    db: DatabaseService = Depends(get_db),
+    logger: ObservabilityService = Depends(get_logger),
+):
+    """Stream a sandbox run as Server-Sent Events.
+
+    Emits one SSE 'event' frame per Trace event as the agent runs,
+    then a final 'done' frame carrying {outcome, result, error,
+    schema_warnings, ops_log}. The non-streaming /agents/run-code
+    endpoint remains for callers that want a bulk response.
+
+    Frame format:
+        event: trace
+        data: {{...event dict...}}
+
+        event: done
+        data: {{outcome, result, error, schema_warnings, ops_log}}
+    """
+    logger.log(
+        "INFO", "user_action",
+        "Attempting to run agent code in sandbox (streaming).",
+        metadata={"request": get_sanitized_request_data(req)},
+    )
+
+    user_basic_info = {
+        "email": user.get("email"),
+        "name": user.get("name") or user.get("displayName"),
+    }
+
+    # Trace + queue. The queue is unbounded — emitters never block —
+    # because the alternative (drop events on slow consumer) is
+    # worse than memory pressure. The trace's own 2000-event cap
+    # is the real bound.
+    trace = Trace()
+    queue: asyncio.Queue = asyncio.Queue()
+    trace.attach_queue(queue)
+
+    # Sentinel posted to the queue when the agent finishes (success
+    # or error) so the streaming generator knows to stop pulling.
+    DONE_SENTINEL = object()
+
+    # Holders for the final result. Set by the agent task; read by
+    # the streamer when it sees DONE_SENTINEL.
+    final = {"result": None, "error": None, "schema_warnings": None, "ops_log": None}
+
+    async def run_agent_task():
+        try:
+            result, ops_log = await _execute_agent_code(
+                code=request.code,
+                input_dict=request.input_dict,
+                tools=request.tools,
+                gofannon_agents=request.gofannon_agents,
+                db=db,
+                llm_settings=request.llm_settings,
+                user_id=user.get("uid"),
+                user_basic_info=user_basic_info,
+                agent_name=request.friendly_name or "sandbox_agent",
+                trace=trace,
+            )
+            schema_warnings = validate_output_against_schema(result, request.output_schema)
+            if schema_warnings:
+                logger.log(
+                    "WARNING", "output_schema_mismatch",
+                    f"Agent output did not match declared schema: {schema_warnings}",
+                    metadata={"warnings": schema_warnings},
+                )
+            final["result"] = result
+            final["schema_warnings"] = schema_warnings or None
+            final["ops_log"] = ops_log or None
+            logger.log(
+                "INFO", "sandbox_run",
+                "Agent code executed successfully (streaming).",
+                metadata={"request": get_sanitized_request_data(req)},
+            )
+        except Exception as e:
+            final["error"] = f"{type(e).__name__}: {e}"
+            logger.log(
+                "ERROR", "sandbox_run_failure",
+                f"Error running agent code (streaming, trace events: {len(trace.events)})",
+                metadata={
+                    "traceback": traceback.format_exc(),
+                    "request": get_sanitized_request_data(req),
+                },
+            )
+        finally:
+            await queue.put(DONE_SENTINEL)
+
+    async def event_generator():
+        # Kick off the agent. The task runs concurrently with this
+        # generator; events flow through the queue.
+        agent_task = asyncio.create_task(run_agent_task())
+
+        try:
+            while True:
+                # Use a heartbeat-style wait so a hung agent eventually
+                # frees the connection if the client disconnected.
+                # 30s is generous; nothing in the trace timing matters
+                # at that resolution.
+                try:
+                    item = await asyncio.wait_for(queue.get(), timeout=30.0)
+                except asyncio.TimeoutError:
+                    # Heartbeat comment frame keeps proxies from
+                    # idling out the connection.
+                    yield ": heartbeat\n\n"
+                    continue
+
+                if item is DONE_SENTINEL:
+                    # Agent task finished. Send the done frame with
+                    # final state and exit.
+                    payload = json.dumps({
+                        "outcome": "error" if final["error"] else "success",
+                        "result": final["result"],
+                        "error": final["error"],
+                        "schemaWarnings": final["schema_warnings"],
+                        "opsLog": final["ops_log"],
+                    })
+                    yield f"event: done\ndata: {payload}\n\n"
+                    break
+                else:
+                    # Trace event. JSON-encode with default=str so any
+                    # stray non-serialisable values become strings
+                    # rather than crashing the stream.
+                    payload = json.dumps(item, default=str)
+                    yield f"event: trace\ndata: {payload}\n\n"
+        finally:
+            # If the client disconnects mid-run, the generator gets
+            # closed; await the agent so we don't leak the task.
+            if not agent_task.done():
+                try:
+                    await asyncio.wait_for(agent_task, timeout=5.0)
+                except (asyncio.TimeoutError, Exception):
+                    agent_task.cancel()
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            # Prevent intermediate proxies from buffering the response.
+            # Without this, nginx/cloudflare can hold onto chunks until
+            # the response closes — defeats the point of streaming.
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.post("/agents/run-code", response_model=RunCodeResponse)
