@@ -108,6 +108,126 @@ class AgentService {
     }
   }
 
+  /**
+   * Streaming variant of runCodeInSandbox. Opens an SSE-over-fetch
+   * connection to /agents/run-code/stream and dispatches each trace
+   * event to onEvent as it arrives. Resolves to {outcome, result,
+   * error, schemaWarnings, opsLog} when the server sends the 'done'
+   * frame.
+   *
+   * Why fetch + ReadableStream instead of EventSource: EventSource is
+   * GET-only and doesn't support custom headers. We need POST with
+   * the agent payload, so we parse SSE frames from a streaming
+   * response body manually.
+   */
+  async runCodeInSandboxStreaming(
+    code, inputDict, tools, gofannonAgents, llmSettings, outputSchema, friendlyName,
+    onEvent,
+  ) {
+    const requestBody = {
+      code,
+      inputDict,
+      tools,
+      gofannonAgents: (gofannonAgents || []).map((agent) => agent.id),
+      llmSettings,
+      outputSchema,
+      friendlyName,
+    };
+
+    const authHeaders = await this._getAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/agents/run-code/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+        ...authHeaders,
+      },
+      body: JSON.stringify(requestBody),
+      // Cookies must flow for session auth.
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      // Pre-stream errors (auth, validation): bail with a normal
+      // error so the caller can show a transport-level message.
+      let detail;
+      try {
+        const data = await response.json();
+        detail = data.detail || data.error;
+      } catch {
+        detail = response.statusText;
+      }
+      throw new Error(detail || `Stream request failed (${response.status})`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let final = null;
+
+    // Parse SSE frames. Each frame is a block of lines separated
+    // from the next by a blank line. Within a frame: 'event: NAME'
+    // and 'data: JSON' (one of each, possibly across multiple
+    // 'data:' lines that are concatenated with newlines).
+    const parseFrame = (raw) => {
+      const lines = raw.split('\n');
+      let event = 'message';
+      const dataParts = [];
+      for (const line of lines) {
+        if (line.startsWith(':')) continue; // comment / heartbeat
+        if (line.startsWith('event:')) {
+          event = line.slice(6).trim();
+        } else if (line.startsWith('data:')) {
+          dataParts.push(line.slice(5).trimStart());
+        }
+      }
+      if (!dataParts.length) return null;
+      let data;
+      try {
+        data = JSON.parse(dataParts.join('\n'));
+      } catch {
+        return null;
+      }
+      return { event, data };
+    };
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // Split on the blank-line frame boundary. Anything after the
+      // last \n\n stays in the buffer for the next chunk.
+      let boundary;
+      while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+        const raw = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+        const frame = parseFrame(raw);
+        if (!frame) continue;
+        if (frame.event === 'trace') {
+          try {
+            onEvent && onEvent(frame.data);
+          } catch (err) {
+            console.error('[AgentService] onEvent handler threw:', err);
+          }
+        } else if (frame.event === 'done') {
+          final = frame.data;
+        }
+      }
+
+      if (final) break;
+    }
+
+    if (!final) {
+      // Stream ended without a 'done' frame — likely the server
+      // dropped the connection. Treat as an error so the caller
+      // doesn't silently end up with no outcome.
+      throw new Error('Stream ended without a done frame.');
+    }
+
+    return final;
+  }
+
   async saveAgent(agentData) {
     try {
       const authHeaders = await this._getAuthHeaders();

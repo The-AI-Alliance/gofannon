@@ -27,6 +27,7 @@ is silenced.
 """
 from __future__ import annotations
 
+import asyncio
 import contextvars
 import logging
 import os
@@ -82,6 +83,22 @@ class Trace:
         self._truncated = False
         self._depth = 0  # current nesting level for chained agent calls
         self._stack: List[str] = []  # current agent_name stack
+        # Optional asyncio.Queue for live streaming. When set (via
+        # attach_queue), every append() also publishes the event to
+        # the queue so a streaming response handler can yield it
+        # over SSE. None for non-streaming runs (the bulk-trace
+        # path through /agents/run-code).
+        self._queue: Optional[asyncio.Queue] = None
+
+    def attach_queue(self, queue: asyncio.Queue) -> None:
+        """Attach a queue that receives every appended event.
+
+        Events that were already in self.events when this is called
+        are NOT replayed — attach the queue before any events are
+        emitted. The streaming handler does this immediately after
+        creating the Trace.
+        """
+        self._queue = queue
 
     def _current_agent(self) -> str:
         return self._stack[-1] if self._stack else "unknown"
@@ -90,17 +107,37 @@ class Trace:
         if self._truncated:
             return
         if len(self.events) >= MAX_EVENTS_PER_TRACE:
-            self.events.append({
+            trunc_event = {
                 "type": "trace_truncated",
                 "ts": _now_iso(),
                 "agent_name": self._current_agent(),
                 "depth": self._depth,
                 "source": "system",
                 "message": f"Trace exceeded {MAX_EVENTS_PER_TRACE} events; subsequent events dropped.",
-            })
+            }
+            self.events.append(trunc_event)
+            self._publish(trunc_event)
             self._truncated = True
             return
         self.events.append(event)
+        self._publish(event)
+
+    def _publish(self, event: Dict[str, Any]) -> None:
+        """Push to the streaming queue if one is attached.
+
+        We use put_nowait so emitters never block on a slow consumer.
+        If the queue fills up (consumer disconnected, etc.), the
+        event is silently dropped from the stream — but it stays in
+        self.events, so the final response payload is still
+        complete. asyncio.Queue with default maxsize=0 is unbounded;
+        callers can pass a bounded queue if they want backpressure.
+        """
+        if self._queue is None:
+            return
+        try:
+            self._queue.put_nowait(event)
+        except asyncio.QueueFull:
+            pass
 
     # ------------------------------------------------------------------
     # Structural events. Always emitted regardless of GOFANNON_DISABLE_USER_TRACE.

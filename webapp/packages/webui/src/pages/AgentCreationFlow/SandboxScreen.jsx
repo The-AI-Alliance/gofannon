@@ -203,8 +203,27 @@ const SandboxScreen = () => {
       const friendlyName = agentData?.friendlyName || agentData?.name
         || agentFlowContext.friendlyName
         || 'sandbox_agent';
-      const response = await agentService.runCodeInSandbox(
-        generatedCode, castInput, tools, gofannonAgents, llmSettings, outputSchema, friendlyName
+
+      // Stream events into the in-flight 'running' run entry as they
+      // arrive. The bulk handler below still runs once we have the
+      // final response — it sets the run's outcome and any leftover
+      // fields (ops_log, schema warnings).
+      const onTraceEvent = (event) => {
+        setRuns((prev) => {
+          const next = [...prev];
+          const idx = next.length - 1;
+          if (idx < 0 || next[idx].outcome !== 'running') return prev;
+          next[idx] = {
+            ...next[idx],
+            events: [...(next[idx].events || []), event],
+          };
+          return next;
+        });
+      };
+
+      const response = await agentService.runCodeInSandboxStreaming(
+        generatedCode, castInput, tools, gofannonAgents, llmSettings, outputSchema, friendlyName,
+        onTraceEvent,
       );
       if (response.error) {
         setError(response.error);
@@ -223,11 +242,10 @@ const SandboxScreen = () => {
           setOpsLog(ops);
         }
 
-        // Trace from the run, for the Progress Log accordion. Replace
-        // the latest 'running' entry that startRun() appended before
-        // the request was fired. Tolerate the backend not sending a
-        // trace (older deployments).
-        const incomingTrace = response.trace || [];
+        // Streaming has been delivering events in real time via
+        // onTraceEvent above; here we just stamp the final outcome
+        // and duration on the run. Don't overwrite events — they're
+        // already accumulated in place.
         const finalOutcome = response.error ? 'error' : 'success';
         setRuns((prev) => {
           const next = [...prev];
@@ -235,7 +253,6 @@ const SandboxScreen = () => {
             const r = next[next.length - 1];
             next[next.length - 1] = {
               ...r,
-              events: incomingTrace,
               outcome: finalOutcome,
               duration_ms: Date.now() - r._started_ms,
             };
