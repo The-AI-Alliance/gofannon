@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from pydantic.config import ConfigDict
 
 from config import settings
+from services.agent_trace import Trace
 from dependencies import (
     _execute_agent_code,
     build_agent_chain,
@@ -662,16 +663,38 @@ async def run_agent_code(
             "email": user.get("email"),
             "name": user.get("name") or user.get("displayName"),
         }
-        result, ops_log = await _execute_agent_code(
-            code=request.code,
-            input_dict=request.input_dict,
-            tools=request.tools,
-            gofannon_agents=request.gofannon_agents,
-            db=db,
-            llm_settings=request.llm_settings,
-            user_id=user.get("uid"),
-            user_basic_info=user_basic_info,
-        )
+        # Per-request trace. Lives only for this invocation; events
+        # are collected as the agent runs and shipped back in the
+        # response. On failure we return a structured response with
+        # error+trace so the Progress Log can show the partial trace
+        # (rather than raising and losing the events the agent
+        # already emitted).
+        trace = Trace()
+
+        try:
+            result, ops_log = await _execute_agent_code(
+                code=request.code,
+                input_dict=request.input_dict,
+                tools=request.tools,
+                gofannon_agents=request.gofannon_agents,
+                db=db,
+                llm_settings=request.llm_settings,
+                user_id=user.get("uid"),
+                user_basic_info=user_basic_info,
+                agent_name=request.friendly_name or "sandbox_agent",
+                trace=trace,
+            )
+        except Exception as _exc:
+            logger.log(
+                "ERROR", "sandbox_run_failure",
+                f"Error running agent code (trace events: {len(trace.events)})",
+                metadata={"traceback": traceback.format_exc(), "request": get_sanitized_request_data(req)}
+            )
+            return RunCodeResponse(
+                result=None,
+                error=f"{type(_exc).__name__}: {_exc}",
+                trace=trace.events or None,
+            )
 
         # Advisory schema check: surface mismatches as warnings in the response.
         # Never fails the run — LLM compliance is best-effort.
@@ -688,6 +711,7 @@ async def run_agent_code(
             result=result,
             schema_warnings=schema_warnings or None,
             ops_log=ops_log or None,
+            trace=trace.events or None,
         )
 
     except Exception as e:

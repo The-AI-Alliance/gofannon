@@ -1,31 +1,11 @@
 import React from 'react';
-import { Box, Typography } from '@mui/material';
-import { useParams } from 'react-router-dom';
-import BasicInfoTab from '../components/profile/BasicInfoTab';
-import UsageInfoTab from '../components/profile/UsageInfoTab';
-import BillingInfoTab from '../components/profile/BillingInfoTab';
 import ApiKeysTab from '../components/profile/ApiKeysTab';
 
-const sections = {
-  basic: { label: 'Basic Info', component: <BasicInfoTab /> },
-  usage: { label: 'Usage', component: <UsageInfoTab /> },
-  billing: { label: 'Billing', component: <BillingInfoTab /> },
-  apikeys: { label: 'API Keys', component: <ApiKeysTab /> },
-};
-
-const ProfilePage = () => {
-  const { section } = useParams();
-  const sectionKey = section && sections[section] ? section : 'basic';
-  const activeSection = sections[sectionKey];
-
-  return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        Profile
-      </Typography>
-      <Box sx={{ pt: 1 }}>{activeSection.component}</Box>
-    </Box>
-  );
-};
+// ProfilePage previously had Basic Info / Usage / Billing tabs that were
+// placeholders without real functionality. Now collapsed to just API Keys —
+// the only section that does anything. The :section URL param is preserved
+// so /profile/apikeys still works (and so do any cached bookmarks); other
+// values fall through to the same view.
+const ProfilePage = () => <ApiKeysTab />;
 
 export default ProfilePage;

@@ -7,21 +7,20 @@ import {
   TextField,
   Button,
   Alert,
-  AlertTitle,
   Chip,
   IconButton,
   InputAdornment,
   CircularProgress,
-  Divider,
 } from '@mui/material';
 import {
   Visibility,
   VisibilityOff,
-  Save,
-  Delete,
+  Save as SaveIcon,
+  Delete as DeleteIcon,
   CheckCircle,
-  Cancel,
+  ArrowBack as ArrowBackIcon,
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import userService from '../../services/userService';
 
 const PROVIDERS = [
@@ -52,80 +51,75 @@ const ApiKeyRow = ({ provider, apiKey, onSave, onDelete, isLoading }) => {
     setValue('');
   };
 
-  const handleDelete = () => {
-    onDelete(provider.id);
-  };
-
   return (
-    <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-      <Stack spacing={2}>
-        <Box display="flex" justifyContent="space-between" alignItems="center">
-          <Box>
-            <Typography variant="subtitle1" fontWeight="medium">
+    <Paper variant="outlined" sx={{ p: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
               {provider.name}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {provider.description}
-            </Typography>
+            {hasKey && (
+              <Chip
+                icon={<CheckCircle sx={{ fontSize: 14 }} />}
+                label="Configured"
+                size="small"
+                color="success"
+                sx={{ height: 20, fontSize: '0.68rem' }}
+              />
+            )}
           </Box>
-          <Chip
-            icon={hasKey ? <CheckCircle /> : <Cancel />}
-            label={hasKey ? 'Configured' : 'Not configured'}
-            color={hasKey ? 'success' : 'default'}
-            size="small"
-          />
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+            {provider.description}
+          </Typography>
+
+          <Box sx={{ mt: 1.5 }}>
+            {isEditing ? (
+              <TextField
+                fullWidth
+                size="small"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                type={showValue ? 'text' : 'password'}
+                placeholder={`Enter your ${provider.name} API key`}
+                disabled={isLoading}
+                autoFocus
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowValue(!showValue)}
+                        edge="end"
+                        size="small"
+                      >
+                        {showValue ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            ) : (
+              <TextField
+                fullWidth
+                size="small"
+                value={hasKey ? '••••••••••••••••••••••••••' : ''}
+                disabled
+                placeholder="No API key configured"
+              />
+            )}
+          </Box>
         </Box>
 
-        <Divider />
-
-        {isEditing ? (
-          <TextField
-            fullWidth
-            label="API Key"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            type={showValue ? 'text' : 'password'}
-            placeholder={`Enter your ${provider.name} API key`}
-            disabled={isLoading}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => setShowValue(!showValue)}
-                    edge="end"
-                    size="small"
-                  >
-                    {showValue ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
-        ) : (
-          <TextField
-            fullWidth
-            label="API Key"
-            value={hasKey ? '••••••••••••••••••••••••••' : ''}
-            disabled
-            placeholder="No API key configured"
-          />
-        )}
-
-        <Box display="flex" gap={1} justifyContent="flex-end">
+        <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0, mt: 0.25 }}>
           {isEditing ? (
             <>
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={handleCancel}
-                disabled={isLoading}
-              >
+              <Button size="small" onClick={handleCancel} disabled={isLoading}>
                 Cancel
               </Button>
               <Button
-                variant="contained"
                 size="small"
-                startIcon={isLoading ? <CircularProgress size={16} /> : <Save />}
+                variant="contained"
+                startIcon={isLoading ? <CircularProgress size={14} color="inherit" /> : <SaveIcon sx={{ fontSize: 16 }} />}
                 onClick={handleSave}
                 disabled={isLoading || !value.trim()}
               >
@@ -135,34 +129,35 @@ const ApiKeyRow = ({ provider, apiKey, onSave, onDelete, isLoading }) => {
           ) : (
             <>
               {hasKey && (
-                <Button
-                  variant="outlined"
-                  color="error"
+                <IconButton
                   size="small"
-                  startIcon={<Delete />}
-                  onClick={handleDelete}
+                  color="error"
+                  onClick={() => onDelete(provider.id)}
                   disabled={isLoading}
+                  title="Remove API key"
+                  aria-label={`Remove ${provider.name} API key`}
                 >
-                  Remove
-                </Button>
+                  <DeleteIcon sx={{ fontSize: 18 }} />
+                </IconButton>
               )}
               <Button
-                variant="contained"
                 size="small"
+                variant={hasKey ? 'outlined' : 'contained'}
                 onClick={() => setIsEditing(true)}
                 disabled={isLoading}
               >
-                {hasKey ? 'Update' : 'Add Key'}
+                {hasKey ? 'Update' : 'Add key'}
               </Button>
             </>
           )}
         </Box>
-      </Stack>
+      </Box>
     </Paper>
   );
 };
 
 const ApiKeysTab = () => {
+  const navigate = useNavigate();
   const [apiKeys, setApiKeys] = useState({});
   const [loading, setLoading] = useState(true);
   const [savingProvider, setSavingProvider] = useState(null);
@@ -216,18 +211,24 @@ const ApiKeysTab = () => {
     }
   };
 
+  // Match the app's "page chrome" pattern used by DataStoresPage,
+  // SavedAgentsPage, etc.: constrained max width, back-arrow + h5
+  // title, optional helper text below.
   return (
-    <Box>
-      <Typography variant="h6" gutterBottom>
-        API Keys
+    <Box sx={{ p: 3, maxWidth: 900, margin: '0 auto' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+        <IconButton size="small" onClick={() => navigate('/')} sx={{ mr: 1 }}>
+          <ArrowBackIcon sx={{ fontSize: 20 }} />
+        </IconButton>
+        <Typography variant="h5" sx={{ fontWeight: 600 }}>
+          API Keys
+        </Typography>
+      </Box>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        Configure your own API keys for LLM providers. Keys you set here take
+        precedence over system-wide environment variables. Stored encrypted on
+        the server and only visible to you.
       </Typography>
-
-      <Alert severity="info" sx={{ mb: 3 }}>
-        <AlertTitle>About API Keys</AlertTitle>
-        Configure your own API keys for LLM providers. These keys are stored securely in your
-        profile and take precedence over system-wide keys. If you don&apos;t provide a key for a
-        provider, the system will fall back to using environment variables (if configured).
-      </Alert>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -242,11 +243,11 @@ const ApiKeysTab = () => {
       )}
 
       {loading ? (
-        <Box display="flex" justifyContent="center" p={4}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
           <CircularProgress />
         </Box>
       ) : (
-        <Stack spacing={1}>
+        <Stack spacing={1.5}>
           {PROVIDERS.map((provider) => (
             <ApiKeyRow
               key={provider.id}

@@ -125,6 +125,11 @@ class RunCodeRequest(BaseModel):
     # against this schema and surfaces any mismatches as schema_warnings in
     # the response. Advisory only — never fails the run.
     output_schema: Optional[Dict[str, Any]] = Field(default=None, alias="outputSchema")
+    # Optional: human-friendly agent name for the trace's per-event
+    # agent_name field. Used by the Progress Log UI to label runs and
+    # group nested-agent activity. Falls back to "sandbox_agent" if not
+    # provided (legacy clients).
+    friendly_name: Optional[str] = Field(default=None, alias="friendlyName")
     model_config = ConfigDict(populate_by_name=True)
 
 class RunCodeResponse(BaseModel):
@@ -138,6 +143,12 @@ class RunCodeResponse(BaseModel):
     # ts, key?, valuePreview?, found?, count?}. Used by the sandbox UI's
     # live Data Store panel. None when the agent didn't touch the data store.
     ops_log: Optional[List[Dict[str, Any]]] = Field(default=None, alias="opsLog")
+    # Per-run trace populated by services/agent_trace.py. Each entry is
+    # one of: agent_start, agent_end, llm_call, data_store, error,
+    # stdout, log, trace_truncated. The sandbox UI's Progress Log
+    # accordion groups these by run and per-agent. None for non-sandbox
+    # invocations (e.g., deployed agent runs).
+    trace: Optional[List[Dict[str, Any]]] = Field(default=None)
     model_config = ConfigDict(populate_by_name=True)
 
 class Deployment(BaseModel):

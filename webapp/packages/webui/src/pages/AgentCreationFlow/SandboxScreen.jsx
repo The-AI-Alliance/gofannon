@@ -22,6 +22,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import observabilityService from '../../services/observabilityService';
 import SandboxDataPanel from '../../components/SandboxDataPanel';
+import SandboxProgressLog from '../../components/SandboxProgressLog';
 
 // Default value per schema type, used when initializing the form.
 const defaultValueForType = (type) => {
@@ -141,6 +142,12 @@ const SandboxScreen = () => {
   // RunCodeResponse.ops_log when the agent touched the data store.
   const [opsLog, setOpsLog] = useState(null);
 
+  // Run history for the Progress Log accordion. In-memory only — refresh
+  // wipes it. Each entry: { run_id, agent_name, started_at, _started_ms,
+  // duration_ms, outcome ('success'|'error'|'running'), events: [...] }.
+  // Newest is appended; the component reverses for display.
+  const [runs, setRuns] = useState([]);
+
   // Read the declared output schema so we can send it to the sandbox for
   // validation. Falls back to null when unavailable — the backend treats
   // a missing output_schema as "skip validation".
@@ -193,8 +200,11 @@ const SandboxScreen = () => {
         reasoningEffort: invokableModel.parameters.reasoning_effort || invokableModel.parameters.reasoningEffort,
       } : undefined;
 
+      const friendlyName = agentData?.friendlyName || agentData?.name
+        || agentFlowContext.friendlyName
+        || 'sandbox_agent';
       const response = await agentService.runCodeInSandbox(
-        generatedCode, castInput, tools, gofannonAgents, llmSettings, outputSchema
+        generatedCode, castInput, tools, gofannonAgents, llmSettings, outputSchema, friendlyName
       );
       if (response.error) {
         setError(response.error);
@@ -212,13 +222,81 @@ const SandboxScreen = () => {
         if (ops && ops.length) {
           setOpsLog(ops);
         }
+
+        // Trace from the run, for the Progress Log accordion. Replace
+        // the latest 'running' entry that startRun() appended before
+        // the request was fired. Tolerate the backend not sending a
+        // trace (older deployments).
+        const incomingTrace = response.trace || [];
+        const finalOutcome = response.error ? 'error' : 'success';
+        setRuns((prev) => {
+          const next = [...prev];
+          if (next.length > 0 && next[next.length - 1].outcome === 'running') {
+            const r = next[next.length - 1];
+            next[next.length - 1] = {
+              ...r,
+              events: incomingTrace,
+              outcome: finalOutcome,
+              duration_ms: Date.now() - r._started_ms,
+            };
+          }
+          return next;
+        });
       }
     } catch (err) {
       setError(err.message || 'An unexpected error occurred.');
       observabilityService.logError(err, { context: 'Agent Sandbox Execution' });
+      // Mark the in-flight run as errored so the Progress Log doesn't
+      // spin forever when the request itself failed (network, 5xx,
+      // etc — the backend never got far enough to emit a trace).
+      setRuns((prev) => {
+        const next = [...prev];
+        if (next.length > 0 && next[next.length - 1].outcome === 'running') {
+          const r = next[next.length - 1];
+          next[next.length - 1] = {
+            ...r,
+            outcome: 'error',
+            duration_ms: Date.now() - r._started_ms,
+            events: [
+              ...(r.events || []),
+              {
+                type: 'error',
+                ts: new Date().toISOString(),
+                agent_name: r.agent_name || 'unknown',
+                depth: 0,
+                exception_type: 'TransportError',
+                message: err.message || 'Request failed before reaching the sandbox.',
+                source: 'system',
+              },
+            ],
+          };
+        }
+        return next;
+      });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Append a 'running' entry to runs[] when the user clicks Run, before
+  // the request fires. handleRun replaces it with the real outcome on
+  // response (or marks it errored on transport failure).
+  const startRun = () => {
+    const now = Date.now();
+    const runId = `run-${now}-${Math.random().toString(36).slice(2, 7)}`;
+    const agentName = agentData?.friendlyName || agentData?.name
+      || agentFlowContext.friendlyName || 'sandbox_agent';
+    setRuns((prev) => [
+      ...prev,
+      {
+        run_id: runId,
+        agent_name: agentName,
+        started_at: new Date(now).toISOString(),
+        _started_ms: now,
+        outcome: 'running',
+        events: [],
+      },
+    ]);
   };
 
   // Renders form fields based on the input schema type.
@@ -359,7 +437,7 @@ const SandboxScreen = () => {
           {renderFormFields()}
           <Button
             variant="contained"
-            onClick={handleRun}
+            onClick={async () => { startRun(); await handleRun(); }}
             disabled={isLoading || !generatedCode}
             startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <PlayArrowIcon />}
           >
@@ -404,10 +482,14 @@ const SandboxScreen = () => {
       )}
       </Paper>
 
-      {/* Data-store side panel. Always rendered (empty state shows hint text)
-          so the layout doesn't jump when a run adds ops. Collapses below
-          the main panel on narrow screens. */}
-      <Box sx={{ width: { xs: '100%', lg: 380 }, flexShrink: 0, mt: { xs: 2, lg: 0 } }}>
+      {/* Right column: Progress Log above Data-store panel. The Progress
+          Log is the per-agent trace of recent runs (errors highlighted,
+          stack traces clickable into a side sheet). The Data Store panel
+          shows ops the agent did. Both are always rendered so the
+          layout doesn't jump when a run completes. Collapses below the
+          main panel on narrow screens. */}
+      <Box sx={{ width: { xs: '100%', lg: 380 }, flexShrink: 0, mt: { xs: 2, lg: 0 }, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <SandboxProgressLog runs={runs} />
         <SandboxDataPanel opsLog={opsLog} />
       </Box>
     </Box>

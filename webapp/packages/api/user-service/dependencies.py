@@ -25,6 +25,12 @@ from services.observability_service import (
     get_observability_service,
     get_sanitized_request_data,
 )
+from services.agent_trace import (
+    Trace,
+    bind_trace,
+    capture_user_io,
+    get_current_trace,
+)
 from services.user_service import UserService, get_user_service
 from services.data_store_service import (
     DataStoreService,
@@ -137,8 +143,16 @@ async def _execute_agent_code(
     user_basic_info: Optional[Dict[str, Any]] = None,
     llm_settings: Optional[LlmSettings] = None,
     agent_name: Optional[str] = None,
+    trace: Optional[Trace] = None,
 ):
-    """Helper function for recursive execution of agent code."""
+    """Helper function for recursive execution of agent code.
+
+    When ``trace`` is non-None, structural events (agent_start, llm_call,
+    data_store, agent_end, error) plus user-origin events (stdout, log)
+    are appended to it for the duration of this call. The contextvar
+    binding lets nested layers (LLM service, data store proxy) emit too
+    without a signature change.
+    """
     # Get user service for API key lookup if user_id is provided
     user_service = get_user_service(db) if user_id else None
 
@@ -161,10 +175,13 @@ async def _execute_agent_code(
             if not agent_to_run:
                 raise ValueError(f"Gofannon agent '{agent_name}' not found or not imported for this run.")
 
-            # Recursive call to the execution helper. We discard the ops_log
-            # here — only the top-level sandbox run surfaces ops to the UI;
-            # nested calls into other agents would add noise (and tracking
-            # them would require merging logs across the recursion tree).
+            # Recursive call. The active trace (if any) flows in via the
+            # contextvar so nested events appear in the same trace as
+            # the parent's, with depth incremented automatically by
+            # Trace.agent_start. We discard the ops_log here — only the
+            # top-level sandbox run surfaces ops to the UI's data-store
+            # panel; nested data store activity is still in the trace.
+            active_trace = get_current_trace()
             result, _nested_ops = await _execute_agent_code(
                 code=agent_to_run.code,
                 input_dict=input_dict,
@@ -174,6 +191,8 @@ async def _execute_agent_code(
                 user_id=user_id,
                 user_basic_info=user_basic_info,
                 llm_settings=self.llm_settings,
+                agent_name=agent_to_run.name,
+                trace=active_trace,
             )
 
             return result
@@ -285,20 +304,45 @@ async def _execute_agent_code(
         ctx_window = get_context_window(provider, model)
         print(f">>> call_llm {provider}/{model} context_window={ctx_window:,} max_tokens={parameters.get('max_tokens')} temperature={parameters.get('temperature')} reasoning_effort={parameters.get('reasoning_effort')} timeout={timeout or 'default'}", flush=True)
 
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", message="Pydantic serializer warnings")
-            return await call_llm(
-                provider=provider,
-                model=model,
-                messages=messages,
-                parameters=parameters,
-                tools=tools,
-                user_service=user_service,
-                user_id=user_id,
-                user_basic_info=user_basic_info,
-                timeout=timeout,
-                **kwargs
-            )
+        # Trace the LLM call. Start time captured before so we can
+        # compute duration even if the call raises.
+        active_trace = get_current_trace()
+        import time as _time
+        _llm_start = _time.monotonic()
+        _llm_error = None
+        _llm_resp = None
+        try:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message="Pydantic serializer warnings")
+                _llm_resp = await call_llm(
+                    provider=provider,
+                    model=model,
+                    messages=messages,
+                    parameters=parameters,
+                    tools=tools,
+                    user_service=user_service,
+                    user_id=user_id,
+                    user_basic_info=user_basic_info,
+                    timeout=timeout,
+                    **kwargs
+                )
+        except Exception as _llm_exc:
+            _llm_error = f"{type(_llm_exc).__name__}: {_llm_exc}"
+            raise
+        finally:
+            if active_trace is not None:
+                _llm_duration_ms = (_time.monotonic() - _llm_start) * 1000.0
+                # call_llm wrapper here returns (content_str, thoughts);
+                # token counts aren't directly exposed. Leaving them as
+                # None — a follow-up that surfaces usage from the LLM
+                # service can fill these in.
+                active_trace.llm_call(
+                    provider=provider,
+                    model=model,
+                    duration_ms=_llm_duration_ms,
+                    error=_llm_error,
+                )
+        return _llm_resp
 
     # Create data store proxy for agent access, with a shared ops_log so the
     # sandbox UI can show live operation timelines.
@@ -338,7 +382,37 @@ async def _execute_agent_code(
     if not run_function or not asyncio.iscoroutinefunction(run_function):
         raise ValueError("Code did not define an 'async def run(input_dict, tools)' function.")
 
-    result = await run_function(input_dict=input_dict, tools=tools)
+    # Trace integration. When trace is provided, every event from this
+    # invocation (and any nested gofannon-client calls) lands in it.
+    # capture_user_io routes stdout/stderr/logging into the trace as
+    # user-origin events. bind_trace exposes the trace to nested layers
+    # via contextvar so the LLM/data-store wrappers can emit without
+    # threading the collector through every signature.
+    if trace is not None:
+        _agent_start_ms = trace.agent_start(
+            agent_name=agent_name or "unknown",
+            agent_id=None,
+            called_by=None,
+        )
+        with bind_trace(trace), capture_user_io(trace):
+            try:
+                result = await run_function(input_dict=input_dict, tools=tools)
+                trace.agent_end(
+                    agent_name=agent_name or "unknown",
+                    start_ms=_agent_start_ms,
+                    outcome="success",
+                )
+            except Exception as _exc:
+                trace.error(_exc)
+                trace.agent_end(
+                    agent_name=agent_name or "unknown",
+                    start_ms=_agent_start_ms,
+                    outcome="error",
+                )
+                raise
+    else:
+        result = await run_function(input_dict=input_dict, tools=tools)
+
     # Return both the agent's return value and the accumulated ops log so
     # the sandbox UI can render the live timeline. Callers that don't want
     # ops (run_deployed_agent, nested agent calls) can discard the second tuple.

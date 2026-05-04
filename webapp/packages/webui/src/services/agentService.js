@@ -69,7 +69,7 @@ class AgentService {
       throw error;
     }
   }
-  async runCodeInSandbox(code, inputDict, tools, gofannonAgents, llmSettings, outputSchema) {
+  async runCodeInSandbox(code, inputDict, tools, gofannonAgents, llmSettings, outputSchema, friendlyName) {
     
     const requestBody = {
       code,
@@ -78,6 +78,7 @@ class AgentService {
       gofannonAgents: (gofannonAgents || []).map(agent => agent.id),
       llmSettings,
       outputSchema,
+      friendlyName,
     };
 
     try {

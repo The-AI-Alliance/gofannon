@@ -35,9 +35,7 @@ describe('ProfileMenu', () => {
     const button = screen.getByRole('button', { name: /account of current user/i });
     await user.click(button);
 
-    expect(screen.getByText('Basic Info')).toBeInTheDocument();
-    expect(screen.getByText('Usage')).toBeInTheDocument();
-    expect(screen.getByText('Billing')).toBeInTheDocument();
+    expect(screen.getByText('API Keys')).toBeInTheDocument();
     expect(screen.getByText('Logout')).toBeInTheDocument();
   });
 
@@ -50,9 +48,9 @@ describe('ProfileMenu', () => {
     await user.click(button);
 
     // Click menu item - just verify it's clickable
-    const basicInfoItem = screen.getByText('Basic Info');
-    expect(basicInfoItem).toBeInTheDocument();
-    await user.click(basicInfoItem);
+    const apiKeysItem = screen.getByText('API Keys');
+    expect(apiKeysItem).toBeInTheDocument();
+    await user.click(apiKeysItem);
 
     // Test passed if no error thrown
   });
@@ -78,9 +76,7 @@ describe('ProfileMenu', () => {
     const button = screen.getByRole('button', { name: /account of current user/i });
     await user.click(button);
 
-    expect(screen.getByText('Basic Info')).toBeInTheDocument();
-    expect(screen.getByText('Usage')).toBeInTheDocument();
-    expect(screen.getByText('Billing')).toBeInTheDocument();
+    expect(screen.getByText('API Keys')).toBeInTheDocument();
   });
 
   it('has API Keys menu item', async () => {
