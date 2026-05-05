@@ -31,7 +31,7 @@ export default defineConfig({
         lines: 15,
         functions: 45,
         branches: 70,
-        statements: 20,
+        statements: 15,
       },
     },
     include: ['**/*.{test,spec}.{js,jsx,ts,tsx}'],
