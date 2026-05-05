@@ -1,5 +1,6 @@
 import abc
 import asyncio
+from services.log_redaction import redact, redact_in_place
 import boto3
 from botocore.exceptions import ClientError
 from datetime import datetime
@@ -193,14 +194,22 @@ class ObservabilityService:
         Creates a log payload and sends it to all configured providers asynchronously.
         This is a fire-and-forget method.
         """
+        # Scrub credentials from the message and recursively from the
+        # metadata dict before the payload reaches any log provider.
+        # We mutate metadata in place via redact_in_place; callers
+        # who pass a dict they reuse will see the redacted version,
+        # which is the desired security behavior.
+        scrubbed_message = redact(message) if isinstance(message, str) else message
+        scrubbed_metadata = redact_in_place(metadata) if metadata else {}
+
         raw_payload = {
             "timestamp": datetime.utcnow().isoformat(),
             "level": level.upper(),
             "eventType": event_type,
             "service": service,
             "userId": user_id,
-            "message": message,
-            "metadata": metadata or {},
+            "message": scrubbed_message,
+            "metadata": scrubbed_metadata,
         }
 
         payload = self._sanitize_for_json(raw_payload)

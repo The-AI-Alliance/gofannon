@@ -35,6 +35,8 @@ import sys
 import time
 import traceback
 import uuid
+
+from services.log_redaction import redact
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -247,6 +249,11 @@ class Trace:
         line = line.rstrip("\n")
         if not line:
             return
+        # Scrub credentials before the line lands in the trace events
+        # list (and from there into the SSE stream + final response).
+        # Redaction is best-effort and never raises; see
+        # services/log_redaction.py for the patterns and failure model.
+        line = redact(line)
         self.append({
             "type": "stdout",
             "ts": _now_iso(),
@@ -259,6 +266,8 @@ class Trace:
     def log(self, level: str, message: str, logger_name: Optional[str] = None) -> None:
         if not _user_trace_enabled():
             return
+        # Scrub credentials. See stdout() above for rationale.
+        message = redact(message)
         self.append({
             "type": "log",
             "ts": _now_iso(),
