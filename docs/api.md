@@ -3,9 +3,12 @@
 This document describes the HTTP surface of the user-service FastAPI app. The service powers provider discovery, chat orchestration, agent lifecycle management, demo generation, and deployment management. All routes are relative to the service root (e.g., `http://localhost:8000`).
 
 ## Authentication and headers
-- In non-Firebase environments (`APP_ENV != "firebase"`), authentication is bypassed and requests run as `local-dev-user`.
-- In Firebase deployments, send `Authorization: Bearer <ID token>`; the token is verified with Firebase and the decoded user is attached to `request.state.user`.
-- Most routes rely on dependency injection for authorization; admin-only routes require `require_admin_access`.
+The auth provider is selected by `APP_ENV` (and the per-provider config under `auth/`). Three modes:
+- **Dev (default):** session-cookie auth via the `dev_stub` provider. The browser-side login flow is `GET /auth/login/dev_stub` → backend picker → callback sets the `gofannon_sid` httpOnly cookie. API calls then carry the cookie automatically.
+- **Real OAuth deployments:** the same session model with Google/Microsoft/GitHub/ASF/etc. providers in place of `dev_stub`. Same cookie carries the session.
+- **Firebase deployments:** send `Authorization: Bearer <ID token>`; the token is verified with Firebase and the decoded user is attached to `request.state.user`.
+
+Most routes rely on dependency injection for authorization (`get_current_user`); admin-only routes require `require_admin_access`.
 
 ## Error handling
 - Standard FastAPI error responses are returned with a JSON body shaped as `{"detail": <message>}` when validation or downstream services fail.

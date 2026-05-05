@@ -81,25 +81,35 @@ The project is a monorepo containing a Python backend and a React frontend. You 
 
 ## 3. Running the Application Locally
 
-### Running the Backend
+The recommended workflow is `./dev-tail.sh` from the repo root, which runs the full dev stack — CouchDB, MinIO, the api in docker-compose, and the frontend on the host via vite — and tails the logs in one terminal:
 
-Ensure your virtual environment is activated (`source webapp/packages/api/user-service/venv/bin/activate`).
+```bash
+./dev-tail.sh
+```
+
+The API will be at `http://localhost:8000`, the web UI at `http://localhost:3000`. Auth uses the `dev_stub` session-auth provider; pick `alice`, `bob`, or `site_admin_1` from the picker on first visit. See `docs/developers/local-auth.md` for the auth fixture details.
+
+### Running components individually
+
+If you want to run only the backend or only the frontend (e.g., to debug one in isolation):
+
+**Backend.** Ensure your virtual environment is activated, then:
 
 ```bash
 cd webapp/packages/api/user-service
 uvicorn main:app --reload
 ```
 
-The API will be available at `http://localhost:8000`.
+API at `http://localhost:8000`.
 
-### Running the Frontend
+**Frontend.** Vite is host-based and doesn't need a container:
 
 ```bash
 cd webapp
 pnpm --filter webui dev
 ```
 
-The web UI will be available at `http://localhost:5173`.
+Web UI at `http://localhost:3000`.
 
 ## 4. Running Tests
 

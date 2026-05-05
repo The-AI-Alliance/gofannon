@@ -41,4 +41,4 @@ This monorepo contains the complete scaffolding for the Gofannon web application
     - Web UI: [http://localhost:3000](http://localhost:3000)
     - API: [http://localhost:8000/docs](http://localhost:8000/docs) (Swagger UI)
 
-This setup uses a mock authentication provider, allowing you to bypass login and develop features directly. Storage is handled by a local MinIO container that simulates an S3-compatible service.
+Storage is handled by a local MinIO container that simulates an S3-compatible service. Authentication uses the `dev_stub` session-auth provider: visiting the app redirects to a picker page where you choose a dev user (`alice`, `bob`, or `site_admin_1`) and a session cookie is set. See `docs/developers/local-auth.md` for details on the dev fixture, and how to swap in real OAuth providers.
