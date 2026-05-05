@@ -294,27 +294,70 @@ class AgentDataStoreProxy:
     """
     Proxy class injected into agent execution context.
     Provides a clean API for agents to interact with the data store.
+
+    When an ``ops_log`` list is passed in, every operation appends an entry
+    so the sandbox UI can show a live timeline of reads and writes. The log
+    is shared across the root proxy and any namespace-scoped copies returned
+    by ``use_namespace`` — so ``data_store.use_namespace("x").set(...)`` and
+    ``data_store.set(...)`` both land in the same list.
     """
+
+    # Cap value previews so the ops log doesn't bloat on large records.
+    # Full values are still written to the DB; this is display only.
+    _VALUE_PREVIEW_MAX = 200
 
     def __init__(
         self,
         service: DataStoreService,
         user_id: str,
         agent_name: str,
-        default_namespace: str = "default"
+        default_namespace: str = "default",
+        ops_log: Optional[List[Dict[str, Any]]] = None,
     ):
         self._service = service
         self._user_id = user_id
         self._agent_name = agent_name
         self._namespace = default_namespace
+        # Shared ops log (may be None when running outside the sandbox, e.g.
+        # via the deployed-agent path where we don't surface ops to a UI).
+        self._ops_log = ops_log
+
+    def _preview(self, value: Any) -> Any:
+        """Make a compact display-safe preview of a stored value."""
+        if value is None:
+            return None
+        try:
+            s = json.dumps(value)
+        except (TypeError, ValueError):
+            s = repr(value)
+        if len(s) > self._VALUE_PREVIEW_MAX:
+            return s[: self._VALUE_PREVIEW_MAX] + "…"
+        return s
+
+    def _log(self, op: str, **fields) -> None:
+        if self._ops_log is None:
+            return
+        entry = {
+            "op": op,
+            "namespace": self._namespace,
+            "agent": self._agent_name,
+            "ts": datetime.utcnow().isoformat(),
+            **fields,
+        }
+        self._ops_log.append(entry)
 
     def use_namespace(self, namespace: str) -> "AgentDataStoreProxy":
-        """Return a new proxy scoped to a specific namespace."""
+        """Return a new proxy scoped to a specific namespace.
+
+        Shares the same ops_log as the parent proxy so operations on the
+        returned proxy still show up in the timeline.
+        """
         return AgentDataStoreProxy(
             self._service,
             self._user_id,
             self._agent_name,
-            namespace
+            namespace,
+            ops_log=self._ops_log,
         )
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -325,7 +368,13 @@ class AgentDataStoreProxy:
             key,
             self._agent_name
         )
-        return record.get("value") if record else default
+        value = record.get("value") if record else default
+        self._log(
+            "get", key=key,
+            found=bool(record),
+            valuePreview=self._preview(value),
+        )
+        return value
 
     def set(self, key: str, value: Any, metadata: Optional[Dict[str, Any]] = None) -> None:
         """Set a value by key."""
@@ -337,14 +386,19 @@ class AgentDataStoreProxy:
             self._agent_name,
             metadata
         )
+        self._log("set", key=key, valuePreview=self._preview(value))
 
     def delete(self, key: str) -> bool:
         """Delete a value by key."""
-        return self._service.delete(self._user_id, self._namespace, key)
+        result = self._service.delete(self._user_id, self._namespace, key)
+        self._log("delete", key=key, found=result)
+        return result
 
     def list_keys(self, prefix: Optional[str] = None) -> List[str]:
         """List all keys, optionally filtered by prefix."""
-        return self._service.list_keys(self._user_id, self._namespace, prefix)
+        keys = self._service.list_keys(self._user_id, self._namespace, prefix)
+        self._log("list_keys", prefix=prefix, count=len(keys))
+        return keys
 
     def list_namespaces(self) -> List[str]:
         """List all namespaces containing data for this user.
@@ -356,7 +410,9 @@ class AgentDataStoreProxy:
             namespaces = data_store.list_namespaces()
             # Returns: ["default", "files:apache/repo", "summary:apache/repo", ...]
         """
-        return self._service.list_namespaces(self._user_id)
+        namespaces = self._service.list_namespaces(self._user_id)
+        self._log("list_namespaces", count=len(namespaces))
+        return namespaces
 
     def get_all(self) -> Dict[str, Any]:
         """Get all key-value pairs in the current namespace in one query.
@@ -370,20 +426,24 @@ class AgentDataStoreProxy:
             for filepath, content in all_files.items():
                 ...
         """
-        return self._service.get_all(
+        result = self._service.get_all(
             self._user_id,
             self._namespace,
             self._agent_name
         )
+        self._log("get_all", count=len(result))
+        return result
 
     def get_many(self, keys: List[str]) -> Dict[str, Any]:
         """Get multiple values at once."""
-        return self._service.get_many(
+        result = self._service.get_many(
             self._user_id,
             self._namespace,
             keys,
             self._agent_name
         )
+        self._log("get_many", requested=len(keys), found=len(result))
+        return result
 
     def set_many(self, items: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None) -> int:
         """Set multiple values at once."""
@@ -391,11 +451,15 @@ class AgentDataStoreProxy:
             (self._namespace, key, value, metadata)
             for key, value in items.items()
         ]
-        return self._service.set_many(self._user_id, item_list, self._agent_name)
+        count = self._service.set_many(self._user_id, item_list, self._agent_name)
+        self._log("set_many", count=count, keys=list(items.keys())[:10])
+        return count
 
     def clear(self) -> int:
         """Clear all data in the current namespace."""
-        return self._service.clear_namespace(self._user_id, self._namespace)
+        count = self._service.clear_namespace(self._user_id, self._namespace)
+        self._log("clear", count=count)
+        return count
 
 
 def get_data_store_service(db: DatabaseService) -> DataStoreService:

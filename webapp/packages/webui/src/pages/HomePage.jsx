@@ -23,15 +23,19 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import CloudIcon from '@mui/icons-material/Cloud';
 import EditIcon from '@mui/icons-material/Edit';
+import StorageIcon from '@mui/icons-material/Storage';
 import agentService from '../services/agentService';
 import demoService from '../services/demoService';
+import dataStoreService from '../services/dataStoreService';
 
 const HomePage = () => {
   const navigate = useNavigate();
   const [agents, setAgents] = useState([]);
   const [demoApps, setDemoApps] = useState([]);
+  const [dataStoreNamespaces, setDataStoreNamespaces] = useState([]);
   const [loadingAgents, setLoadingAgents] = useState(true);
   const [loadingDemos, setLoadingDemos] = useState(true);
+  const [loadingDataStores, setLoadingDataStores] = useState(true);
   const [agentFilter, setAgentFilter] = useState('all');
 
   useEffect(() => {
@@ -48,7 +52,11 @@ const HomePage = () => {
             }
           })
         );
-        setAgents(withDeployment);
+        setAgents(
+          withDeployment.sort((a, b) =>
+            (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+          )
+        );
       } catch (err) {
         console.error('Failed to fetch agents:', err);
       } finally {
@@ -67,8 +75,38 @@ const HomePage = () => {
       }
     };
 
-    fetchAgents();
-    fetchDemos();
+    const fetchDataStores = async () => {
+      try {
+        const resp = await dataStoreService.listNamespaces();
+        setDataStoreNamespaces((resp?.namespaces) || []);
+      } catch (err) {
+        console.error('Failed to fetch data stores:', err);
+      } finally {
+        setLoadingDataStores(false);
+      }
+    };
+
+    const fetchAll = () => {
+      fetchAgents();
+      fetchDemos();
+      fetchDataStores();
+    };
+
+    fetchAll();
+
+    // Refetch when the tab regains focus. Without this, namespaces
+    // created in another tab/page (e.g., the agent sandbox) don't
+    // appear here until a hard refresh — confusing the user about
+    // what state actually exists.
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchAll();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, []);
 
   const filteredAgents = agentFilter === 'deployed' 
@@ -78,10 +116,10 @@ const HomePage = () => {
   const deployedCount = agents.filter(a => a.isDeployed).length;
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1400, margin: '0 auto' }}>
+    <Box sx={{ p: 3, maxWidth: 1800, margin: '0 auto' }}>
       <Box sx={{ 
         display: 'grid', 
-        gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, 
+        gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr', xl: '1fr 1fr 1fr' }, 
         gap: 3,
         alignItems: 'start'
       }}>
@@ -320,6 +358,108 @@ const HomePage = () => {
                         <Tooltip title="Edit" arrow>
                           <IconButton size="small" onClick={() => navigate(`/create-demo/canvas?edit=${demo._id}`)}>
                             <EditIcon sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </TableContainer>
+        </Paper>
+
+        {/* Data Stores Table */}
+        <Paper sx={{ overflow: 'hidden' }}>
+          <Box sx={{
+            p: 2,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderBottom: '1px solid #e4e4e7',
+            bgcolor: '#fafafa',
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <StorageIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
+              <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1rem' }}>Data Stores</Typography>
+              <Chip label={`All (${dataStoreNamespaces.length})`} size="small" sx={{ height: 22, fontSize: '0.72rem' }} />
+            </Box>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => navigate('/data-stores')}
+              disabled={dataStoreNamespaces.length === 0}
+            >
+              View all
+            </Button>
+          </Box>
+          <TableContainer sx={{ maxHeight: 500 }}>
+            {loadingDataStores ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                <CircularProgress size={28} />
+              </Box>
+            ) : dataStoreNamespaces.length === 0 ? (
+              <Box sx={{ p: 4, textAlign: 'center' }}>
+                <Typography color="text.secondary" variant="body2">
+                  No data stores yet
+                </Typography>
+                <Typography color="text.secondary" variant="caption" sx={{ display: 'block', mt: 0.5 }}>
+                  Namespaces appear here once an agent writes data.
+                </Typography>
+              </Box>
+            ) : (
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Namespace</TableCell>
+                    <TableCell align="right">Records</TableCell>
+                    <TableCell align="right">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {dataStoreNamespaces.slice(0, 5).map((ns) => (
+                    <TableRow
+                      key={ns.namespace}
+                      hover
+                      sx={{ cursor: 'pointer' }}
+                      onClick={() => navigate(`/data-stores/${encodeURIComponent(ns.namespace)}`)}
+                    >
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 500, fontFamily: 'monospace' }}>
+                          {ns.namespace}
+                        </Typography>
+                        {(ns.agents || []).length > 0 && (
+                          <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, flexWrap: 'wrap' }}>
+                            {(ns.agents || []).slice(0, 2).map((a) => (
+                              <Chip
+                                key={a}
+                                label={a}
+                                size="small"
+                                sx={{ height: 18, fontSize: '0.65rem', bgcolor: '#e0f2fe', color: '#075985' }}
+                              />
+                            ))}
+                            {(ns.agents || []).length > 2 && (
+                              <Chip
+                                label={`+${ns.agents.length - 2}`}
+                                size="small"
+                                sx={{ height: 18, fontSize: '0.65rem' }}
+                              />
+                            )}
+                          </Box>
+                        )}
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2">
+                          {(ns.recordCount || 0).toLocaleString()}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                        <Tooltip title="Browse" arrow>
+                          <IconButton
+                            size="small"
+                            onClick={() => navigate(`/data-stores/${encodeURIComponent(ns.namespace)}`)}
+                          >
+                            <VisibilityIcon sx={{ fontSize: 18 }} />
                           </IconButton>
                         </Tooltip>
                       </TableCell>

@@ -10,12 +10,69 @@ import {
   TextField,
   CircularProgress,
   Alert,
+  AlertTitle,
   Divider,
   IconButton,
+  FormControlLabel,
+  Switch,
+  Tooltip,
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import observabilityService from '../../services/observabilityService';
+import SandboxDataPanel from '../../components/SandboxDataPanel';
+import SandboxProgressLog from '../../components/SandboxProgressLog';
+
+// Default value per schema type, used when initializing the form.
+const defaultValueForType = (type) => {
+  switch (type) {
+    case 'integer':
+    case 'float':
+      return '';       // empty string lets the user clear the field; cast on submit
+    case 'boolean':
+      return false;
+    case 'list':
+    case 'json':
+      return '';       // user types JSON; parse on submit
+    default:
+      return '';
+  }
+};
+
+// Cast the form value to the declared type before sending to the backend.
+// Throws on invalid input (caught by handleRun).
+const castValueForType = (type, value) => {
+  switch (type) {
+    case 'integer': {
+      if (value === '' || value === null || value === undefined) return null;
+      const n = Number(value);
+      if (!Number.isInteger(n)) throw new Error(`must be an integer, got "${value}"`);
+      return n;
+    }
+    case 'float': {
+      if (value === '' || value === null || value === undefined) return null;
+      const n = Number(value);
+      if (Number.isNaN(n)) throw new Error(`must be a number, got "${value}"`);
+      return n;
+    }
+    case 'boolean':
+      return Boolean(value);
+    case 'list':
+    case 'json': {
+      if (value === '' || value === null || value === undefined) {
+        return type === 'list' ? [] : null;
+      }
+      try {
+        return JSON.parse(value);
+      } catch (e) {
+        throw new Error(`must be valid JSON, got parse error: ${e.message}`);
+      }
+    }
+    default:
+      return value ?? '';
+  }
+};
 
 const SandboxScreen = () => {
   const { agentId } = useParams();
@@ -76,12 +133,32 @@ const SandboxScreen = () => {
   const [output, setOutput] = useState(null);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  // Warnings from the server-side output-schema validator. Advisory only —
+  // the agent ran successfully, but its return value didn't match the
+  // declared output_schema (e.g. returned {"outputText": ...} instead of
+  // the declared keys). See validate_output_against_schema in dependencies.py.
+  const [schemaWarnings, setSchemaWarnings] = useState(null);
+  // Data-store ops log from the most recent sandbox run. Backend populates
+  // RunCodeResponse.ops_log when the agent touched the data store.
+  const [opsLog, setOpsLog] = useState(null);
 
-  // Update formData when inputSchema changes
+  // Run history for the Progress Log accordion. In-memory only — refresh
+  // wipes it. Each entry: { run_id, agent_name, started_at, _started_ms,
+  // duration_ms, outcome ('success'|'error'|'running'), events: [...] }.
+  // Newest is appended; the component reverses for display.
+  const [runs, setRuns] = useState([]);
+
+  // Read the declared output schema so we can send it to the sandbox for
+  // validation. Falls back to null when unavailable — the backend treats
+  // a missing output_schema as "skip validation".
+  const outputSchema = agentData?.outputSchema || agentFlowContext.outputSchema || null;
+
+  // Update formData when inputSchema changes.
+  // Default values per type so each control gets a sensible starting point.
   useEffect(() => {
     if (inputSchema) {
       const newFormState = Object.keys(inputSchema).reduce((acc, key) => {
-        acc[key] = ''; // default to empty string
+        acc[key] = defaultValueForType(inputSchema[key]);
         return acc;
       }, {});
       setFormData(newFormState);
@@ -96,9 +173,25 @@ const SandboxScreen = () => {
     setIsLoading(true);
     setError(null);
     setOutput(null);
+    setSchemaWarnings(null);
+    setOpsLog(null);
     observabilityService.log({ eventType: 'user-action', message: 'User running agent in sandbox.' });
 
     try {
+      // Cast each field per its declared schema type before sending to the
+      // agent. Throws with a field-named message on parse failures.
+      let castInput;
+      try {
+        castInput = Object.entries(inputSchema || {}).reduce((acc, [key, type]) => {
+          acc[key] = castValueForType(type, formData[key]);
+          return acc;
+        }, {});
+      } catch (castErr) {
+        setError(`Input validation failed: ${castErr.message}`);
+        setIsLoading(false);
+        return;
+      }
+
       // Extract LLM settings from agent's invokable models
       const invokableModel = agentData?.invokableModels?.[0] || agentFlowContext.invokableModels?.[0];
       const llmSettings = invokableModel?.parameters ? {
@@ -107,48 +200,224 @@ const SandboxScreen = () => {
         reasoningEffort: invokableModel.parameters.reasoning_effort || invokableModel.parameters.reasoningEffort,
       } : undefined;
 
-      const response = await agentService.runCodeInSandbox(generatedCode, formData, tools, gofannonAgents, llmSettings);
+      const friendlyName = agentData?.friendlyName || agentData?.name
+        || agentFlowContext.friendlyName
+        || 'sandbox_agent';
+
+      // Stream events into the in-flight 'running' run entry as they
+      // arrive. The bulk handler below still runs once we have the
+      // final response — it sets the run's outcome and any leftover
+      // fields (ops_log, schema warnings).
+      const onTraceEvent = (event) => {
+        setRuns((prev) => {
+          const next = [...prev];
+          const idx = next.length - 1;
+          if (idx < 0 || next[idx].outcome !== 'running') return prev;
+          next[idx] = {
+            ...next[idx],
+            events: [...(next[idx].events || []), event],
+          };
+          return next;
+        });
+      };
+
+      const response = await agentService.runCodeInSandboxStreaming(
+        generatedCode, castInput, tools, gofannonAgents, llmSettings, outputSchema, friendlyName,
+        onTraceEvent,
+      );
       if (response.error) {
         setError(response.error);
       } else {
         setOutput(response.result);
+        // Schema warnings (advisory): surfaced above the Output panel.
+        // Backend sends camelCase via RunCodeResponse alias; accept both.
+        const warnings = response.schemaWarnings || response.schema_warnings;
+        if (warnings && warnings.length) {
+          setSchemaWarnings(warnings);
+        }
+        // Data-store ops log from the live panel. Null/empty when the
+        // agent didn't touch the data store.
+        const ops = response.opsLog || response.ops_log;
+        if (ops && ops.length) {
+          setOpsLog(ops);
+        }
+
+        // Streaming has been delivering events in real time via
+        // onTraceEvent above; here we just stamp the final outcome
+        // and duration on the run. Don't overwrite events — they're
+        // already accumulated in place.
+        const finalOutcome = response.error ? 'error' : 'success';
+        setRuns((prev) => {
+          const next = [...prev];
+          if (next.length > 0 && next[next.length - 1].outcome === 'running') {
+            const r = next[next.length - 1];
+            next[next.length - 1] = {
+              ...r,
+              outcome: finalOutcome,
+              duration_ms: Date.now() - r._started_ms,
+            };
+          }
+          return next;
+        });
       }
     } catch (err) {
       setError(err.message || 'An unexpected error occurred.');
       observabilityService.logError(err, { context: 'Agent Sandbox Execution' });
+      // Mark the in-flight run as errored so the Progress Log doesn't
+      // spin forever when the request itself failed (network, 5xx,
+      // etc — the backend never got far enough to emit a trace).
+      setRuns((prev) => {
+        const next = [...prev];
+        if (next.length > 0 && next[next.length - 1].outcome === 'running') {
+          const r = next[next.length - 1];
+          next[next.length - 1] = {
+            ...r,
+            outcome: 'error',
+            duration_ms: Date.now() - r._started_ms,
+            events: [
+              ...(r.events || []),
+              {
+                type: 'error',
+                ts: new Date().toISOString(),
+                agent_name: r.agent_name || 'unknown',
+                depth: 0,
+                exception_type: 'TransportError',
+                message: err.message || 'Request failed before reaching the sandbox.',
+                source: 'system',
+              },
+            ],
+          };
+        }
+        return next;
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Renders form fields based on the input schema.
+  // Append a 'running' entry to runs[] when the user clicks Run, before
+  // the request fires. handleRun replaces it with the real outcome on
+  // response (or marks it errored on transport failure).
+  const startRun = () => {
+    const now = Date.now();
+    const runId = `run-${now}-${Math.random().toString(36).slice(2, 7)}`;
+    const agentName = agentData?.friendlyName || agentData?.name
+      || agentFlowContext.friendlyName || 'sandbox_agent';
+    setRuns((prev) => [
+      ...prev,
+      {
+        run_id: runId,
+        agent_name: agentName,
+        started_at: new Date(now).toISOString(),
+        _started_ms: now,
+        outcome: 'running',
+        events: [],
+      },
+    ]);
+  };
+
+  // Renders form fields based on the input schema type.
   const renderFormFields = () => {
     if (!inputSchema || Object.keys(inputSchema).length === 0) {
       return <Typography color="text.secondary">No input schema defined.</Typography>;
     }
     return Object.entries(inputSchema).map(([key, type]) => {
-      // Simple implementation for string types as per the default schema.
-      if (type === 'string') {
+      const value = formData[key];
+
+      if (type === 'integer' || type === 'float') {
         return (
           <TextField
             key={key}
             fullWidth
-            multiline
-            minRows={3}
-            maxRows={10}
-            label={key}
-            value={formData[key] || ''}
+            type="number"
+            label={`${key} (${type})`}
+            value={value ?? ''}
             onChange={(e) => handleInputChange(key, e.target.value)}
+            inputProps={type === 'integer' ? { step: 1 } : { step: 'any' }}
             sx={{ mb: 2 }}
           />
         );
       }
-      return <Typography key={key}>Unsupported input type: {type} for key: {key}</Typography>;
+
+      if (type === 'boolean') {
+        return (
+          <FormControlLabel
+            key={key}
+            sx={{ display: 'block', mb: 2 }}
+            control={
+              <Switch
+                checked={Boolean(value)}
+                onChange={(e) => handleInputChange(key, e.target.checked)}
+              />
+            }
+            label={`${key} (boolean)`}
+          />
+        );
+      }
+
+      if (type === 'list' || type === 'json') {
+        const placeholder = type === 'list'
+          ? '["item1", "item2"]'
+          : '{"key": "value"}';
+        const tooltip = type === 'list'
+          ? 'Enter a JSON array. Example: ["apple", "banana", "cherry"]'
+          : 'Enter any valid JSON. Object, array, number, string, boolean, or null.';
+        return (
+          <Box key={key} sx={{ mb: 2, position: 'relative' }}>
+            <TextField
+              fullWidth
+              multiline
+              minRows={3}
+              maxRows={10}
+              label={`${key} (${type})`}
+              placeholder={placeholder}
+              value={value ?? ''}
+              onChange={(e) => handleInputChange(key, e.target.value)}
+              InputProps={{
+                sx: { fontFamily: 'monospace', fontSize: '0.9rem' },
+                endAdornment: (
+                  <Tooltip title={tooltip} arrow placement="top">
+                    <HelpOutlineIcon
+                      fontSize="small"
+                      sx={{ color: 'text.secondary', alignSelf: 'flex-start', mt: 1 }}
+                    />
+                  </Tooltip>
+                ),
+              }}
+            />
+          </Box>
+        );
+      }
+
+      // string (and any unknown type) → plain multiline TextField
+      return (
+        <TextField
+          key={key}
+          fullWidth
+          multiline
+          minRows={3}
+          maxRows={10}
+          label={`${key}${type !== 'string' ? ` (${type})` : ''}`}
+          value={value ?? ''}
+          onChange={(e) => handleInputChange(key, e.target.value)}
+          sx={{ mb: 2 }}
+        />
+      );
     });
   };
 
   return (
-    <Paper sx={{ p: 3, maxWidth: 800, margin: 'auto', mt: 4 }}>
+    <Box sx={{
+      maxWidth: 1400,
+      margin: 'auto',
+      mt: 4,
+      px: 2,
+      display: 'flex',
+      flexDirection: { xs: 'column', lg: 'row' },
+      gap: 2,
+      alignItems: 'stretch',
+    }}>
+      <Paper sx={{ p: 3, flexGrow: 1, minWidth: 0 }}>
       {/* Header with back button */}
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
         <IconButton size="small" onClick={() => navigate(-1)} sx={{ mr: 1 }}>
@@ -185,7 +454,7 @@ const SandboxScreen = () => {
           {renderFormFields()}
           <Button
             variant="contained"
-            onClick={handleRun}
+            onClick={async () => { startRun(); await handleRun(); }}
             disabled={isLoading || !generatedCode}
             startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <PlayArrowIcon />}
           >
@@ -207,17 +476,40 @@ const SandboxScreen = () => {
 
       {output && (
         <Box>
+          {schemaWarnings && schemaWarnings.length > 0 && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              <AlertTitle>Output does not match declared schema</AlertTitle>
+              The agent ran successfully, but its return value doesn&apos;t match the
+              output schema you declared. Consider regenerating the code, or
+              adjusting the schema to match what the agent actually produces.
+              <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 20 }}>
+                {schemaWarnings.map((w, i) => (
+                  <li key={i}><code>{w}</code></li>
+                ))}
+              </ul>
+            </Alert>
+          )}
           <Typography variant="h6" sx={{ mb: 1 }}>Output</Typography>
           <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.900', overflowX: 'auto', maxHeight: '500px', overflowY: 'auto' }}>
             <pre style={{ whiteSpace: 'pre', wordBreak: 'keep-all', color: 'lightgreen', margin: 0, fontFamily: 'monospace', fontSize: '0.85rem' }}>
-              {typeof output === 'object' && output.outputText 
-                ? output.outputText 
-                : JSON.stringify(output, null, 2)}
+              {JSON.stringify(output, null, 2)}
             </pre>
           </Paper>
         </Box>
       )}
-    </Paper>
+      </Paper>
+
+      {/* Right column: Progress Log above Data-store panel. The Progress
+          Log is the per-agent trace of recent runs (errors highlighted,
+          stack traces clickable into a side sheet). The Data Store panel
+          shows ops the agent did. Both are always rendered so the
+          layout doesn't jump when a run completes. Collapses below the
+          main panel on narrow screens. */}
+      <Box sx={{ width: { xs: '100%', lg: 380 }, flexShrink: 0, mt: { xs: 2, lg: 0 }, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <SandboxProgressLog runs={runs} />
+        <SandboxDataPanel opsLog={opsLog} />
+      </Box>
+    </Box>
   );
 };
 

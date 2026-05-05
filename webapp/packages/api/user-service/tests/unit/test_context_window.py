@@ -399,7 +399,7 @@ async def run(input_dict, tools):
     return {"outputText": str(cw)}
 """
         db_service = Mock()
-        result = await dependencies_module._execute_agent_code(
+        result, _ops = await dependencies_module._execute_agent_code(
             code, {"message": "test"}, {}, [], db_service
         )
         assert result == {"outputText": "200000"}
@@ -417,7 +417,7 @@ async def run(input_dict, tools):
     return {"outputText": str(cw)}
 """
         db_service = Mock()
-        result = await dependencies_module._execute_agent_code(
+        result, _ops = await dependencies_module._execute_agent_code(
             code, {}, {}, [], db_service
         )
         assert result == {"outputText": "128000"}

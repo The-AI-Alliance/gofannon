@@ -1,15 +1,20 @@
 from datetime import datetime
+import asyncio
+import json
 import traceback
 import uuid
 from typing import Optional, Dict, Any, List
 
+from fastapi.responses import StreamingResponse
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from pydantic import BaseModel, Field
 from pydantic.config import ConfigDict
 
 from config import settings
+from services.agent_trace import Trace
 from dependencies import (
     _execute_agent_code,
+    build_agent_chain,
     deploy_agent,
     fetch_spec_content,
     get_agent_deployment,
@@ -23,6 +28,7 @@ from dependencies import (
     require_admin_access,
     run_deployed_agent as run_deployed_agent_logic,
     undeploy_agent,
+    validate_output_against_schema,
 )
 from models.agent import (
     Agent,
@@ -41,8 +47,19 @@ from models.demo import (
     GenerateDemoCodeRequest,
     GenerateDemoCodeResponse,
 )
+from models.data_store import (
+    ClearNamespaceResponse,
+    DataStoreRecord,
+    NamespaceListResponse,
+    NamespaceStats,
+    SetRecordRequest,
+)
 from models.user import User, ApiKeys
 from services.database_service import DatabaseService
+from services.data_store_service import (
+    DataStoreService,
+    get_data_store_service,
+)
 from services.mcp_client_service import McpClientService, get_mcp_client_service
 from services.observability_service import (
     ObservabilityService,
@@ -53,6 +70,41 @@ from services.user_service import UserService
 
 
 router = APIRouter()
+
+
+async def _verify_session_cookie(request: Request, sid: str) -> Optional[dict]:
+    """Check for a Phase B session cookie. Returns a user dict on success,
+    None if no session could be resolved (so the caller falls back to the
+    legacy Firebase path).
+
+    The user dict shape matches what the rest of the code expects from
+    Firebase's verify_id_token: at minimum ``uid`` and ``email``. We
+    augment with session-specific fields (``workspaces``, ``is_site_admin``,
+    ``provider_type``) so downstream code gated on Phase B auth can read
+    them directly.
+    """
+    try:
+        from services.session_service import get_session_service
+    except Exception:
+        return None
+    from services.database_service import get_database_service
+    db = get_database_service(settings)
+    svc = get_session_service(db)
+    session = await svc.get_by_id(sid)
+    if not session:
+        return None
+    user = {
+        "uid": session.user_uid,
+        "email": session.email,
+        "name": session.display_name,
+        "displayName": session.display_name,
+        "provider_type": session.provider_type,
+        "workspaces": [w.model_dump(by_alias=True) for w in session.workspaces],
+        "is_site_admin": session.is_site_admin,
+        "auth_mode": "session",
+    }
+    request.state.user = user
+    return user
 
 
 async def _verify_firebase_token(request: Request, token: str):
@@ -68,6 +120,7 @@ async def _verify_firebase_token(request: Request, token: str):
 
     try:
         decoded_token = auth.verify_id_token(token)
+        decoded_token.setdefault("auth_mode", "firebase")
         request.state.user = decoded_token
         return decoded_token
     except auth.InvalidIdTokenError:
@@ -80,11 +133,30 @@ async def _verify_firebase_token(request: Request, token: str):
 
 async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)):
     """
-    Dependency to verify Firebase ID token and get user info.
+    Dependency to authenticate a request. Supports two modes:
+
+      1. Phase B session cookie (``gofannon_sid``) — checked first.
+      2. Legacy Firebase bearer token — fallback.
+
+    If neither is present, behavior depends on ``APP_ENV``:
+      - ``firebase``: 401
+      - otherwise: returns a local-dev-user stub (same as before)
+
     Attaches the user object to request.state for observability.
     """
+    # 1) Phase B session cookie
+    sid = request.cookies.get("gofannon_sid")
+    if sid:
+        user = await _verify_session_cookie(request, sid)
+        if user:
+            return user
+        # Cookie present but invalid/expired — don't fall through to
+        # Firebase with stale cookie. Return 401 so the client clears it.
+        raise HTTPException(status_code=401, detail="Session expired or invalid")
+
+    # 2) Legacy Firebase path (unchanged)
     if settings.APP_ENV != "firebase":
-        user = {"uid": "local-dev-user"}
+        user = {"uid": "local-dev-user", "auth_mode": "dev_stub"}
         request.state.user = user
         return user
 
@@ -444,6 +516,21 @@ async def get_agent(agent_id: str, db: DatabaseService = Depends(get_db), user: 
     return Agent(**agent_doc)
 
 
+@router.get("/agents/{agent_id}/chain")
+async def get_agent_chain(
+    agent_id: str,
+    db: DatabaseService = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Return the transitive call graph for an agent.
+
+    Walks gofannon_agents dependencies recursively (bounded depth, cycle-safe)
+    and emits an MCP-server leaf node per distinct tool URL. Used by the
+    Chain View UI to show what other agents and tools this agent reaches.
+    """
+    return await build_agent_chain(agent_id, db)
+
+
 @router.delete("/agents/{agent_id}", status_code=204)
 async def delete_agent(
     agent_id: str,
@@ -452,11 +539,17 @@ async def delete_agent(
     user: dict = Depends(get_current_user),
     logger: ObservabilityService = Depends(get_logger)
 ):
-    """Deletes an agent by its ID."""
+    """Deletes an agent by its ID.
+
+    Always runs undeploy_agent first, which scans the deployments collection
+    by the `agentId` field and removes every matching deployment doc. That
+    covers friendly_name renames and pre-existing orphans.
+    """
     try:
-        deployment = await get_agent_deployment(agent_id, db)
-        if deployment.get("is_deployed"):
-            await undeploy_agent(agent_id, db)  
+        # undeploy_agent is now idempotent and self-healing: safe to call
+        # unconditionally, including when there are no deployments or when
+        # the agent's friendly_name no longer matches any deployment.
+        await undeploy_agent(agent_id, db)
         db.delete("agents", agent_id)
         logger.log("INFO", "user_action", f"Agent '{agent_id}' deleted.", metadata={"agent_id": agent_id, "request": get_sanitized_request_data(req)})
         return
@@ -558,6 +651,157 @@ async def list_deployments_route(db: DatabaseService = Depends(get_db), user: di
     return [DeployedApi(**dep) for dep in deployments]
 
 
+@router.post("/agents/run-code/stream")
+async def run_agent_code_stream(
+    request: RunCodeRequest,
+    req: Request,
+    user: dict = Depends(get_current_user),
+    db: DatabaseService = Depends(get_db),
+    logger: ObservabilityService = Depends(get_logger),
+):
+    """Stream a sandbox run as Server-Sent Events.
+
+    Emits one SSE 'event' frame per Trace event as the agent runs,
+    then a final 'done' frame carrying {outcome, result, error,
+    schema_warnings, ops_log}. The non-streaming /agents/run-code
+    endpoint remains for callers that want a bulk response.
+
+    Frame format:
+        event: trace
+        data: {{...event dict...}}
+
+        event: done
+        data: {{outcome, result, error, schema_warnings, ops_log}}
+    """
+    logger.log(
+        "INFO", "user_action",
+        "Attempting to run agent code in sandbox (streaming).",
+        metadata={"request": get_sanitized_request_data(req)},
+    )
+
+    user_basic_info = {
+        "email": user.get("email"),
+        "name": user.get("name") or user.get("displayName"),
+    }
+
+    # Trace + queue. The queue is unbounded — emitters never block —
+    # because the alternative (drop events on slow consumer) is
+    # worse than memory pressure. The trace's own 2000-event cap
+    # is the real bound.
+    trace = Trace()
+    queue: asyncio.Queue = asyncio.Queue()
+    trace.attach_queue(queue)
+
+    # Sentinel posted to the queue when the agent finishes (success
+    # or error) so the streaming generator knows to stop pulling.
+    DONE_SENTINEL = object()
+
+    # Holders for the final result. Set by the agent task; read by
+    # the streamer when it sees DONE_SENTINEL.
+    final = {"result": None, "error": None, "schema_warnings": None, "ops_log": None}
+
+    async def run_agent_task():
+        try:
+            result, ops_log = await _execute_agent_code(
+                code=request.code,
+                input_dict=request.input_dict,
+                tools=request.tools,
+                gofannon_agents=request.gofannon_agents,
+                db=db,
+                llm_settings=request.llm_settings,
+                user_id=user.get("uid"),
+                user_basic_info=user_basic_info,
+                agent_name=request.friendly_name or "sandbox_agent",
+                trace=trace,
+            )
+            schema_warnings = validate_output_against_schema(result, request.output_schema)
+            if schema_warnings:
+                logger.log(
+                    "WARNING", "output_schema_mismatch",
+                    f"Agent output did not match declared schema: {schema_warnings}",
+                    metadata={"warnings": schema_warnings},
+                )
+            final["result"] = result
+            final["schema_warnings"] = schema_warnings or None
+            final["ops_log"] = ops_log or None
+            logger.log(
+                "INFO", "sandbox_run",
+                "Agent code executed successfully (streaming).",
+                metadata={"request": get_sanitized_request_data(req)},
+            )
+        except Exception as e:
+            final["error"] = f"{type(e).__name__}: {e}"
+            logger.log(
+                "ERROR", "sandbox_run_failure",
+                f"Error running agent code (streaming, trace events: {len(trace.events)})",
+                metadata={
+                    "traceback": traceback.format_exc(),
+                    "request": get_sanitized_request_data(req),
+                },
+            )
+        finally:
+            await queue.put(DONE_SENTINEL)
+
+    async def event_generator():
+        # Kick off the agent. The task runs concurrently with this
+        # generator; events flow through the queue.
+        agent_task = asyncio.create_task(run_agent_task())
+
+        try:
+            while True:
+                # Use a heartbeat-style wait so a hung agent eventually
+                # frees the connection if the client disconnected.
+                # 30s is generous; nothing in the trace timing matters
+                # at that resolution.
+                try:
+                    item = await asyncio.wait_for(queue.get(), timeout=30.0)
+                except asyncio.TimeoutError:
+                    # Heartbeat comment frame keeps proxies from
+                    # idling out the connection.
+                    yield ": heartbeat\n\n"
+                    continue
+
+                if item is DONE_SENTINEL:
+                    # Agent task finished. Send the done frame with
+                    # final state and exit.
+                    payload = json.dumps({
+                        "outcome": "error" if final["error"] else "success",
+                        "result": final["result"],
+                        "error": final["error"],
+                        "schemaWarnings": final["schema_warnings"],
+                        "opsLog": final["ops_log"],
+                    })
+                    yield f"event: done\ndata: {payload}\n\n"
+                    break
+                else:
+                    # Trace event. JSON-encode with default=str so any
+                    # stray non-serialisable values become strings
+                    # rather than crashing the stream.
+                    payload = json.dumps(item, default=str)
+                    yield f"event: trace\ndata: {payload}\n\n"
+        finally:
+            # If the client disconnects mid-run, the generator gets
+            # closed; await the agent so we don't leak the task.
+            if not agent_task.done():
+                try:
+                    await asyncio.wait_for(agent_task, timeout=5.0)
+                except (asyncio.TimeoutError, Exception):
+                    agent_task.cancel()
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            # Prevent intermediate proxies from buffering the response.
+            # Without this, nginx/cloudflare can hold onto chunks until
+            # the response closes — defeats the point of streaming.
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
 @router.post("/agents/run-code", response_model=RunCodeResponse)
 async def run_agent_code(
     request: RunCodeRequest,
@@ -573,19 +817,56 @@ async def run_agent_code(
             "email": user.get("email"),
             "name": user.get("name") or user.get("displayName"),
         }
-        result = await _execute_agent_code(
-            code=request.code,
-            input_dict=request.input_dict,
-            tools=request.tools,
-            gofannon_agents=request.gofannon_agents,
-            db=db,
-            llm_settings=request.llm_settings,
-            user_id=user.get("uid"),
-            user_basic_info=user_basic_info,
-        )
+        # Per-request trace. Lives only for this invocation; events
+        # are collected as the agent runs and shipped back in the
+        # response. On failure we return a structured response with
+        # error+trace so the Progress Log can show the partial trace
+        # (rather than raising and losing the events the agent
+        # already emitted).
+        trace = Trace()
+
+        try:
+            result, ops_log = await _execute_agent_code(
+                code=request.code,
+                input_dict=request.input_dict,
+                tools=request.tools,
+                gofannon_agents=request.gofannon_agents,
+                db=db,
+                llm_settings=request.llm_settings,
+                user_id=user.get("uid"),
+                user_basic_info=user_basic_info,
+                agent_name=request.friendly_name or "sandbox_agent",
+                trace=trace,
+            )
+        except Exception as _exc:
+            logger.log(
+                "ERROR", "sandbox_run_failure",
+                f"Error running agent code (trace events: {len(trace.events)})",
+                metadata={"traceback": traceback.format_exc(), "request": get_sanitized_request_data(req)}
+            )
+            return RunCodeResponse(
+                result=None,
+                error=f"{type(_exc).__name__}: {_exc}",
+                trace=trace.events or None,
+            )
+
+        # Advisory schema check: surface mismatches as warnings in the response.
+        # Never fails the run — LLM compliance is best-effort.
+        schema_warnings = validate_output_against_schema(result, request.output_schema)
+        if schema_warnings:
+            logger.log(
+                "WARNING", "output_schema_mismatch",
+                f"Agent output did not match declared schema: {schema_warnings}",
+                metadata={"warnings": schema_warnings}
+            )
 
         logger.log("INFO", "sandbox_run", "Agent code executed successfully.", metadata={"request": get_sanitized_request_data(req)})
-        return RunCodeResponse(result=result)
+        return RunCodeResponse(
+            result=result,
+            schema_warnings=schema_warnings or None,
+            ops_log=ops_log or None,
+            trace=trace.events or None,
+        )
 
     except Exception as e:
         error_str = f"{type(e).__name__}: {e}"
@@ -683,3 +964,173 @@ async def delete_demo_app(demo_id: str, db: DatabaseService = Depends(get_db), u
     """Deletes a demo app."""
     db.delete("demos", demo_id)
     return
+
+
+# ---------------------------------------------------------------------------
+# Data store routes
+#
+# The underlying DataStoreService is also used directly by the agent runtime
+# (see AgentDataStoreProxy). These HTTP routes expose the same service for
+# the Data Store Viewer UI: browsing namespaces, inspecting records, and
+# admin edits.
+# ---------------------------------------------------------------------------
+
+def _get_data_store_dep(db: DatabaseService = Depends(get_db)) -> DataStoreService:
+    return get_data_store_service(db)
+
+
+def _namespace_stats_from_docs(docs: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """Aggregate raw record docs into per-namespace stats.
+
+    Returned shape:
+      { namespace: {recordCount, sizeBytes, agents, updatedAt} }
+
+    Agents are the deduped union of createdByAgent and lastAccessedByAgent
+    across every record. sizeBytes is a JSON-size estimate — cheap to compute
+    and good enough for the UI's "1.2 MB" chips.
+    """
+    import json as _json
+    buckets: Dict[str, Dict[str, Any]] = {}
+    for doc in docs:
+        ns = doc.get("namespace") or "default"
+        b = buckets.setdefault(ns, {
+            "recordCount": 0, "sizeBytes": 0, "agents": set(), "updatedAt": None,
+        })
+        b["recordCount"] += 1
+        try:
+            b["sizeBytes"] += len(_json.dumps(doc.get("value")))
+        except (TypeError, ValueError):
+            pass
+        for agent_field in ("createdByAgent", "lastAccessedByAgent"):
+            v = doc.get(agent_field)
+            if v:
+                b["agents"].add(v)
+        updated = doc.get("updatedAt")
+        if updated and (b["updatedAt"] is None or updated > b["updatedAt"]):
+            b["updatedAt"] = updated
+    # Convert sets to sorted lists for serialization stability
+    return {
+        ns: {**b, "agents": sorted(b["agents"])}
+        for ns, b in buckets.items()
+    }
+
+
+@router.get("/data-store/namespaces", response_model=NamespaceListResponse)
+async def list_data_store_namespaces(
+    db: DatabaseService = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """List every namespace with aggregate stats for the current user."""
+    user_id = user.get("uid", "anonymous")
+    # list_all + filter: simpler than adding a new service method, and
+    # record counts are typically small. Could move to indexed query later.
+    all_docs = db.find("agent_data_store", {"userId": user_id})
+    stats_map = _namespace_stats_from_docs(all_docs)
+    namespaces = [
+        NamespaceStats(namespace=ns, **data)
+        for ns, data in sorted(stats_map.items())
+    ]
+    total_count = sum(ns.record_count for ns in namespaces)
+    total_size = sum(ns.size_bytes for ns in namespaces)
+    return NamespaceListResponse(
+        namespaces=namespaces,
+        total_record_count=total_count,
+        total_size_bytes=total_size,
+    )
+
+
+@router.get("/data-store/namespaces/{namespace}", response_model=NamespaceStats)
+async def get_namespace_stats(
+    namespace: str,
+    db: DatabaseService = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Stats for a single namespace (record count, size, agents, last update)."""
+    user_id = user.get("uid", "anonymous")
+    docs = db.find("agent_data_store", {"userId": user_id, "namespace": namespace})
+    stats = _namespace_stats_from_docs(docs)
+    if namespace not in stats:
+        return NamespaceStats(namespace=namespace, recordCount=0, sizeBytes=0, agents=[])
+    return NamespaceStats(namespace=namespace, **stats[namespace])
+
+
+@router.get("/data-store/namespaces/{namespace}/records", response_model=List[DataStoreRecord])
+async def list_records(
+    namespace: str,
+    db: DatabaseService = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """List every record in a namespace (full docs, not paginated).
+
+    Returns the raw records including values. For large namespaces a paginated
+    endpoint may be needed later; for now the UI handles up-to-several-thousand
+    rows without issue.
+    """
+    user_id = user.get("uid", "anonymous")
+    docs = db.find("agent_data_store", {"userId": user_id, "namespace": namespace})
+    return [DataStoreRecord(**doc) for doc in docs]
+
+
+@router.get("/data-store/namespaces/{namespace}/records/{key:path}", response_model=DataStoreRecord)
+async def get_record(
+    namespace: str,
+    key: str,
+    store: DataStoreService = Depends(_get_data_store_dep),
+    user: dict = Depends(get_current_user),
+):
+    """Get a single record by key. Uses :path so keys can contain slashes."""
+    user_id = user.get("uid", "anonymous")
+    doc = store.get(user_id, namespace, key)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Record '{key}' not found in '{namespace}'")
+    return DataStoreRecord(**doc)
+
+
+@router.put("/data-store/namespaces/{namespace}/records/{key:path}", response_model=DataStoreRecord)
+async def set_record(
+    namespace: str,
+    key: str,
+    request: SetRecordRequest,
+    store: DataStoreService = Depends(_get_data_store_dep),
+    user: dict = Depends(get_current_user),
+):
+    """Admin edit of a record. Not intended for agent writes — those go
+    through AgentDataStoreProxy during execution.
+    """
+    user_id = user.get("uid", "anonymous")
+    doc = store.set(
+        user_id=user_id,
+        namespace=namespace,
+        key=key,
+        value=request.value,
+        agent_name=None,  # admin edit, not an agent write
+        metadata=request.metadata,
+    )
+    return DataStoreRecord(**doc)
+
+
+@router.delete("/data-store/namespaces/{namespace}/records/{key:path}", status_code=204)
+async def delete_record(
+    namespace: str,
+    key: str,
+    store: DataStoreService = Depends(_get_data_store_dep),
+    user: dict = Depends(get_current_user),
+):
+    """Delete a single record."""
+    user_id = user.get("uid", "anonymous")
+    deleted = store.delete(user_id, namespace, key)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Record '{key}' not found in '{namespace}'")
+    return
+
+
+@router.delete("/data-store/namespaces/{namespace}", response_model=ClearNamespaceResponse)
+async def clear_namespace(
+    namespace: str,
+    store: DataStoreService = Depends(_get_data_store_dep),
+    user: dict = Depends(get_current_user),
+):
+    """Delete every record in a namespace."""
+    user_id = user.get("uid", "anonymous")
+    count = store.clear_namespace(user_id, namespace)
+    return ClearNamespaceResponse(namespace=namespace, deleted_count=count)

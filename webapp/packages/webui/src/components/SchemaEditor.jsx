@@ -82,6 +82,7 @@ const SchemaEditor = ({ title, schema, setSchema }) => {
             <MenuItem value="float">float</MenuItem>
             <MenuItem value="boolean">boolean</MenuItem>
             <MenuItem value="list">list</MenuItem>
+            <MenuItem value="json">json</MenuItem>
           </Select>
         </FormControl>
         <Button

@@ -8,7 +8,7 @@ const localConfig = {
     baseUrl: 'http://localhost:8000',
   },
   auth: {
-    provider: 'mock',
+    provider: 'session',
   },
   storage: {
     provider: 's3',

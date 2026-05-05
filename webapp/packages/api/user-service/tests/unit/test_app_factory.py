@@ -46,7 +46,7 @@ def test_configure_cors_adds_middleware():
     assert cors_middleware, "Expected CORSMiddleware to be configured"
 
     cors_options = cors_middleware[0].options
-    assert cors_options["allow_origins"] == ["*"]
+    assert cors_options["allow_origins"] == ["http://localhost:3000"]
     assert cors_options["allow_methods"] == ["*"]
     assert cors_options["allow_headers"] == ["*"]
     assert cors_options["allow_credentials"] is True

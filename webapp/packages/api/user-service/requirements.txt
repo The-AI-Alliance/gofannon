@@ -21,3 +21,4 @@ google-cloud-storage
 cffi
 a2wsgi
 google-cloud-logging
+ldap3>=2.9

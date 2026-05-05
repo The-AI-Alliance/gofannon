@@ -1,0 +1,46 @@
+# Dev-only auth config for local testing.
+#
+# This file is committed to the repo so anyone running ./dev-tail.sh
+# gets a working login flow out of the box. The dev_stub provider
+# accepts any uid listed below with no real credential check, which
+# is useful for local development but unsafe for any deployment.
+#
+# Production deployments must override AUTH_CONFIG_PATH to point at
+# a real auth.yaml mounted from secrets — see docs/examples/
+# auth.example.yaml for a template that includes ASF/OAuth providers.
+#
+# To customize for your own dev session without touching this file,
+# copy to .dev-auth.local.yaml (gitignored) and update the api
+# service's volume mount in webapp/infra/docker/docker-compose.yml
+# to point at the copy.
+
+auth:
+  providers:
+    - type: dev_stub
+      enabled: true
+      config:
+        display_name: "Dev stub login"
+        users:
+          - uid: alice
+            display_name: Alice Dev
+            email: alice@dev.local
+            workspaces:
+              - id: project:tomcat
+                role: admin
+                display_name: Apache Tomcat
+              - id: project:httpd
+                role: member
+                display_name: Apache HTTPD
+          - uid: bob
+            display_name: Bob Emeritus
+            email: bob@dev.local
+            workspaces: []
+          - uid: site_admin_1
+            display_name: Site Admin
+            email: admin@dev.local
+            workspaces: []
+  site_admins:
+    - dev_stub:site_admin_1
+  session_ttl_hours: 24
+  workspace_refresh_minutes: 15
+  legacy_firebase_enabled: true

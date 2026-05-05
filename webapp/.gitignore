@@ -31,3 +31,8 @@ Thumbs.db
 .vscode/
 
 .firebase/
+
+# Playwright E2E runtime state (created by tests/e2e/global-setup.js)
+tests/e2e/.auth/
+playwright-report/
+test-results/
