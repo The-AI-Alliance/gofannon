@@ -343,7 +343,7 @@ const ChatPage = () => {
 
   return (
     <Box sx={{ height: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column', bgcolor: '#f8f9fa' }}>
-      {/* Centered container to match agent/sandbox page widths */}
+      {/* Centered container to match agent/runs page widths */}
       <Box sx={{ maxWidth: 800, width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', height: '100%', pt: 4, px: 2 }}>
         {/* Header */}
         <Paper 

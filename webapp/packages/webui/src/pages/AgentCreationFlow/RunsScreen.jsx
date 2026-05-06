@@ -21,8 +21,9 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import observabilityService from '../../services/observabilityService';
-import SandboxDataPanel from '../../components/SandboxDataPanel';
-import SandboxProgressLog from '../../components/SandboxProgressLog';
+import RunDataPanel from '../../components/RunDataPanel';
+import RunProgressLog from '../../components/RunProgressLog';
+import RunsHistoryList from '../../components/RunsHistoryList';
 
 // Default value per schema type, used when initializing the form.
 const defaultValueForType = (type) => {
@@ -74,8 +75,8 @@ const castValueForType = (type, value) => {
   }
 };
 
-const SandboxScreen = () => {
-  const { agentId } = useParams();
+const RunsScreen = () => {
+  const { agentId, runId } = useParams();
   const navigate = useNavigate();
   const agentFlowContext = useAgentFlow();
   
@@ -90,22 +91,22 @@ const SandboxScreen = () => {
   const generatedCode = agentData?.code || agentFlowContext.generatedCode;
   const gofannonAgents = agentData?.gofannonAgents || agentFlowContext.gofannonAgents;
 
-  console.log('[SandboxScreen] Render - agentData:', !!agentData, 'generatedCode:', !!generatedCode, 'loadingAgent:', loadingAgent);
+  console.log('[RunsScreen] Render - agentData:', !!agentData, 'generatedCode:', !!generatedCode, 'loadingAgent:', loadingAgent);
 
   // Fetch agent data if we have an agentId and context is empty
   useEffect(() => {
     const needsToFetch = agentId && !agentFlowContext.generatedCode;
-    console.log('[SandboxScreen] agentId:', agentId, 'contextCode:', !!agentFlowContext.generatedCode, 'needsToFetch:', needsToFetch);
+    console.log('[RunsScreen] agentId:', agentId, 'contextCode:', !!agentFlowContext.generatedCode, 'needsToFetch:', needsToFetch);
     
     if (needsToFetch) {
       const fetchAgent = async () => {
         setLoadingAgent(true);
         setLoadError(null);
         try {
-          console.log('[SandboxScreen] Fetching agent:', agentId);
+          console.log('[RunsScreen] Fetching agent:', agentId);
           const data = await agentService.getAgent(agentId);
-          console.log('[SandboxScreen] Fetched agent data:', data);
-          console.log('[SandboxScreen] Agent code exists:', !!data.code);
+          console.log('[RunsScreen] Fetched agent data:', data);
+          console.log('[RunsScreen] Agent code exists:', !!data.code);
           // Transform gofannonAgents if needed
           if (data.gofannonAgents && data.gofannonAgents.length > 0) {
             const allAgents = await agentService.getAgents();
@@ -119,7 +120,7 @@ const SandboxScreen = () => {
           }
           setAgentData(data);
         } catch (err) {
-          console.error('[SandboxScreen] Fetch error:', err);
+          console.error('[RunsScreen] Fetch error:', err);
           setLoadError(err.message || 'Failed to load agent data.');
         } finally {
           setLoadingAgent(false);
@@ -138,7 +139,7 @@ const SandboxScreen = () => {
   // declared output_schema (e.g. returned {"outputText": ...} instead of
   // the declared keys). See validate_output_against_schema in dependencies.py.
   const [schemaWarnings, setSchemaWarnings] = useState(null);
-  // Data-store ops log from the most recent sandbox run. Backend populates
+  // Data-store ops log from the most recent run. Backend populates
   // RunCodeResponse.ops_log when the agent touched the data store.
   const [opsLog, setOpsLog] = useState(null);
 
@@ -148,22 +149,62 @@ const SandboxScreen = () => {
   // Newest is appended; the component reverses for display.
   const [runs, setRuns] = useState([]);
 
-  // Read the declared output schema so we can send it to the sandbox for
+  // Read the declared output schema so we can send it to the agent runtime for
   // validation. Falls back to null when unavailable — the backend treats
   // a missing output_schema as "skip validation".
   const outputSchema = agentData?.outputSchema || agentFlowContext.outputSchema || null;
 
-  // Update formData when inputSchema changes.
-  // Default values per type so each control gets a sensible starting point.
+  // Initialize formData when inputSchema changes. If we have a
+  // most-recent run (or are viewing a specific historical run via
+  // runId in the URL), pre-fill with that run's input values so
+  // 'tweak and re-run' is one click.
   useEffect(() => {
-    if (inputSchema) {
-      const newFormState = Object.keys(inputSchema).reduce((acc, key) => {
-        acc[key] = defaultValueForType(inputSchema[key]);
-        return acc;
-      }, {});
-      setFormData(newFormState);
+    if (!inputSchema) return;
+
+    // Defaults first — these get overlaid by run values if any.
+    const defaults = Object.keys(inputSchema).reduce((acc, key) => {
+      acc[key] = defaultValueForType(inputSchema[key]);
+      return acc;
+    }, {});
+
+    // Pick the source run for pre-fill: an explicit runId from the URL
+    // wins; otherwise fall back to the most-recent run in local state.
+    let sourceRun = null;
+    if (runId) {
+      sourceRun = runs.find((r) => r.run_id === runId) || null;
+    } else if (runs.length > 0) {
+      sourceRun = runs[runs.length - 1];
     }
-  }, [inputSchema]);
+
+    if (sourceRun?.input) {
+      // Cast each stored value back to a form-friendly string for
+      // text fields; booleans pass through as-is. Lists/JSON are
+      // re-serialized so the JSON editor shows the original text.
+      const next = { ...defaults };
+      for (const key of Object.keys(inputSchema)) {
+        if (!(key in sourceRun.input)) continue;
+        const stored = sourceRun.input[key];
+        const type = inputSchema[key];
+        if (type === 'list' || type === 'json') {
+          next[key] = JSON.stringify(stored, null, 2);
+        } else if (type === 'boolean') {
+          next[key] = Boolean(stored);
+        } else if (stored == null) {
+          next[key] = '';
+        } else {
+          next[key] = String(stored);
+        }
+      }
+      setFormData(next);
+      return;
+    }
+
+    setFormData(defaults);
+    // runs only matters on mount/route-change; we don't want to keep
+    // resetting the form mid-edit when a new run is appended. So we
+    // intentionally exclude runs from deps after the initial fill.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputSchema, runId]);
 
   const handleInputChange = (key, value) => {
     setFormData(prev => ({ ...prev, [key]: value }));
@@ -175,7 +216,7 @@ const SandboxScreen = () => {
     setOutput(null);
     setSchemaWarnings(null);
     setOpsLog(null);
-    observabilityService.log({ eventType: 'user-action', message: 'User running agent in sandbox.' });
+    observabilityService.log({ eventType: 'user-action', message: 'User running agent.' });
 
     try {
       // Cast each field per its declared schema type before sending to the
@@ -191,6 +232,10 @@ const SandboxScreen = () => {
         setIsLoading(false);
         return;
       }
+
+      // Append the run record now, with the cast input stashed on it
+      // so the form can be re-filled later.
+      startRun(castInput);
 
       // Extract LLM settings from agent's invokable models
       const invokableModel = agentData?.invokableModels?.[0] || agentFlowContext.invokableModels?.[0];
@@ -262,7 +307,7 @@ const SandboxScreen = () => {
       }
     } catch (err) {
       setError(err.message || 'An unexpected error occurred.');
-      observabilityService.logError(err, { context: 'Agent Sandbox Execution' });
+      observabilityService.logError(err, { context: 'Agent Run Execution' });
       // Mark the in-flight run as errored so the Progress Log doesn't
       // spin forever when the request itself failed (network, 5xx,
       // etc — the backend never got far enough to emit a trace).
@@ -282,7 +327,7 @@ const SandboxScreen = () => {
                 agent_name: r.agent_name || 'unknown',
                 depth: 0,
                 exception_type: 'TransportError',
-                message: err.message || 'Request failed before reaching the sandbox.',
+                message: err.message || 'Request failed before reaching the agent runtime.',
                 source: 'system',
               },
             ],
@@ -298,19 +343,23 @@ const SandboxScreen = () => {
   // Append a 'running' entry to runs[] when the user clicks Run, before
   // the request fires. handleRun replaces it with the real outcome on
   // response (or marks it errored on transport failure).
-  const startRun = () => {
+  const startRun = (castInput) => {
     const now = Date.now();
-    const runId = `run-${now}-${Math.random().toString(36).slice(2, 7)}`;
+    const newRunId = `run-${now}-${Math.random().toString(36).slice(2, 7)}`;
     const agentName = agentData?.friendlyName || agentData?.name
       || agentFlowContext.friendlyName || 'sandbox_agent';
     setRuns((prev) => [
       ...prev,
       {
-        run_id: runId,
+        run_id: newRunId,
         agent_name: agentName,
         started_at: new Date(now).toISOString(),
         _started_ms: now,
         outcome: 'running',
+        // Stash the input dict so we can pre-fill the form from it
+        // later (re-run / view-historical). castInput is what we
+        // actually sent to the backend, with types resolved.
+        input: castInput,
         events: [],
       },
     ]);
@@ -418,17 +467,31 @@ const SandboxScreen = () => {
       alignItems: 'stretch',
     }}>
       <Paper sx={{ p: 3, flexGrow: 1, minWidth: 0 }}>
-      {/* Header with back button */}
+      {/* Header. When viewing a specific historical run (runId in URL),
+          the back button takes the user back to the live runs page
+          rather than browser-history-back. */}
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-        <IconButton size="small" onClick={() => navigate(-1)} sx={{ mr: 1 }}>
+        <IconButton
+          size="small"
+          onClick={() => {
+            if (runId) {
+              navigate(`/agent/${agentId}/runs`);
+            } else {
+              navigate(-1);
+            }
+          }}
+          sx={{ mr: 1 }}
+        >
           <ArrowBackIcon sx={{ fontSize: 20 }} />
         </IconButton>
         <Typography variant="h5" component="h2">
-          Sandbox
+          {runId ? 'Viewing run' : 'Run'}
         </Typography>
       </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Test your agent by providing input and running the generated code.
+        {runId
+          ? "You're viewing a past run. The form is editable — clicking Run starts a new run with the current values."
+          : 'Test your agent by providing input and running the generated code.'}
       </Typography>
 
       {loadingAgent && (
@@ -454,7 +517,7 @@ const SandboxScreen = () => {
           {renderFormFields()}
           <Button
             variant="contained"
-            onClick={async () => { startRun(); await handleRun(); }}
+            onClick={async () => { await handleRun(); }}
             disabled={isLoading || !generatedCode}
             startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <PlayArrowIcon />}
           >
@@ -497,6 +560,45 @@ const SandboxScreen = () => {
           </Paper>
         </Box>
       )}
+
+      {/* Past runs history list. Hidden when viewing a specific run
+          (the user is already focused on one historical run; the list
+          would just compete for attention). The list is also hidden
+          when there are no runs to show — empty state would just be
+          noise. Future: backed by GET /runs?agent_id=X once the run
+          registry lands; currently reads from in-memory runs[]. */}
+      {!runId && runs.length > 0 && (
+        <>
+          <Divider sx={{ my: 3 }} />
+          <Typography variant="h6" sx={{ mb: 1 }}>Past runs</Typography>
+          <RunsHistoryList
+            runs={runs}
+            inputSchema={inputSchema}
+            onOpen={(rId) => navigate(`/agent/${agentId}/runs/${rId}`)}
+            onRerun={(rInput) => {
+              // Fill the form with this run's inputs without
+              // navigating; user clicks Run when ready. Convert
+              // each value back to a form-string per its schema
+              // type (same logic as the init useEffect's path).
+              const next = {};
+              for (const key of Object.keys(inputSchema || {})) {
+                const t = inputSchema[key];
+                const v = rInput?.[key];
+                if (t === 'list' || t === 'json') {
+                  next[key] = v == null ? '' : JSON.stringify(v, null, 2);
+                } else if (t === 'boolean') {
+                  next[key] = Boolean(v);
+                } else if (v == null) {
+                  next[key] = '';
+                } else {
+                  next[key] = String(v);
+                }
+              }
+              setFormData(next);
+            }}
+          />
+        </>
+      )}
       </Paper>
 
       {/* Right column: Progress Log above Data-store panel. The Progress
@@ -506,11 +608,11 @@ const SandboxScreen = () => {
           layout doesn't jump when a run completes. Collapses below the
           main panel on narrow screens. */}
       <Box sx={{ width: { xs: '100%', lg: 380 }, flexShrink: 0, mt: { xs: 2, lg: 0 }, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <SandboxProgressLog runs={runs} />
-        <SandboxDataPanel opsLog={opsLog} />
+        <RunProgressLog runs={runs} />
+        <RunDataPanel opsLog={opsLog} />
       </Box>
     </Box>
   );
 };
 
-export default SandboxScreen;
+export default RunsScreen;

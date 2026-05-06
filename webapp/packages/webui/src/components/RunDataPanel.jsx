@@ -170,7 +170,7 @@ const aggregateByNamespace = (ops) => {
   return Array.from(byNs.values()).sort((a, b) => a.namespace.localeCompare(b.namespace));
 };
 
-const SandboxDataPanel = ({ opsLog }) => {
+const RunDataPanel = ({ opsLog }) => {
   const [tab, setTab] = useState(0);
   const ops = opsLog || [];
   const aggregated = useMemo(() => aggregateByNamespace(ops), [ops]);
@@ -287,8 +287,8 @@ const SandboxDataPanel = ({ opsLog }) => {
   );
 };
 
-SandboxDataPanel.propTypes = {
+RunDataPanel.propTypes = {
   opsLog: PropTypes.array,
 };
 
-export default SandboxDataPanel;
+export default RunDataPanel;

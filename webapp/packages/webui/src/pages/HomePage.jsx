@@ -95,7 +95,7 @@ const HomePage = () => {
     fetchAll();
 
     // Refetch when the tab regains focus. Without this, namespaces
-    // created in another tab/page (e.g., the agent sandbox) don't
+    // created in another tab/page (e.g., the agent run page) don't
     // appear here until a hard refresh — confusing the user about
     // what state actually exists.
     const onVisibilityChange = () => {
@@ -255,8 +255,8 @@ const HomePage = () => {
                             <VisibilityIcon sx={{ fontSize: 18 }} />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="Sandbox" arrow>
-                          <IconButton size="small" onClick={() => navigate(`/agent/${agent._id}/sandbox`)}>
+                        <Tooltip title="Run" arrow>
+                          <IconButton size="small" onClick={() => navigate(`/agent/${agent._id}/runs`)}>
                             <PlayArrowIcon sx={{ fontSize: 18 }} />
                           </IconButton>
                         </Tooltip>

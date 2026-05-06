@@ -199,8 +199,8 @@ const SavedAgentsPage = () => {
                           <VisibilityIcon sx={{ fontSize: 18 }} />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Sandbox" arrow>
-                        <IconButton size="small" onClick={() => navigate(`/agent/${agent._id}/sandbox`)}>
+                      <Tooltip title="Run" arrow>
+                        <IconButton size="small" onClick={() => navigate(`/agent/${agent._id}/runs`)}>
                           <PlayArrowIcon sx={{ fontSize: 18 }} />
                         </IconButton>
                       </Tooltip>

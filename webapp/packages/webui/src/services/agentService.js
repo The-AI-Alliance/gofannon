@@ -94,16 +94,16 @@ class AgentService {
       });
 
       const data = await response.json();
-      if (response.status === 400) { // Specific check for sandbox execution errors
+      if (response.status === 400) { // Specific check for agent execution errors
         // The backend returns a 400 with an 'error' key in the JSON body
-        throw new Error(data.error || 'Sandbox execution failed with a 400 status.');
+        throw new Error(data.error || 'Agent execution failed with a 400 status.');
       }
       if (!response.ok) {
-        throw new Error(data.detail || 'Failed to run code in sandbox.');
+        throw new Error(data.detail || 'Failed to run agent code.');
       }
       return data; // returns { result: ..., error: ... }
     } catch (error) {
-      console.error('[AgentService] Error running code in sandbox:', error);
+      console.error('[AgentService] Error running agent code:', error);
       throw error;
     }
   }

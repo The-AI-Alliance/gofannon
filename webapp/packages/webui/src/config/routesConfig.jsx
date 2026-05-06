@@ -10,7 +10,7 @@ import DemoAppsPage from '../pages/DemoAppsPage';
 import ViewDemoAppPage from '../pages/ViewDemoAppPage';
 import DataStoresPage from '../pages/DataStoresPage';
 import DataStoreBrowser from '../pages/DataStoreBrowser';
-import SandboxScreen from '../pages/AgentCreationFlow/SandboxScreen';
+import RunsScreen from '../pages/AgentCreationFlow/RunsScreen';
 import DeployScreen from '../pages/AgentCreationFlow/DeployScreen';
 import SelectApisScreen from '../pages/DemoCreationFlow/SelectApisScreen';
 import SelectModelScreen from '../pages/DemoCreationFlow/SelectModelScreen';
@@ -89,10 +89,10 @@ export const defaultRoutes = [
     ),
   },
   {
-    path: '/agent/:agentId/sandbox',
+    path: '/agent/:agentId/runs/:runId?',
     element: (
       <AgentCreationFlowProvider>
-        <SandboxScreen />
+        <RunsScreen />
       </AgentCreationFlowProvider>
     ),
   },
@@ -109,7 +109,7 @@ export const defaultRoutes = [
       { path: 'description', element: <Navigate to="/create-agent" replace />, private: false, layout: false }, // Legacy redirect
       { path: 'schemas', element: <Navigate to="/create-agent" replace />, private: false, layout: false }, // Legacy redirect
       { path: 'code', element: <Navigate to="/create-agent" replace />, private: false, layout: false }, // Legacy redirect
-      { path: 'sandbox', element: <SandboxScreen />, private: false, layout: false },
+      { path: 'sandbox', element: <RunsScreen />, private: false, layout: false },
       { path: 'deploy', element: <DeployScreen />, private: false, layout: false },
     ],
   },

@@ -270,9 +270,9 @@ const ViewAgent = () => {
     }
   }, [isCreationFlow, agentFlowContext]);
 
-  const handleRunInSandbox = () => {
+  const handleRun = () => {
     if (agentId) {
-      navigate(`/agent/${agentId}/sandbox`);
+      navigate(`/agent/${agentId}/runs`);
     } else {
       navigate('/create-agent/sandbox');
     }
@@ -460,7 +460,7 @@ const ViewAgent = () => {
       setSuccessMessage('');
       syncToContext('name', cleaned);
       // Keep the creation-flow context's friendlyName in sync too so the
-      // deploy screen and sandbox see the same value.
+      // deploy screen and runs page see the same value.
       if (isCreationFlow) {
         agentFlowContext.setFriendlyName(cleaned);
       }
@@ -1236,8 +1236,8 @@ const ViewAgent = () => {
             {/* Only show these when code exists */}
             {hasCode && (
                 <>
-                    <Button variant="outlined" startIcon={<PlayArrowIcon />} onClick={handleRunInSandbox}>
-                        Run in Sandbox
+                    <Button variant="outlined" startIcon={<PlayArrowIcon />} onClick={handleRun}>
+                        Run
                     </Button>
                     
                     <Button variant="outlined" color="secondary" startIcon={<PublishIcon />} onClick={handleDeploy}>

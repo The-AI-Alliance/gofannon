@@ -1,10 +1,10 @@
-// webapp/packages/webui/src/components/SandboxProgressLog.jsx
+// webapp/packages/webui/src/components/RunProgressLog.jsx
 //
-// Progress Log accordion for the sandbox: shows a chronological,
+// Progress Log accordion for agent runs: shows a chronological,
 // per-agent-grouped trace of recent runs with errors highlighted and
 // stack traces clickable into a side sheet.
 //
-// Run history is in-memory only (current SandboxScreen mount), per the
+// Run history is in-memory only (current RunsScreen mount), per the
 // design discussion — refreshing the page wipes it. If we want
 // persistence later, the upgrade is to write trace docs to a backend
 // collection and query on mount; nothing about this component's shape
@@ -516,7 +516,7 @@ RunSection.propTypes = {
 // Main component
 // ---------------------------------------------------------------------
 
-const SandboxProgressLog = ({ runs }) => {
+const RunProgressLog = ({ runs }) => {
   const [detailEvent, setDetailEvent] = useState(null);
   // When set, the side sheet shows all events in a bucket (one agent's
   // stdout/log slice) instead of a single event's full content.
@@ -698,8 +698,8 @@ const SandboxProgressLog = ({ runs }) => {
   );
 };
 
-SandboxProgressLog.propTypes = {
+RunProgressLog.propTypes = {
   runs: PropTypes.array,
 };
 
-export default SandboxProgressLog;
+export default RunProgressLog;
