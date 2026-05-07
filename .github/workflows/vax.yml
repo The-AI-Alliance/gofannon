@@ -1,0 +1,22 @@
+name: VAX vendor assurance
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  vax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run VAX evidence scan
+        uses: AtA-Systems/vax-security-scan@v1
+        with:
+          vax_key: ${{ secrets.VAX_KEY }}
+          scan_types: asvs-l1,asvs-l2
