@@ -73,14 +73,14 @@ router = APIRouter()
 
 
 async def _verify_session_cookie(request: Request, sid: str) -> Optional[dict]:
-    """Check for a Phase B session cookie. Returns a user dict on success,
+    """Check for a session cookie. Returns a user dict on success,
     None if no session could be resolved (so the caller falls back to the
     legacy Firebase path).
 
     The user dict shape matches what the rest of the code expects from
     Firebase's verify_id_token: at minimum ``uid`` and ``email``. We
     augment with session-specific fields (``workspaces``, ``is_site_admin``,
-    ``provider_type``) so downstream code gated on Phase B auth can read
+    ``provider_type``) so downstream code gated on auth can read
     them directly.
     """
     try:
@@ -135,7 +135,7 @@ async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)
     """
     Dependency to authenticate a request. Supports two modes:
 
-      1. Phase B session cookie (``gofannon_sid``) — checked first.
+      1. Session cookie (``gofannon_sid``) — checked first.
       2. Legacy Firebase bearer token — fallback.
 
     If neither is present, behavior depends on ``APP_ENV``:
@@ -144,7 +144,7 @@ async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)
 
     Attaches the user object to request.state for observability.
     """
-    # 1) Phase B session cookie
+    # 1) Session cookie
     sid = request.cookies.get("gofannon_sid")
     if sid:
         user = await _verify_session_cookie(request, sid)
@@ -156,6 +156,11 @@ async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)
 
     # 2) Legacy Firebase path (unchanged)
     if settings.APP_ENV != "firebase":
+        if settings.AUTH_CONFIG_PATH:
+            raise HTTPException(
+                status_code=401,
+                detail="Not authenticated. Session cookie missing or invalid.",
+            )
         user = {"uid": "local-dev-user", "auth_mode": "dev_stub"}
         request.state.user = user
         return user
