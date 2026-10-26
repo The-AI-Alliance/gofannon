@@ -5,7 +5,6 @@ import json
 import os
 import traceback
 import warnings
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -16,7 +15,7 @@ from fastapi.security import OAuth2PasswordBearer
 from agent_factory.remote_mcp_client import RemoteMCPClient
 from config import settings
 from config.provider_config import PROVIDER_CONFIG as APP_PROVIDER_CONFIG
-from models.agent import Agent, LlmSettings
+from models.agent import Agent, LlmSettings, AgentEnvVar
 from models.chat import ChatRequest
 from services.database_service import DatabaseService, get_database_service
 from services.llm_service import call_llm
@@ -37,6 +36,7 @@ from services.data_store_service import (
     AgentDataStoreProxy,
     get_data_store_service,
 )
+from time_utils import naive_utc_now
 from typing import Generator
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
@@ -116,6 +116,17 @@ def get_db() -> Generator[DatabaseService, None, None]:
     yield get_database_service(settings)
 
 
+def get_async_db():
+    """Async-facade over the same underlying DatabaseService.
+
+    Use from async route handlers that need to read/write CouchDB without
+    blocking the event loop. Sync DatabaseService still available via the
+    .sync property for code paths that genuinely need it.
+    """
+    from services.database_service.async_shim import AsyncDatabaseService
+    return AsyncDatabaseService(get_database_service(settings))
+
+
 def get_logger() -> ObservabilityService:
     """Dependency to get the observability service instance."""
     return get_observability_service()
@@ -144,6 +155,7 @@ async def _execute_agent_code(
     llm_settings: Optional[LlmSettings] = None,
     agent_name: Optional[str] = None,
     trace: Optional[Trace] = None,
+    env_vars: Optional[List["AgentEnvVar"]] = None,
 ):
     """Helper function for recursive execution of agent code.
 
@@ -193,6 +205,7 @@ async def _execute_agent_code(
                 llm_settings=self.llm_settings,
                 agent_name=agent_to_run.name,
                 trace=active_trace,
+                env_vars=getattr(agent_to_run, "env_vars", []),
             )
 
             return result
@@ -261,7 +274,28 @@ async def _execute_agent_code(
         # per-model override by exact provider/model, so a Sonnet call
         # gets Sonnet's overrides rather than whatever was set on the
         # first invokable model in the list.
-        override = llm_settings.for_call(provider, model) if llm_settings else None
+        #
+        # OPT-OUT: an agent whose parameters are fully env-driven (the ASVS
+        # tier refactor) sets ASVS_IGNORE_LLM_SETTINGS=true (or
+        # GOFANNON_IGNORE_LLM_SETTINGS=true) in its env_vars. For those agents
+        # the UI/request llm_settings are ignored entirely, so the per-call-site
+        # parameters the agent computed from env flow through untouched.
+        #
+        # This exists because llm_settings is keyed by provider/model ONLY, not
+        # by call site. An agent that legitimately sends different params to the
+        # same model at different call sites (e.g. discover's 32768 classify vs
+        # 16000 domain call, or the relevance filter's score/profile/triage
+        # profiles all on one model) would otherwise have every call flattened
+        # to a single UI value. Env-driven agents cannot express per-call params
+        # any other way, so they opt out of the override mechanism entirely.
+        import os as _os
+        _ignore_llm_settings = (
+            _os.environ.get("ASVS_IGNORE_LLM_SETTINGS", "").lower() in ("1", "true", "yes")
+            or _os.environ.get("GOFANNON_IGNORE_LLM_SETTINGS", "").lower() in ("1", "true", "yes")
+        )
+        override = None if _ignore_llm_settings else (
+            llm_settings.for_call(provider, model) if llm_settings else None
+        )
         if override:
             if override.max_tokens is not None:
                 parameters = {**parameters, "max_tokens": override.max_tokens}
@@ -386,6 +420,11 @@ async def _execute_agent_code(
     if not run_function or not asyncio.iscoroutinefunction(run_function):
         raise ValueError("Code did not define an 'async def run(input_dict, tools)' function.")
 
+    # build env overlay from per-agent env_vars and bind via
+    # contextvar. Concurrent agent runs see different overlays without locking.
+    from services.environ_proxy import env_overlay as _env_overlay
+    _overlay = {ev.key: ev.value for ev in (env_vars or [])}
+
     # Trace integration. When trace is provided, every event from this
     # invocation (and any nested gofannon-client calls) lands in it.
     # capture_user_io routes stdout/stderr/logging into the trace as
@@ -398,7 +437,7 @@ async def _execute_agent_code(
             agent_id=None,
             called_by=None,
         )
-        with bind_trace(trace), capture_user_io(trace):
+        with bind_trace(trace), capture_user_io(trace), _env_overlay(_overlay):
             try:
                 result = await run_function(input_dict=input_dict, tools=tools)
                 trace.agent_end(
@@ -415,7 +454,8 @@ async def _execute_agent_code(
                 )
                 raise
     else:
-        result = await run_function(input_dict=input_dict, tools=tools)
+        with _env_overlay(_overlay):
+            result = await run_function(input_dict=input_dict, tools=tools)
 
     # Return both the agent's return value and the accumulated ops log so
     # the sandbox UI can render the live timeline. Callers that don't want
@@ -428,6 +468,7 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
     db_service = get_database_service(settings)
     user_service = get_user_service(db_service)
     logger = get_observability_service()
+    log_user_id = user.get("uid") or "anonymous"
     user_basic_info = {
         "email": user.get("email"),
         "name": user.get("name") or user.get("displayName"),
@@ -436,7 +477,7 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
         # Update ticket status
         ticket_data = {
             "status": "processing",
-            "created_at": datetime.utcnow().isoformat(),  # Use isoformat for JSON serialization
+            "created_at": naive_utc_now().isoformat(),  # Use isoformat for JSON serialization
             "request": request.dict(by_alias=True),
         }
         db_service.save("tickets", ticket_id, dict(ticket_data))
@@ -452,6 +493,7 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
                 "agent_chat_request",
                 f"Initiating Agent call to {request.model}",
                 metadata={"request": get_sanitized_request_data(req)},
+                user_id=log_user_id,
             )
             agent_friendly_name = request.model
 
@@ -489,6 +531,7 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
                 user_id=user.get("uid"),
                 user_basic_info=user_basic_info,
                 llm_settings=llm_settings,
+                env_vars=getattr(agent, "env_vars", []),
             )
 
             if isinstance(result, dict):
@@ -518,6 +561,7 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
                 "llm_request",
                 f"Initiating LLM call to {request.provider}/{request.model}",
                 metadata={"request": get_sanitized_request_data(req)},
+                user_id=log_user_id,
             )
 
             content, thoughts = await call_llm(
@@ -534,7 +578,7 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
         completed_ticket_data = {
             **ticket_data,
             "status": "completed",
-            "completed_at": datetime.utcnow().isoformat(),
+            "completed_at": naive_utc_now().isoformat(),
             "result": {
                 "content": content,
                 "thoughts": thoughts,
@@ -549,6 +593,7 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
             "background_task_failure",
             f"Chat processing failed for ticket {ticket_id}: {e}",
             metadata={"traceback": traceback.format_exc(), "request": get_sanitized_request_data(req)},
+            user_id=log_user_id,
         )
         if "ticket_data" not in locals():
             ticket_data = db_service.get("tickets", ticket_id)
@@ -556,7 +601,7 @@ async def process_chat(ticket_id: str, request: ChatRequest, user: dict, req: Re
         ticket_data.update(
             {
                 "status": "failed",
-                "completed_at": datetime.utcnow().isoformat(),
+                "completed_at": naive_utc_now().isoformat(),
                 "error": str(e),
             }
         )
@@ -593,11 +638,14 @@ def get_available_providers(user_id: Optional[str] = None, user_basic_info: Opti
         # If no user key, check environment variable
         if not is_available and (not api_key_env_var or os.getenv(api_key_env_var)):
             is_available = True
-        
-        # Ollama doesn't require an API key
-        if not api_key_env_var:
-            is_available = True
-        
+
+        # Federated providers have no api_key_env_var -- they mint tokens at
+        # request time -- so the check above would show them unconditionally.
+        # Require the federation config instead, or the dropdown offers a
+        # provider whose every call fails at token-mint time.
+        if config.get("auth_mechanism") == "wif":
+            is_available = bool(os.getenv("ANTHROPIC_FEDERATION_RULE_ID"))
+
         if is_available:
             available_providers[provider] = config
 
@@ -970,6 +1018,7 @@ async def run_deployed_agent(
             user_id=user_id,
             user_basic_info=user_basic_info,
             llm_settings=llm_settings,
+            env_vars=getattr(agent, "env_vars", []),
         )
         return result
     except HTTPException as e:

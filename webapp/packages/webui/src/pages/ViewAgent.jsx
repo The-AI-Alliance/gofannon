@@ -58,6 +58,7 @@ import CodeEditor from '../components/CodeEditor';
 import SpecViewerModal from '../components/SpecViewerModal';
 import ModelConfigDialog from '../components/ModelConfigDialog';
 import SchemaEditor from '../components/SchemaEditor';
+import EnvVarsEditor from '../components/EnvVarsEditor';
 import DataStoreConfigAccordion from '../components/DataStoreConfigAccordion';
 import AgentChainView from '../components/AgentChainView';
 import ToolsSelectionDialog from './AgentCreationFlow/ToolsSelectionDialog';
@@ -310,6 +311,10 @@ const ViewAgent = () => {
         docstring: agent.docstring,
         friendlyName: canonicalName,
         dataStoreConfig: agent.dataStoreConfig || [],
+        // persist per-agent env vars. Filter empty rows so the
+        // backend doesn't store {key: '', value: ''} blanks the user left
+        // behind mid-edit.
+        envVars: (agent.envVars || []).filter((ev) => ev.key && ev.key.trim()),
       };
       await agentService.updateAgent(agentId, updatePayload);
       setSuccessMessage('Agent updated successfully!');
@@ -364,6 +369,8 @@ const ViewAgent = () => {
         docstring: agent.docstring,
         friendlyName: canonicalName,
         dataStoreConfig: agent.dataStoreConfig || [],
+        // persist per-agent env vars on the create path too.
+        envVars: (agent.envVars || []).filter((ev) => ev.key && ev.key.trim()),
       };
       const savedAgent = await agentService.saveAgent(agentData);
       setSuccessMessage('Agent saved successfully!');
@@ -780,6 +787,14 @@ const ViewAgent = () => {
     syncToContext('outputSchema', newSchema);
   };
 
+  // env vars don't flow through AgentCreationFlowContext today
+  // (they're not needed by the code generator), so we only mirror the value
+  // into local agent state. The context could grow envVars later if some
+  // other screen needs to read them mid-creation-flow.
+  const handleEnvVarsChange = (newEnvVars) => {
+    setAgent(prev => ({ ...prev, envVars: newEnvVars }));
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
@@ -1044,6 +1059,19 @@ const ViewAgent = () => {
                         />
                     </Grid>
                 </Grid>
+            </AccordionDetails>
+        </Accordion>
+
+        {/* Environment Variables Section */}
+        <Accordion>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography>Environment Variables</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+                <EnvVarsEditor
+                    envVars={agent.envVars || []}
+                    setEnvVars={handleEnvVarsChange}
+                />
             </AccordionDetails>
         </Accordion>
 
