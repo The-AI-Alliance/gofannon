@@ -20,7 +20,7 @@ access, and expired sessions are returned as "not authenticated" even
 if the cookie hasn't been cleared on the client.
 """
 import secrets
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import List, Optional, Tuple
 
 from fastapi import HTTPException
@@ -34,6 +34,7 @@ from models.workspace import (
     make_personal_workspace_id,
 )
 from services.database_service import DatabaseService
+from time_utils import naive_utc_now
 
 
 _SESSIONS_COLLECTION = "user_sessions"
@@ -71,7 +72,7 @@ class SessionService:
         ``AuthProvider.evaluate_login`` and only invoke this on allow.
         """
         sid = _new_session_id()
-        now = datetime.utcnow()
+        now = naive_utc_now()
         expires = now + timedelta(hours=self._ttl_hours)
 
         workspaces = _to_workspace_memberships(
@@ -123,7 +124,7 @@ class SessionService:
                 pass
             return None
 
-        if session.expires_at <= datetime.utcnow():
+        if session.expires_at <= naive_utc_now():
             # Best-effort eviction; ignore errors.
             try:
                 self.db.delete(_SESSIONS_COLLECTION, sid)
@@ -189,7 +190,7 @@ class SessionService:
 
         session.workspaces = new_workspaces
         session.is_site_admin = now_site_admin
-        session.updated_at = datetime.utcnow()
+        session.updated_at = naive_utc_now()
         session.last_refresh_at = session.updated_at
 
         self.db.save(
@@ -203,7 +204,7 @@ class SessionService:
 
     def needs_refresh(self, session: Session) -> bool:
         """Whether the session's workspaces are stale enough to warrant a refresh."""
-        age = datetime.utcnow() - session.last_refresh_at
+        age = naive_utc_now() - session.last_refresh_at
         return age > timedelta(minutes=self._refresh_minutes)
 
 

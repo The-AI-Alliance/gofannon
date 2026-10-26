@@ -90,6 +90,13 @@ class AuthProvider(ABC):
     # Subclasses override this with a class attribute.
     type: str = ""
 
+    # Whether the provider echoes the OAuth ``state`` parameter back on the
+    # callback. Spec-compliant providers do; a few do not. When False, the
+    # state cookie alone carries the CSRF guarantee, which is weaker -- so
+    # this defaults to True and each provider that needs it opts out
+    # explicitly, rather than the check being relaxed for everyone.
+    echoes_state: bool = True
+
     def __init__(self, config: dict):
         # Provider-specific config; subclasses read keys they care about.
         # Storing the whole dict makes config debugging easier.

@@ -51,6 +51,9 @@ DEFAULT_PROJECT_DISPLAY_NAMES = {
 
 class AsfProvider(AuthProvider):
     type = "asf"
+    # ASF OAuth does not return the state parameter on the callback, so the
+    # state cookie alone is the CSRF check for this provider.
+    echoes_state = False
 
     def __init__(self, config: dict):
         super().__init__(config)

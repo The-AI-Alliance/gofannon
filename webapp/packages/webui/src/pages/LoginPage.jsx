@@ -96,7 +96,15 @@ const LoginPage = () => {
 
   useEffect(() => {
     if (user) {
-      navigate('/');
+      // respect ?returnTo=<path> so the user lands back where
+      // the session-expired modal was triggered. Be conservative -- only
+      // honor same-origin relative paths to avoid open-redirect.
+      const params = new URLSearchParams(window.location.search);
+      const requested = params.get('returnTo');
+      const safe = requested && requested.startsWith('/') && !requested.startsWith('//')
+        ? requested
+        : '/';
+      navigate(safe);
     }
   }, [user, navigate]);
 
