@@ -178,3 +178,16 @@ website/docs/
 .vscode/
 .claude/
 .dev-auth.local.yaml
+
+# pnpm
+node_modules/
+.pnpm-store/
+
+# Docusaurus build cache
+website/.docusaurus/
+
+# Playwright storage state (login fixtures)
+webapp/tests/e2e/.auth/
+
+# Local developer compose overrides
+webapp/infra/docker/docker-compose.override.yml

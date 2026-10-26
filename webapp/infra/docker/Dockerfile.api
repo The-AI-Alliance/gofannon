@@ -21,4 +21,6 @@ EXPOSE 8000
 
 ENTRYPOINT ["/entrypoint.sh"]
 # Default command (overridden by docker-compose for local dev)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", \
+     "--proxy-headers", "--forwarded-allow-ips=*", "--timeout-keep-alive", "3600", \
+     "--workers", "4"]

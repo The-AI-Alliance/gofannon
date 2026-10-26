@@ -50,8 +50,25 @@ class Settings:
 
     # S3/MinIO Settings
     S3_ENDPOINT_URL: str | None = os.getenv("S3_ENDPOINT_URL")
-    AWS_ACCESS_KEY_ID: str | None = os.getenv("AWS_ACCESS_KEY_ID")
-    AWS_SECRET_ACCESS_KEY: str | None = os.getenv("AWS_SECRET_ACCESS_KEY")
+    # Renamed from AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY. Those are the
+    # STANDARD AWS credential env vars, so boto3 read them before reaching
+    # the EC2 instance role -- meaning any SDK call meant to use the
+    # instance role silently got MinIO credentials instead. The S3_ prefix
+    # says what they actually are and unshadows the instance role.
+    S3_ACCESS_KEY_ID: str | None = os.getenv("S3_ACCESS_KEY_ID")
+    S3_SECRET_ACCESS_KEY: str | None = os.getenv("S3_SECRET_ACCESS_KEY")
+    # Deprecated aliases, kept so existing deployments and any code still
+    # reading the old attribute names keep working. They prefer the S3_
+    # environment variables and fall back to the old ones, so a deployment
+    # can migrate at its own pace. Prefer S3_ACCESS_KEY_ID /
+    # S3_SECRET_ACCESS_KEY in new code; these will go away in a future
+    # release.
+    AWS_ACCESS_KEY_ID: str | None = (
+        os.getenv("S3_ACCESS_KEY_ID") or os.getenv("AWS_ACCESS_KEY_ID")
+    )
+    AWS_SECRET_ACCESS_KEY: str | None = (
+        os.getenv("S3_SECRET_ACCESS_KEY") or os.getenv("AWS_SECRET_ACCESS_KEY")
+    )
     AWS_DEFAULT_REGION: str | None = os.getenv("AWS_DEFAULT_REGION")
     S3_BUCKET_NAME: str = os.getenv("S3_BUCKET_NAME", "local-bucket")
 
@@ -73,6 +90,7 @@ class Settings:
     # Phase B: pluggable auth providers. See auth/ module and docs/PHASE_B.md.
     # Disabled by default — legacy Firebase path is the only enabled path
     # until a site operator sets AUTH_CONFIG_PATH or the APP_ENV.
+    AUTH_CONFIG_PATH: str | None = os.getenv("AUTH_CONFIG_PATH")
     AUTH_CONFIG: dict = _load_auth_config()
 
 

@@ -31,10 +31,14 @@ describe('ApiKeysTab', () => {
     vi.clearAllMocks();
   });
 
-  it('renders loading state initially', () => {
+  it('renders loading state initially', async () => {
     userService.getApiKeys.mockResolvedValueOnce(noKeys);
     render(<ApiKeysTab />);
     expect(screen.getByRole('progressbar')).toBeInTheDocument();
+    // Let the async state updates settle before the test ends.
+    await waitFor(() => {
+        expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    });
   });
 
   it('renders all provider sections after loading', async () => {

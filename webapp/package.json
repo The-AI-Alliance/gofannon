@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Monorepo for the Gofannon Web Application.",
+  "packageManager": "pnpm@10.34.4+sha512.8768be55200ae3f2226b6527fcca2687e14bc4e5f12d7721a0f25da3df47915177058648db4177baf348120fa0ba2752d8d8d93f6beaf1fe64ae18da8de961af",
   "scripts": {
     "dev": "pnpm --filter webui dev",
     "build": "pnpm --filter webui build",
@@ -19,14 +20,35 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.45.1",
-    "pnpm": "^8.0.0"
+    "pnpm": "10.34.4"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "pnpm": ">=8.0.0"
+    "node": ">=20.0.0",
+    "pnpm": ">=10.34.4"
   },
   "dependencies": {
     "firebase": "^12.4.0",
     "react-split-pane": "^0.1.92"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [],
+    "overrides": {
+      "vite@<7": "6.4.2",
+      "protobufjs": "7.5.6",
+      "@protobufjs/utf8": "1.1.1",
+      "minimatch": "9.0.7",
+      "picomatch": "4.0.4",
+      "flatted": "3.4.2",
+      "follow-redirects": "1.16.0",
+      "brace-expansion@^1.0.0": "1.1.14",
+      "brace-expansion@^2.0.0": "2.0.3",
+      "brace-expansion@^5.0.0": "5.0.5",
+      "yaml": "1.10.3",
+      "js-yaml": "4.1.1",
+      "postcss": "8.5.10",
+      "ajv": "6.14.0",
+      "rollup": "4.59.0",
+      "esbuild": "0.25.0"
+    }
   }
 }

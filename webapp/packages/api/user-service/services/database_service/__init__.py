@@ -48,8 +48,12 @@ def get_database_service(settings) -> DatabaseService:
             # Get DynamoDB configuration from settings
             region_name = settings.DYNAMODB_REGION
             endpoint_url = settings.DYNAMODB_ENDPOINT_URL
-            aws_access_key_id = settings.AWS_ACCESS_KEY_ID
-            aws_secret_access_key = settings.AWS_SECRET_ACCESS_KEY
+            # NOTE: if DATABASE_PROVIDER is ever set to dynamodb, this talks
+            # to REAL AWS and should use the EC2 instance role, not the
+            # S3/MinIO credentials. Left pointing at the renamed vars only
+            # because this branch is dead in production (couchdb).
+            aws_access_key_id = settings.S3_ACCESS_KEY_ID
+            aws_secret_access_key = settings.S3_SECRET_ACCESS_KEY
 
             _db_instance = DynamoDBService(
                 region_name=region_name,

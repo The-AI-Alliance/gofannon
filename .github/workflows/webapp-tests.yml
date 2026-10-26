@@ -3,6 +3,9 @@ name: Run Integration and E2E Tests in Webapp
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -14,7 +17,7 @@ jobs:
       - name: Set up Node.js and pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10.34.4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -63,7 +66,7 @@ jobs:
 
       - name: Run Python API Integration Tests
         working-directory: ./webapp
-        run: pnpm test:api
+        run: pnpm test:integration:backend
         
       - name: Run Playwright E2E Tests
         working-directory: ./webapp

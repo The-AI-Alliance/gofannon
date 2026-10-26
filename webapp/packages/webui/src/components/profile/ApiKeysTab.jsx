@@ -91,6 +91,7 @@ const ApiKeyRow = ({ provider, apiKey, onSave, onDelete, isLoading }) => {
                         onClick={() => setShowValue(!showValue)}
                         edge="end"
                         size="small"
+                        aria-label={showValue ? "Hide API key" : "Show API key"}
                       >
                         {showValue ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                       </IconButton>

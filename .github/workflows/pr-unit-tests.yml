@@ -9,6 +9,9 @@ on:
       - 'webapp/**'
       - '.github/workflows/pr-unit-tests.yml'
 
+permissions:
+  contents: read
+
 jobs:
   frontend-unit-tests:
     name: Frontend Unit Tests
@@ -21,7 +24,7 @@ jobs:
       - name: Set up Node.js and pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10.34.4
 
       - uses: actions/setup-node@v4
         with:
@@ -98,7 +101,7 @@ jobs:
       - name: Set up Node.js and pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10.34.4
 
       - uses: actions/setup-node@v4
         with:

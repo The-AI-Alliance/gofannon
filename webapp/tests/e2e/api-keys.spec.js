@@ -89,7 +89,7 @@ test.describe('API Key Management', () => {
     await page.waitForLoadState('domcontentloaded');
 
     // Click the first "Add Key" button
-    await page.locator('button:has-text("Add Key")').first().click();
+    await page.getByRole('button', { name: /^add key$/i }).first().click();
 
     // An editable API Key input should now be present. Use the
     // placeholder that's specific to the editing state ("Enter your X
@@ -220,18 +220,19 @@ test.describe('API Key Management', () => {
     // Initially the input is type=password
     await expect(editingInput).toHaveAttribute('type', 'password');
 
-    // Click the visibility toggle — MUI's IconButton inside InputAdornment.
-    // The visibility icons don't carry an aria-label by default on this
-    // component, so we reach the button inside the active (enabled)
-    // input's adornment via a scoped selector.
-    const firstRow = page.locator('.MuiPaper-root').filter({ has: page.locator('button:has-text("Cancel")') }).first();
-    await firstRow.locator('button').filter({ has: page.locator('svg[data-testid="VisibilityIcon"], svg[data-testid="VisibilityOffIcon"]') }).click();
+    // Click the visibility toggle. The IconButton carries an aria-label
+    // that flips between "Show API key" and "Hide API key" based on the
+    // current showValue state, so we can address it by accessible name.
+    // Using getByRole avoids the MUI icon data-testid trap (it's only
+    // emitted in development builds, not production — would pass locally
+    // but fail in CI which runs against the production bundle).
+    await page.getByRole('button', { name: /show api key/i }).first().click();
 
     // After toggle, input type switches to text
     await expect(editingInput).toHaveAttribute('type', 'text');
 
-    // Toggle back
-    await firstRow.locator('button').filter({ has: page.locator('svg[data-testid="VisibilityIcon"], svg[data-testid="VisibilityOffIcon"]') }).click();
+    // Toggle back — aria-label is now "Hide API key"
+    await page.getByRole('button', { name: /hide api key/i }).first().click();
     await expect(editingInput).toHaveAttribute('type', 'password');
   });
 
