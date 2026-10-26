@@ -6,6 +6,9 @@ on:
     - cron: '0 2 * * *'
   workflow_dispatch:  # Allow manual trigger
 
+permissions:
+  contents: read
+
 jobs:
   integration-tests:
     name: Backend Integration Tests
@@ -18,7 +21,7 @@ jobs:
       - name: Set up Node.js and pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10.34.4
 
       - uses: actions/setup-node@v4
         with:
@@ -122,7 +125,7 @@ jobs:
       - name: Set up Node.js and pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10.34.4
 
       - uses: actions/setup-node@v4
         with:

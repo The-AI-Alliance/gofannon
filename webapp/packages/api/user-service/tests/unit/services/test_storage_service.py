@@ -24,8 +24,8 @@ def test_s3_storage_upload_and_url(monkeypatch):
     monkeypatch.setattr(storage_service.boto3, "client", lambda *args, **kwargs: FakeClient())
     monkeypatch.setattr(storage_service.settings, "S3_ENDPOINT_URL", "http://s3")
     monkeypatch.setattr(storage_service.settings, "S3_BUCKET_NAME", "bucket")
-    monkeypatch.setattr(storage_service.settings, "AWS_ACCESS_KEY_ID", "key")
-    monkeypatch.setattr(storage_service.settings, "AWS_SECRET_ACCESS_KEY", "secret")
+    monkeypatch.setattr(storage_service.settings, "S3_ACCESS_KEY_ID", "key")
+    monkeypatch.setattr(storage_service.settings, "S3_SECRET_ACCESS_KEY", "secret")
     monkeypatch.setattr(storage_service.settings, "AWS_DEFAULT_REGION", "us-east-1")
 
     service = storage_service.S3StorageService()

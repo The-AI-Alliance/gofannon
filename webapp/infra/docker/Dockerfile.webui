@@ -3,13 +3,17 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 ARG VITE_APP_ENV=local
 ENV VITE_APP_ENV=$VITE_APP_ENV
+
+# Pin pnpm to match webapp/package.json's packageManager field for reproducible builds.
+RUN npm install -g pnpm@10.28.2
+
 COPY ./packages/webui/package.json ./packages/config/package.json ./package.json ./pnpm-workspace.yaml ./
 COPY ./pnpm-lock.yaml ./
-RUN npm install -g pnpm && pnpm install
+RUN pnpm install --frozen-lockfile
 COPY ./packages/webui ./packages/webui
 COPY ./packages/config ./packages/config
 WORKDIR /app/packages/webui
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 RUN pnpm build
 
 # Stage 2: Serve the static files with Nginx

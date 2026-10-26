@@ -215,20 +215,20 @@ it('increments counter', () => {
 
 ```jsx
 import { vi } from 'vitest';
-import axios from 'axios';
-
-vi.mock('axios');
 
 it('fetches user data', async () => {
-  axios.get.mockResolvedValue({
-    data: { id: '123', name: 'Test User' }
+  global.fetch = vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ id: '123', name: 'Test User' }),
   });
 
   render(<UserProfile userId="123" />);
 
   await screen.findByText('Test User');
-
-  expect(axios.get).toHaveBeenCalledWith('/api/users/123');
+  expect(global.fetch).toHaveBeenCalledWith(
+    '/api/users/123',
+    expect.any(Object),
+  );
 });
 ```
 

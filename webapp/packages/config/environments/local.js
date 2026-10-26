@@ -5,7 +5,7 @@ const localConfig = {
     name: 'Gofannon',
   },
   api: {
-    baseUrl: 'http://localhost:8000',
+    baseUrl: '', // same-origin; nginx proxies /auth/* etc. to api:8000
   },
   auth: {
     provider: 'session',

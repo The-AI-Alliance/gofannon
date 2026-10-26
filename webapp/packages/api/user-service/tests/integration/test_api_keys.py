@@ -1,11 +1,12 @@
 """Integration tests for API key management endpoints."""
 import pytest
 from fastapi.testclient import TestClient
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 
 from app_factory import create_app
 from models.user import User, ApiKeys
 from services.user_service import UserService
+from routes import get_current_user
 
 
 pytestmark = pytest.mark.integration
@@ -14,7 +15,20 @@ pytestmark = pytest.mark.integration
 @pytest.fixture
 def app():
     """Create the FastAPI app for testing."""
-    return create_app()
+    app = create_app()
+    app.dependency_overrides[get_current_user] = _override_current_user
+    yield app
+    app.dependency_overrides.clear()
+
+
+def _override_current_user(request: Request):
+    user = {
+        "uid": "local-dev-user",
+        "email": "local-dev-user@example.com",
+        "auth_mode": "test",
+    }
+    request.state.user = user
+    return user
 
 
 class TestApiKeyEndpoints:
@@ -23,7 +37,7 @@ class TestApiKeyEndpoints:
     def test_get_api_keys_returns_keys(self, app, monkeypatch):
         """Test GET /users/me/api-keys returns user's API keys."""
         fake_user = User(
-            _id="local-dev-user",  # Default user in local mode
+            _id="local-dev-user",  # Test user supplied by get_current_user override
             apiKeys=ApiKeys(
                 openaiApiKey="sk-openai-test",
                 anthropicApiKey="sk-ant-test",
