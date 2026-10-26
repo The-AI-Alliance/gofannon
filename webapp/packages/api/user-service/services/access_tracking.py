@@ -37,8 +37,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-from datetime import datetime
 from typing import Dict, List, Optional, TYPE_CHECKING
+from time_utils import naive_utc_now
 
 if TYPE_CHECKING:
     from .database_service.base import DatabaseService
@@ -71,7 +71,7 @@ class AccessAccumulator:
         """Record a single access.  Cheap (one dict insert)."""
         if not doc_id or not agent_name:
             return
-        ts = datetime.utcnow().isoformat()
+        ts = naive_utc_now().isoformat()
         with self._lock:
             entry = self._buffer.get(doc_id)
             if entry is None:

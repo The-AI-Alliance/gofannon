@@ -1,4 +1,5 @@
 import asyncio
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -125,3 +126,132 @@ def test_observability_middleware_logs_request_and_response(monkeypatch):
     assert end_call["metadata"]["path"] == "/ping"
     assert end_call["metadata"]["method"] == "GET"
     assert "process_time" in end_call["metadata"]
+
+
+def test_observability_middleware_resolves_session_cookie(monkeypatch):
+    mock_logger = Mock()
+    mock_logger.log = Mock()
+    monkeypatch.setattr(
+        "services.observability_service.get_observability_service",
+        lambda: mock_logger,
+    )
+
+    session = SimpleNamespace(
+        user_uid="session-user",
+        email="user@example.com",
+        display_name="Session User",
+        provider_type="dev_stub",
+        workspaces=[],
+        is_site_admin=False,
+    )
+
+    class FakeSessionService:
+        async def get_by_id(self, sid):
+            assert sid == "sid-123"
+            return session
+
+    monkeypatch.setattr(
+        "services.database_service.get_database_service",
+        lambda _settings: object(),
+    )
+    monkeypatch.setattr(
+        "services.session_service.get_session_service",
+        lambda _db: FakeSessionService(),
+    )
+
+    app = FastAPI()
+    app.add_middleware(ObservabilityMiddleware)
+
+    @app.post("/public")
+    async def public_endpoint(request: Request):
+        return {"user": request.state.user["uid"]}
+
+    client = TestClient(app)
+    response = client.post("/public", cookies={"gofannon_sid": "sid-123"})
+
+    assert response.status_code == 200
+    assert response.json() == {"user": "session-user"}
+
+    start_call = mock_logger.log.call_args_list[0].kwargs
+    end_call = mock_logger.log.call_args_list[1].kwargs
+    assert start_call["user_id"] == "session-user"
+    assert end_call["user_id"] == "session-user"
+
+
+def test_observability_middleware_uses_anonymous_without_user(monkeypatch):
+    mock_logger = Mock()
+    mock_logger.log = Mock()
+    monkeypatch.setattr(
+        "services.observability_service.get_observability_service",
+        lambda: mock_logger,
+    )
+
+    app = FastAPI()
+    app.add_middleware(ObservabilityMiddleware)
+
+    @app.get("/public")
+    async def public_endpoint():
+        return {"ok": True}
+
+    client = TestClient(app)
+    response = client.get("/public")
+
+    assert response.status_code == 200
+    start_call = mock_logger.log.call_args_list[0].kwargs
+    end_call = mock_logger.log.call_args_list[1].kwargs
+    assert start_call["user_id"] == "anonymous"
+    assert end_call["user_id"] == "anonymous"
+
+
+def test_observability_middleware_logs_breadcrumb_on_session_lookup_failure(monkeypatch, caplog):
+    """When the session lookup raises, the middleware must downgrade to
+    anonymous logging WITHOUT failing the request, but should leave a
+    debug-level breadcrumb so an operator can find out it happened."""
+    import logging
+
+    mock_logger = Mock()
+    mock_logger.log = Mock()
+    monkeypatch.setattr(
+        "services.observability_service.get_observability_service",
+        lambda: mock_logger,
+    )
+
+    class FlakySessionService:
+        async def get_by_id(self, sid):
+            raise RuntimeError("simulated DB outage")
+
+    monkeypatch.setattr(
+        "services.database_service.get_database_service",
+        lambda _settings: object(),
+    )
+    monkeypatch.setattr(
+        "services.session_service.get_session_service",
+        lambda _db: FlakySessionService(),
+    )
+
+    app = FastAPI()
+    app.add_middleware(ObservabilityMiddleware)
+
+    @app.get("/public")
+    async def public_endpoint(request: Request):
+        # Request must succeed regardless of the session-service explosion.
+        return {"user": getattr(request.state, "user", None)}
+
+    caplog.set_level(logging.DEBUG, logger="services.observability_service")
+    client = TestClient(app)
+    response = client.get("/public", cookies={"gofannon_sid": "sid-boom"})
+
+    assert response.status_code == 200
+    assert response.json() == {"user": None}
+
+    # Anonymous user_id should still appear in the logs.
+    start_call = mock_logger.log.call_args_list[0].kwargs
+    assert start_call["user_id"] == "anonymous"
+
+    # A breadcrumb at DEBUG level must have been emitted with the exception.
+    breadcrumbs = [
+        rec for rec in caplog.records
+        if "Session lookup failed in ObservabilityMiddleware" in rec.getMessage()
+    ]
+    assert len(breadcrumbs) == 1
+    assert "simulated DB outage" in breadcrumbs[0].getMessage()
