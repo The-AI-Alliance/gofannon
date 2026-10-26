@@ -7,6 +7,7 @@ from .chat import ProviderConfig
 from .agent import DeployedApi
 import uuid
 from datetime import datetime
+from time_utils import naive_utc_now
 
 class GenerateDemoCodeRequest(BaseModel):
     user_prompt: str = Field(..., alias="userPrompt")
@@ -36,6 +37,6 @@ class CreateDemoAppRequest(BaseModel):
 class DemoApp(CreateDemoAppRequest):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), alias="_id")
     rev: Optional[str] = Field(None, alias="_rev")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=naive_utc_now)
+    updated_at: datetime = Field(default_factory=naive_utc_now)
     model_config = ConfigDict(populate_by_name=True)

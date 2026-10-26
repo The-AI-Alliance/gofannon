@@ -5,6 +5,7 @@ from pydantic.alias_generators import to_camel
 from typing import Dict, Any, List, Literal, Optional, Union
 from .chat import ProviderConfig
 from datetime import datetime
+from time_utils import naive_utc_now
 
 import uuid
 
@@ -51,6 +52,19 @@ class GenerateCodeResponse(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
+class AgentEnvVar(BaseModel):
+    """Per-agent environment variable. Plaintext — not for secrets.
+
+    Values are stored on the agent document and visible in trace events.
+    Use the user-profile API Keys feature for secret values.
+    """
+    key: str
+    value: str
+    description: Optional[str] = None
+
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+
 class CreateAgentRequest(BaseModel):
     name: str
     description: str
@@ -68,6 +82,8 @@ class CreateAgentRequest(BaseModel):
     data_store_config: Optional[List[DataStoreNamespaceConfig]] = Field(
         default_factory=list, alias="dataStoreConfig"
     )
+    # per-agent env vars surfaced through _EnvironProxy at runtime.
+    env_vars: List[AgentEnvVar] = Field(default_factory=list, alias="envVars")
 
     model_config = ConfigDict(
         populate_by_name=True,   
@@ -93,6 +109,8 @@ class UpdateAgentRequest(BaseModel):
     data_store_config: Optional[List[DataStoreNamespaceConfig]] = Field(
         default=None, alias="dataStoreConfig"
     )
+    # per-agent env vars (None = leave existing untouched on PUT)
+    env_vars: Optional[List[AgentEnvVar]] = Field(default=None, alias="envVars")
     model_config = ConfigDict(
         populate_by_name=True,
         alias_generator=to_camel,
@@ -103,8 +121,8 @@ class UpdateAgentRequest(BaseModel):
 class Agent(CreateAgentRequest):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), alias="_id")
     rev: Optional[str] = Field(None, alias="_rev")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=naive_utc_now)
+    updated_at: datetime = Field(default_factory=naive_utc_now)
 
     # model_config = ConfigDict(populate_by_name=True) # model_config is inherited from CreateAgentRequest
         
@@ -189,6 +207,16 @@ class RunCodeRequest(BaseModel):
     # group nested-agent activity. Falls back to "sandbox_agent" if not
     # provided (legacy clients).
     friendly_name: Optional[str] = Field(default=None, alias="friendlyName")
+    # per-agent env vars threaded from the editor so the
+    # runtime overlay sees them. Without this the /agents/run-code endpoints
+    # had no way to know which env_vars belong to the code being run, since
+    # they receive code as a payload rather than fetching an agent record.
+    env_vars: Optional[List[AgentEnvVar]] = Field(default=None, alias="envVars")
+    # Optional: the agent's CouchDB doc id, when this run is being
+    # executed from a saved agent (vs. the create-flow sandbox before
+    # a save). Threaded through so the run registry can record it and
+    # the runs UI can deep-link to /agent/<agentId>/runs/<runId>.
+    agent_id: Optional[str] = Field(default=None, alias="agentId")
     model_config = ConfigDict(populate_by_name=True)
 
 class RunCodeResponse(BaseModel):
