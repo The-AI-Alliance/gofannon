@@ -3,7 +3,6 @@ import asyncio
 from services.log_redaction import redact, redact_in_place
 import boto3
 from botocore.exceptions import ClientError
-from datetime import datetime
 import json
 import os
 from typing import Any, Dict, List, Optional
@@ -16,9 +15,21 @@ from starlette.requests import Request
 from starlette.responses import Response
 import time
 from fastapi.responses import JSONResponse
+from time_utils import naive_utc_now
 
 
 # --- Abstract Base Class for Providers ---
+
+# Ordering used to compare log levels for filtering. Higher value = more
+# severe. Anything below a provider's configured threshold is dropped at
+# the provider boundary, so call sites can keep logging at whatever
+# level is semantically right and operators can dial console verbosity
+# via env without code changes.
+_LEVEL_RANK = {"DEBUG": 10, "INFO": 20, "WARN": 30, "WARNING": 30, "ERROR": 40}
+
+def _level_rank(level: str) -> int:
+    return _LEVEL_RANK.get((level or "INFO").upper(), _LEVEL_RANK["INFO"])
+
 
 class LogProvider(abc.ABC):
     """Abstract base class for a logging provider."""
@@ -86,7 +97,7 @@ class AWSCloudWatchLogsProvider(LogProvider):
             payload['metadata'] = json.dumps(payload['metadata'], default=str)
 
         log_event = {
-            'timestamp': int(datetime.utcnow().timestamp() * 1000),
+            'timestamp': int(naive_utc_now().timestamp() * 1000),
             'message': json.dumps(payload, default=str)
         }
 
@@ -117,9 +128,17 @@ class AWSCloudWatchLogsProvider(LogProvider):
 class ConsoleProvider(LogProvider):
     """Logs to the console. Used for local development."""
     def __init__(self):
-        print("Console logging provider initialized.")
+        # OBSERVABILITY_CONSOLE_LEVEL controls verbosity of console
+        # output. Default INFO drops DEBUG entries (notably per-request
+        # lifecycle noise from successful 2xx responses). Set to DEBUG
+        # to see everything when actively diagnosing.
+        env_level = os.environ.get("OBSERVABILITY_CONSOLE_LEVEL", "INFO").upper()
+        self._min_rank = _level_rank(env_level)
+        print(f"Console logging provider initialized (min level: {env_level}).")
 
     async def log(self, payload: Dict[str, Any]):
+        if _level_rank(payload.get("level", "INFO")) < self._min_rank:
+            return
         print(f"LOG: {json.dumps(payload, indent=2, default=str)}")
 
 # --- Main Observability Service ---
@@ -144,12 +163,15 @@ class ObservabilityService:
                 print(f"Skipping Google Cloud Logging provider due to initialization error: {e}")
 
         # AWS CloudWatch Logs
-        if all([settings.AWS_ACCESS_KEY_ID, settings.AWS_SECRET_ACCESS_KEY, settings.AWS_DEFAULT_REGION, settings.CLOUDWATCH_LOG_GROUP_NAME]):
+        # NOTE: CloudWatch is REAL AWS and should use the instance role, not
+        # the S3/MinIO credentials. This branch is dead in production
+        # (CLOUDWATCH_LOG_GROUP_NAME is unset); fix properly if enabled.
+        if all([settings.S3_ACCESS_KEY_ID, settings.S3_SECRET_ACCESS_KEY, settings.AWS_DEFAULT_REGION, settings.CLOUDWATCH_LOG_GROUP_NAME]):
             try:
                 self.providers.append(AWSCloudWatchLogsProvider(
                     region_name=settings.AWS_DEFAULT_REGION,
-                    access_key_id=settings.AWS_ACCESS_KEY_ID,
-                    secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                    access_key_id=settings.S3_ACCESS_KEY_ID,
+                    secret_access_key=settings.S3_SECRET_ACCESS_KEY,
                     log_group_name=settings.CLOUDWATCH_LOG_GROUP_NAME
                 ))
             except Exception as e:
@@ -203,7 +225,7 @@ class ObservabilityService:
         scrubbed_metadata = redact_in_place(metadata) if metadata else {}
 
         raw_payload = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": naive_utc_now().isoformat(),
             "level": level.upper(),
             "eventType": event_type,
             "service": service,
@@ -239,6 +261,8 @@ class ObservabilityService:
 
 # --- Singleton Factory ---
 _observability_instance = None
+ANONYMOUS_USER_ID = "anonymous"
+
 
 def get_observability_service() -> ObservabilityService:
     global _observability_instance
@@ -246,7 +270,57 @@ def get_observability_service() -> ObservabilityService:
         _observability_instance = ObservabilityService()
     return _observability_instance
 
+
+def get_request_user_id(request: Request) -> str:
+    user = getattr(request.state, 'user', None)
+    if isinstance(user, dict):
+        return user.get('uid') or ANONYMOUS_USER_ID
+    return ANONYMOUS_USER_ID
+
+
+def _session_to_user(session) -> Dict[str, Any]:
+    return {
+        "uid": session.user_uid,
+        "email": session.email,
+        "name": session.display_name,
+        "displayName": session.display_name,
+        "provider_type": session.provider_type,
+        "workspaces": [w.model_dump(by_alias=True) for w in session.workspaces],
+        "is_site_admin": session.is_site_admin,
+        "auth_mode": "session",
+    }
+
+
 class ObservabilityMiddleware(BaseHTTPMiddleware):
+    async def _populate_session_user(self, request: Request):
+        if getattr(request.state, 'user', None):
+            return
+
+        sid = request.cookies.get("gofannon_sid")
+        if not sid:
+            return
+
+        try:
+            from services.database_service import get_database_service
+            from services.session_service import get_session_service
+
+            db = get_database_service(settings)
+            session = await get_session_service(db).get_by_id(sid)
+        except Exception as exc:
+            # Observability middleware must NEVER fail a request. A broken
+            # session service or DB outage downgrades us to "anonymous"
+            # logs, which is the right tradeoff -- but leave a debug-level
+            # breadcrumb so it isn't completely silent if something starts
+            # going wrong.
+            import logging
+            logging.getLogger(__name__).debug(
+                "Session lookup failed in ObservabilityMiddleware: %r", exc,
+            )
+            return
+
+        if session:
+            request.state.user = _session_to_user(session)
+
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         observability_service = get_observability_service()
         start_time = time.time()
@@ -259,16 +333,32 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
         }
 
         try:
+            await self._populate_session_user(request)
             response = await call_next(request)
             process_time = time.time() - start_time
             
-            user_id = getattr(request.state, 'user', {}).get('uid')
+            user_id = get_request_user_id(request)
+
+            # Pick log level by response status so 2xx noise can be
+            # filtered at the console while 4xx/5xx stay visible. The
+            # provider decides whether to actually emit based on its
+            # threshold; the level here just classifies the event.
+            sc = response.status_code
+            if sc < 300:
+                req_level = "DEBUG"
+            elif sc < 400:
+                req_level = "INFO"
+            elif sc < 500:
+                req_level = "WARN"
+            else:
+                req_level = "ERROR"
 
             observability_service.log(
                 event_type="api_request_start",
                 message=f"API request started: {request.method} {request.url.path}",
                 metadata=request_data,
                 user_id=user_id,
+                level=req_level,
             )
 
             response_data = {
@@ -281,12 +371,13 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                 message=f"API request finished: {response.status_code}",
                 metadata=response_data,
                 user_id=user_id,
+                level=req_level,
             )
             return response
             
         except Exception as e:
             process_time = time.time() - start_time
-            user_id = getattr(request.state, 'user', {}).get('uid')
+            user_id = get_request_user_id(request)
 
             observability_service.log(
                 event_type="api_request_start",
@@ -313,6 +404,7 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                 status_code=500,
                 content={"detail": "An internal server error occurred."}
             )
+
 
 def get_sanitized_request_data(request: Optional[Request]) -> Dict[str, Any]:
     """Extracts serializable data from a Starlette/FastAPI Request object."""

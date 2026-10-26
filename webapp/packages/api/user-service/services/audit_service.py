@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 from pydantic.config import ConfigDict
 
 from services.database_service import DatabaseService
+from time_utils import naive_utc_now
 
 
 _AUDIT_COLLECTION = "site_admin_audit"
@@ -45,7 +46,7 @@ class AuditEntry(BaseModel):
     # Optional context string. Free-form; unbounded. UI truncates.
     detail: Optional[str] = None
 
-    ts: datetime = Field(default_factory=datetime.utcnow)
+    ts: datetime = Field(default_factory=naive_utc_now)
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
