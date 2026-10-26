@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import RunningJobsModule from '../components/RunningJobsModule';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -36,12 +37,34 @@ const HomePage = () => {
   const [loadingAgents, setLoadingAgents] = useState(true);
   const [loadingDemos, setLoadingDemos] = useState(true);
   const [loadingDataStores, setLoadingDataStores] = useState(true);
+  // Per-module error state so a stalled CouchDB call doesn't trap a
+  // module in a permanent spinner. Each fetch races a 10s timeout; on
+  // timeout the spinner clears and a Retry banner appears above the
+  // grid.
+  const [agentsError, setAgentsError] = useState(null);
+  const [demosError, setDemosError] = useState(null);
+  const [dataStoresError, setDataStoresError] = useState(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [agentFilter, setAgentFilter] = useState('all');
 
   useEffect(() => {
+    // Race a fetch against a 10s timeout. If the timeout wins, the
+    // module renders an error + retry banner instead of spinning
+    // forever. Most common trigger: the backend is unresponsive
+    // because a long-running agent is hogging the event loop with
+    // sync CouchDB calls.
+    const withTimeout = (promise, ms = 10000, label = 'request') =>
+      Promise.race([
+        promise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+        ),
+      ]);
+
     const fetchAgents = async () => {
       try {
-        const data = await agentService.getAgents();
+        setAgentsError(null);
+        const data = await withTimeout(agentService.getAgents(), 10000, 'agents');
         const withDeployment = await Promise.all(
           data.map(async (agent) => {
             try {
@@ -59,6 +82,7 @@ const HomePage = () => {
         );
       } catch (err) {
         console.error('Failed to fetch agents:', err);
+        setAgentsError(err.message || 'Failed to load');
       } finally {
         setLoadingAgents(false);
       }
@@ -66,10 +90,12 @@ const HomePage = () => {
 
     const fetchDemos = async () => {
       try {
-        const data = await demoService.getDemos();
+        setDemosError(null);
+        const data = await withTimeout(demoService.getDemos(), 10000, 'demos');
         setDemoApps(data);
       } catch (err) {
         console.error('Failed to fetch demos:', err);
+        setDemosError(err.message || 'Failed to load');
       } finally {
         setLoadingDemos(false);
       }
@@ -77,10 +103,12 @@ const HomePage = () => {
 
     const fetchDataStores = async () => {
       try {
-        const resp = await dataStoreService.listNamespaces();
+        setDataStoresError(null);
+        const resp = await withTimeout(dataStoreService.listNamespaces(), 10000, 'data stores');
         setDataStoreNamespaces((resp?.namespaces) || []);
       } catch (err) {
         console.error('Failed to fetch data stores:', err);
+        setDataStoresError(err.message || 'Failed to load');
       } finally {
         setLoadingDataStores(false);
       }
@@ -107,7 +135,7 @@ const HomePage = () => {
     return () => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, []);
+  }, [retryNonce]);
 
   const filteredAgents = agentFilter === 'deployed' 
     ? agents.filter(a => a.isDeployed) 
@@ -117,6 +145,21 @@ const HomePage = () => {
 
   return (
     <Box sx={{ p: 3, maxWidth: 1800, margin: '0 auto' }}>
+      {(agentsError || demosError || dataStoresError) && (
+        <Box sx={{ mb: 2, p: 2, bgcolor: 'warning.light', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              Some modules couldn&apos;t load
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              The API may be busy (a long-running agent can hog workers with sync CouchDB calls). Retry once it settles.
+            </Typography>
+          </Box>
+          <Button variant="outlined" size="small" onClick={() => setRetryNonce(n => n + 1)}>
+            Retry
+          </Button>
+        </Box>
+      )}
       <Box sx={{ 
         display: 'grid', 
         gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr', xl: '1fr 1fr 1fr' }, 
@@ -124,6 +167,9 @@ const HomePage = () => {
         alignItems: 'start'
       }}>
         
+        {/* Column 1: Agents on top, Demo Apps stacked underneath */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+
         {/* Agents Table */}
         <Paper sx={{ overflow: 'hidden' }}>
           <Box sx={{ 
@@ -369,7 +415,13 @@ const HomePage = () => {
           </TableContainer>
         </Paper>
 
-        {/* Data Stores Table */}
+        </Box>
+        {/* end column 1 stack */}
+
+        {/* Column 2: cross-agent runs overview */}
+        <RunningJobsModule />
+
+        {/* Column 3: Data Stores Table */}
         <Paper sx={{ overflow: 'hidden' }}>
           <Box sx={{
             p: 2,

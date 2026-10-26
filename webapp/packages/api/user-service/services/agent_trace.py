@@ -91,16 +91,40 @@ class Trace:
         # over SSE. None for non-streaming runs (the bulk-trace
         # path through /agents/run-code).
         self._queue: Optional[asyncio.Queue] = None
+        # When the queue\'s owning event loop is supplied at attach
+        # time, _publish routes put_nowait through
+        # ``loop.call_soon_threadsafe`` so events can come from
+        # threads other than the loop\'s thread (Path A: agent runs
+        # on a separate thread with its own loop, emits trace events
+        # from there into the worker\'s loop\'s queue). When None,
+        # _publish does a direct put_nowait — same-thread case, no
+        # bridging needed.
+        self._queue_loop: Optional[asyncio.AbstractEventLoop] = None
 
-    def attach_queue(self, queue: asyncio.Queue) -> None:
+    def attach_queue(
+        self,
+        queue: asyncio.Queue,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+    ) -> None:
         """Attach a queue that receives every appended event.
 
         Events that were already in self.events when this is called
         are NOT replayed — attach the queue before any events are
         emitted. The streaming handler does this immediately after
         creating the Trace.
+
+        ``loop`` is the event loop that owns ``queue``. Pass it when
+        ``append()`` may be called from a thread other than ``loop``\'s
+        thread (the Path A executor uses this — the agent runs on a
+        side thread and emits events into the worker\'s queue). When
+        ``loop`` is None, _publish assumes same-thread access and
+        calls ``queue.put_nowait`` directly. When ``loop`` is set,
+        _publish routes through ``loop.call_soon_threadsafe`` so the
+        put happens on the queue\'s owning loop regardless of which
+        thread the emitter is on.
         """
         self._queue = queue
+        self._queue_loop = loop
 
     def _current_agent(self) -> str:
         return self._stack[-1] if self._stack else "unknown"
@@ -133,7 +157,31 @@ class Trace:
         self.events, so the final response payload is still
         complete. asyncio.Queue with default maxsize=0 is unbounded;
         callers can pass a bounded queue if they want backpressure.
+
+        When a queue_loop was provided at attach time, route the put
+        via call_soon_threadsafe so it lands on the queue\'s owning
+        loop. This is what makes Path A safe: the agent runs on a
+        side thread and calls trace.append() from there; without
+        this routing, put_nowait would mutate asyncio.Queue\'s
+        internal state from the wrong thread and corrupt waiters.
         """
+        if self._queue is None:
+            return
+        if self._queue_loop is not None:
+            # call_soon_threadsafe is safe to call from any thread,
+            # including the loop\'s own thread. We don\'t branch on
+            # 'am I on the right thread?' because that check itself
+            # is fragile (asyncio.get_event_loop() inside a non-loop
+            # thread behaves differently across Python versions).
+            self._queue_loop.call_soon_threadsafe(self._safe_put_nowait, event)
+        else:
+            try:
+                self._queue.put_nowait(event)
+            except asyncio.QueueFull:
+                pass
+
+    def _safe_put_nowait(self, event: Dict[str, Any]) -> None:
+        """Helper for the threadsafe routing path."""
         if self._queue is None:
             return
         try:

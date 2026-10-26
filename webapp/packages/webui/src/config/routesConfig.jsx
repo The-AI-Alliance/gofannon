@@ -10,6 +10,7 @@ import DemoAppsPage from '../pages/DemoAppsPage';
 import ViewDemoAppPage from '../pages/ViewDemoAppPage';
 import DataStoresPage from '../pages/DataStoresPage';
 import DataStoreBrowser from '../pages/DataStoreBrowser';
+import RunsPage from '../pages/RunsPage';
 import RunsScreen from '../pages/AgentCreationFlow/RunsScreen';
 import DeployScreen from '../pages/AgentCreationFlow/DeployScreen';
 import SelectApisScreen from '../pages/DemoCreationFlow/SelectApisScreen';
@@ -58,6 +59,14 @@ export const defaultRoutes = [
   {
     path: '/data-stores/:namespace',
     element: <DataStoreBrowser />,
+  },
+  {
+    // SPA-visible URL for the all-runs index. NOT /runs -- that path
+    // collides with the API's /runs endpoint, which vite proxies to
+    // the backend before the SPA router can match. The data endpoints
+    // live at /runs/*; the user-facing page lives at /jobs.
+    path: '/jobs',
+    element: <RunsPage />,
   },
   {
     path: '/profile/:section?',

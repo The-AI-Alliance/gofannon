@@ -65,6 +65,12 @@ class FakeUserService:
         )
 
 
+def _override_current_user(request: Request):
+    user = {"uid": "user-123", "email": "user@example.com", "auth_mode": "test"}
+    request.state.user = user
+    return user
+
+
 def test_provider_routes_return_data_and_404(monkeypatch):
     import routes as routes_module
 
@@ -79,27 +85,31 @@ def test_provider_routes_return_data_and_404(monkeypatch):
     monkeypatch.setattr(routes_module, "get_available_providers", lambda user_id=None, user_basic_info=None: fake_providers)
 
     app = create_app()
+    app.dependency_overrides[get_current_user] = _override_current_user
     client = TestClient(app)
 
-    assert client.get("/providers").json() == fake_providers
+    try:
+        assert client.get("/providers").json() == fake_providers
 
-    response = client.get("/providers/openai")
-    assert response.status_code == 200
-    assert response.json() == fake_providers["openai"]
+        response = client.get("/providers/openai")
+        assert response.status_code == 200
+        assert response.json() == fake_providers["openai"]
 
-    assert client.get("/providers/missing").status_code == 404
+        assert client.get("/providers/missing").status_code == 404
 
-    response = client.get("/providers/openai/models")
-    assert response.status_code == 200
-    assert response.json() == ["gpt-4"]
+        response = client.get("/providers/openai/models")
+        assert response.status_code == 200
+        assert response.json() == ["gpt-4"]
 
-    assert client.get("/providers/missing/models").status_code == 404
+        assert client.get("/providers/missing/models").status_code == 404
 
-    response = client.get("/providers/openai/models/gpt-4")
-    assert response.status_code == 200
-    assert response.json() == {"context_length": 8192}
+        response = client.get("/providers/openai/models/gpt-4")
+        assert response.status_code == 200
+        assert response.json() == {"context_length": 8192}
 
-    assert client.get("/providers/openai/models/unknown").status_code == 404
+        assert client.get("/providers/openai/models/unknown").status_code == 404
+    finally:
+        app.dependency_overrides = {}
 
 
 def test_user_routes_use_dependency_overrides():
@@ -190,6 +200,11 @@ def test_log_client_enriches_metadata_with_dependency_overrides():
     app.dependency_overrides[get_db] = lambda: fake_db
     app.dependency_overrides[get_current_user] = override_current_user
 
+    @app.middleware("http")
+    async def inject_user(request: Request, call_next):
+        request.state.user = {"uid": "user-123"}
+        return await call_next(request)
+
     client = TestClient(app)
     try:
         response = client.post(
@@ -209,6 +224,7 @@ def test_log_client_enriches_metadata_with_dependency_overrides():
         assert metadata["extra"] == "value"
         assert metadata["client_host"] == "testclient"
         assert metadata["user_agent"] == "TestAgent/1.0"
+        assert fake_logger.log.call_args.kwargs["user_id"] == "user-123"
     finally:
         app.dependency_overrides = {}
 
@@ -232,6 +248,7 @@ def test_session_config_routes_create_read_delete():
 
     fake_db = FakeDb()
     app.dependency_overrides[get_db] = lambda: fake_db
+    app.dependency_overrides[get_current_user] = _override_current_user
 
     client = TestClient(app)
     try:
@@ -256,3 +273,177 @@ def test_session_config_routes_create_read_delete():
         assert response.json()["message"] == "Session deleted"
     finally:
         app.dependency_overrides = {}
+
+
+def test_user_routes_reject_missing_session(monkeypatch):
+    app = create_app()
+    client = TestClient(app)
+
+    for app_env in ("local", "dev", "test", "production", "firebase"):
+        monkeypatch.setattr(settings, "APP_ENV", app_env)
+        response = client.get("/users/me")
+        assert response.status_code == 401
+
+
+def test_expired_session_cookie_returns_401(monkeypatch):
+    import routes as routes_module
+
+    async def missing_session(request: Request, sid: str):
+        return None
+
+    monkeypatch.setattr(routes_module, "_verify_session_cookie", missing_session)
+
+    app = create_app()
+    client = TestClient(app)
+    response = client.get("/users/me", cookies={"gofannon_sid": "expired"})
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Session expired or invalid"
+
+
+# backend half of the session-expiry UX. The X-Auth-Reason header
+# distinguishes expired-cookie cases (the SPA should pop the AuthExpiryModal)
+# from never-authenticated cases (handled by route guards / redirects). The
+# frontend's services/fetchInterceptor.js reads this header to decide whether
+# to fire the auth:session-expired event.
+
+def test_expired_session_emits_x_auth_reason_session_expired(monkeypatch):
+    """Expired/invalid cookie -> 401 + X-Auth-Reason: session_expired."""
+    import routes as routes_module
+
+    async def missing_session(request: Request, sid: str):
+        return None
+
+    monkeypatch.setattr(routes_module, "_verify_session_cookie", missing_session)
+
+    app = create_app()
+    client = TestClient(app)
+    response = client.get("/users/me", cookies={"gofannon_sid": "expired"})
+
+    assert response.status_code == 401
+    assert response.headers.get("X-Auth-Reason") == "session_expired"
+
+
+def test_no_cookie_emits_x_auth_reason_not_authenticated(monkeypatch):
+    """No cookie at all -> 401 + X-Auth-Reason: not_authenticated.
+
+    Different reason from session_expired so the SPA can render
+    'sign in' vs 'sign in again' messaging appropriately.
+    """
+    monkeypatch.setattr(settings, "APP_ENV", "production")
+
+    app = create_app()
+    client = TestClient(app)
+    response = client.get("/users/me")  # no cookie
+
+    assert response.status_code == 401
+    assert response.headers.get("X-Auth-Reason") == "not_authenticated"
+
+
+def test_valid_session_no_x_auth_reason_header(monkeypatch):
+    """Valid session -> no X-Auth-Reason header on the success response.
+
+    The header is a 401-only signal. Adding it to 2xx responses would
+    confuse the interceptor and could fire spurious expiry modals.
+    """
+    import routes as routes_module
+
+    async def valid_session(request: Request, sid: str):
+        return {"uid": "user-1", "email": "u@example.com", "auth_mode": "session"}
+
+    monkeypatch.setattr(routes_module, "_verify_session_cookie", valid_session)
+
+    app = create_app()
+    client = TestClient(app)
+    response = client.get("/users/me", cookies={"gofannon_sid": "valid"})
+
+    assert response.status_code == 200
+    assert "X-Auth-Reason" not in response.headers
+
+
+def test_dev_stub_picker_returns_404_outside_dev_env(monkeypatch):
+    auth_config = {
+        "providers": [
+            {
+                "type": "dev_stub",
+                "enabled": True,
+                "config": {
+                    "users": [
+                        {
+                            "uid": "alice",
+                            "display_name": "Alice Dev",
+                            "email": "alice@example.com",
+                            "workspaces": [],
+                        }
+                    ]
+                },
+            }
+        ],
+        "site_admins": [],
+        "session_ttl_hours": 24,
+        "workspace_refresh_minutes": 15,
+        "legacy_firebase_enabled": True,
+    }
+    monkeypatch.setattr(settings, "APP_ENV", "production")
+    monkeypatch.setattr(settings, "AUTH_CONFIG", auth_config)
+
+    app = create_app()
+    client = TestClient(app)
+    response = client.get(
+        "/auth/dev-stub-picker",
+        params={
+            "state": "state",
+            "redirect_uri": "http://test/auth/callback/dev_stub",
+            "users": "alice",
+        },
+    )
+
+    assert response.status_code == 404
+
+
+def test_get_current_user_short_circuits_on_middleware_populated_user(monkeypatch):
+    """When the ObservabilityMiddleware (PR-35) has already resolved the
+    session cookie into ``request.state.user``, ``get_current_user`` reuses
+    that dict instead of re-running the session lookup. Guards against a
+    double DB roundtrip on every authenticated request."""
+    import routes as routes_module
+
+    verify_call_count = {"n": 0}
+
+    async def counting_verify(request, sid):
+        verify_call_count["n"] += 1
+        # Return the same shape _verify_session_cookie would.
+        user = {
+            "uid": "session-user",
+            "email": "session@example.com",
+            "auth_mode": "session",
+        }
+        request.state.user = user
+        return user
+
+    monkeypatch.setattr(routes_module, "_verify_session_cookie", counting_verify)
+
+    app = create_app()
+
+    @app.middleware("http")
+    async def fake_obs_middleware(request: Request, call_next):
+        # Simulate what ObservabilityMiddleware does in PR-35: pre-populate
+        # request.state.user from a session lookup, before routes run.
+        request.state.user = {
+            "uid": "session-user",
+            "email": "session@example.com",
+            "auth_mode": "session",
+        }
+        return await call_next(request)
+
+    client = TestClient(app)
+    response = client.get("/users/me", cookies={"gofannon_sid": "doesnt-matter"})
+
+    # The endpoint protected by get_current_user should respond successfully
+    # and _verify_session_cookie must NOT have been called -- the
+    # short-circuit handed back the middleware-populated user.
+    assert response.status_code in (200, 404)  # 404 if user-service mock missing; either way auth was bypassed
+    assert verify_call_count["n"] == 0, (
+        "get_current_user should have reused the middleware-populated user "
+        "instead of re-verifying the session cookie"
+    )

@@ -1,5 +1,5 @@
-from datetime import datetime
 import asyncio
+import copy
 import json
 import traceback
 import uuid
@@ -19,6 +19,7 @@ from dependencies import (
     fetch_spec_content,
     get_agent_deployment,
     get_available_providers,
+    get_async_db,
     get_db,
     get_logger,
     get_user_service_dep,
@@ -64,9 +65,11 @@ from services.mcp_client_service import McpClientService, get_mcp_client_service
 from services.observability_service import (
     ObservabilityService,
     get_observability_service,
+    get_request_user_id,
     get_sanitized_request_data,
 )
 from services.user_service import UserService
+from time_utils import naive_utc_now
 
 
 router = APIRouter()
@@ -108,15 +111,15 @@ async def _verify_session_cookie(request: Request, sid: str) -> Optional[dict]:
 
 
 async def _verify_firebase_token(request: Request, token: str):
+    if not token:
+        request.state.user = {"uid": "anonymous"}
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
     try:
         from firebase_admin import auth
     except Exception as exc:  # pragma: no cover - optional dependency
         request.state.user = {"uid": "auth-error"}
         raise HTTPException(status_code=500, detail=f"Authentication error: {exc}")
-
-    if not token:
-        request.state.user = {"uid": "anonymous"}
-        raise HTTPException(status_code=401, detail="Not authenticated")
 
     try:
         decoded_token = auth.verify_id_token(token)
@@ -135,37 +138,52 @@ async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)
     """
     Dependency to authenticate a request. Supports two modes:
 
-      1. Session cookie (``gofannon_sid``) — checked first.
-      2. Legacy Firebase bearer token — fallback.
+      1. Session cookie (``gofannon_sid``) -- checked first.
+      2. Legacy Firebase bearer token -- fallback when ``APP_ENV`` is
+         ``firebase``.
 
-    If neither is present, behavior depends on ``APP_ENV``:
-      - ``firebase``: 401
-      - otherwise: returns a local-dev-user stub (same as before)
+    If neither is present, returns 401. There is no unauthenticated
+    fallthrough; dev users get a session cookie through the dev_stub
+    provider's picker page.
 
     Attaches the user object to request.state for observability.
     """
+    # Short-circuit: ObservabilityMiddleware resolves
+    # the session cookie before any route runs so request logs can include
+    # the authenticated user_id even on public endpoints. When that happened
+    # this request, the session lookup has already been performed and the
+    # user dict is exactly what _verify_session_cookie would return. Reuse
+    # it instead of redoing the same DB roundtrip.
+    existing = getattr(request.state, "user", None)
+    if isinstance(existing, dict) and existing.get("auth_mode") == "session":
+        return existing
+
     # 1) Session cookie
     sid = request.cookies.get("gofannon_sid")
     if sid:
         user = await _verify_session_cookie(request, sid)
         if user:
             return user
-        # Cookie present but invalid/expired — don't fall through to
+        # Cookie present but invalid/expired -- don't fall through to
         # Firebase with stale cookie. Return 401 so the client clears it.
-        raise HTTPException(status_code=401, detail="Session expired or invalid")
+        # emit X-Auth-Reason so the SPA distinguishes session
+        # expiry from authz-denied for a better re-login UX.
+        raise HTTPException(
+            status_code=401,
+            detail="Session expired or invalid",
+            headers={"X-Auth-Reason": "session_expired"},
+        )
 
-    # 2) Legacy Firebase path (unchanged)
-    if settings.APP_ENV != "firebase":
-        if settings.AUTH_CONFIG_PATH:
-            raise HTTPException(
-                status_code=401,
-                detail="Not authenticated. Session cookie missing or invalid.",
-            )
-        user = {"uid": "local-dev-user", "auth_mode": "dev_stub"}
-        request.state.user = user
-        return user
+    # 2) Legacy Firebase path
+    if settings.APP_ENV == "firebase":
+        return await _verify_firebase_token(request, token)
 
-    return await _verify_firebase_token(request, token)
+    # emit X-Auth-Reason for the SPA's expiry modal.
+    raise HTTPException(
+        status_code=401,
+        detail="Not authenticated. Session cookie missing or invalid.",
+        headers={"X-Auth-Reason": "not_authenticated"},
+    )
 
 
 class ListMcpToolsRequest(BaseModel):
@@ -230,7 +248,7 @@ async def log_client_event(
     logger: ObservabilityService = Depends(get_logger)
 ):
     """Receives and logs an event from the frontend client."""
-    user_id = getattr(request.state, 'user', {}).get('uid', 'anonymous')
+    user_id = get_request_user_id(request)
 
     metadata = payload.metadata or {}
     metadata['client_host'] = request.client.host if request.client else "unknown"
@@ -447,12 +465,12 @@ async def update_session_config(session_id: str, config: ProviderConfig, db: Dat
         session_doc = db.get("sessions", session_id)
     except HTTPException as e:
         if e.status_code == 404:
-            session_doc = {"created_at": datetime.utcnow().isoformat()}
+            session_doc = {"created_at": naive_utc_now().isoformat()}
         else:
             raise
 
     session_doc["provider_config"] = config.dict()
-    session_doc["updated_at"] = datetime.utcnow().isoformat()
+    session_doc["updated_at"] = naive_utc_now().isoformat()
 
     db.save("sessions", session_id, session_doc)
     return {"message": "Configuration updated", "session_id": session_id}
@@ -495,7 +513,8 @@ async def create_agent(
     agent.rev = saved_doc.get("rev")
 
     logger.log(
-        "INFO", "user_action", f"Agent '{agent.name}' created.",
+        "user_action", f"Agent '{agent.name}' created.",
+        user_id=user.get("uid"),
         metadata={"agent_id": agent.id, "agent_name": agent.name, "request": get_sanitized_request_data(req)}
     )
     return agent
@@ -504,13 +523,13 @@ async def create_agent(
 @router.get("/agents", response_model=List[Agent])
 async def list_agents(
     req: Request,
-    db: DatabaseService = Depends(get_db),
+    db = Depends(get_async_db),  # async shim — don't block event loop
     user: dict = Depends(get_current_user),
     logger: ObservabilityService = Depends(get_logger)
 ):
     """Lists all saved agents."""
-    all_docs = db.list_all("agents")
-    logger.log("INFO", "user_action", "Listed all agents.", metadata={"request": get_sanitized_request_data(req)})
+    all_docs = await db.list_all("agents")
+    logger.log("user_action", "Listed all agents.", user_id=user.get("uid"), metadata={"request": get_sanitized_request_data(req)})
     return [Agent(**doc) for doc in all_docs]
 
 
@@ -556,7 +575,7 @@ async def delete_agent(
         # the agent's friendly_name no longer matches any deployment.
         await undeploy_agent(agent_id, db)
         db.delete("agents", agent_id)
-        logger.log("INFO", "user_action", f"Agent '{agent_id}' deleted.", metadata={"agent_id": agent_id, "request": get_sanitized_request_data(req)})
+        logger.log("user_action", f"Agent '{agent_id}' deleted.", user_id=user.get("uid"), metadata={"agent_id": agent_id, "request": get_sanitized_request_data(req)})
         return
     except HTTPException as e:
         raise e
@@ -586,7 +605,7 @@ async def update_agent(
         updated_agent.created_at = existing_doc["createdAt"]
     elif "created_at" in existing_doc:
         updated_agent.created_at = existing_doc["created_at"]
-    updated_agent.updated_at = datetime.utcnow()
+    updated_agent.updated_at = naive_utc_now()
 
     saved_doc_data = updated_agent.model_dump(by_alias=True, mode="json")
     saved_doc_data["_rev"] = existing_doc.get("_rev")
@@ -595,7 +614,8 @@ async def update_agent(
     updated_agent.rev = saved_doc.get("rev")
 
     logger.log(
-        "INFO", "user_action", f"Agent '{updated_agent.name}' updated.",
+        "user_action", f"Agent '{updated_agent.name}' updated.",
+        user_id=user.get("uid"),
         metadata={"agent_id": agent_id, "agent_name": updated_agent.name, "request": get_sanitized_request_data(req)}
     )
     return updated_agent
@@ -679,8 +699,9 @@ async def run_agent_code_stream(
         data: {{outcome, result, error, schema_warnings, ops_log}}
     """
     logger.log(
-        "INFO", "user_action",
+        "user_action",
         "Attempting to run agent code in sandbox (streaming).",
+        user_id=user.get("uid"),
         metadata={"request": get_sanitized_request_data(req)},
     )
 
@@ -695,7 +716,34 @@ async def run_agent_code_stream(
     # is the real bound.
     trace = Trace()
     queue: asyncio.Queue = asyncio.Queue()
-    trace.attach_queue(queue)
+    # Pass the current loop into attach_queue so the agent\'s
+    # side-thread (Path A executor) can emit events into this queue
+    # via threadsafe routing. Without the loop arg, _publish would
+    # call put_nowait directly from the agent thread and corrupt
+    # the queue\'s asyncio waiters.
+    trace.attach_queue(queue, loop=asyncio.get_running_loop())
+
+    # Register this run with the registry + cancel registry so the client 
+    # can address it for stop. Stream's runId is emitted as the first SSE event 
+    # ("run_id") so RunsScreen can capture it and enable the Stop button. The 
+    # streaming endpoint still pins its worker (we haven't moved to the 
+    # start-then-subscribe model here), but the runId binding makes stop 
+    # wiring possible.
+    from services.run_registry import get_run_registry
+    from services.run_cancel_registry import publish as register_cancel_token
+    from services.cancel_token import CancelToken, bind_token, AgentStopped
+    from services.agent_executor import execute_in_thread
+
+    _registry = get_run_registry()
+    _run_record = _registry.new_record(
+        user_id=user.get("uid") or "anonymous",
+        agent_name=request.friendly_name or "sandbox_agent",
+        agent_id=request.agent_id,
+        input_dict=request.input_dict,
+    )
+    _cancel_token = CancelToken()
+    register_cancel_token(_run_record.run_id, _cancel_token)
+    bind_token(_cancel_token)
 
     # Sentinel posted to the queue when the agent finishes (success
     # or error) so the streaming generator knows to stop pulling.
@@ -707,17 +755,31 @@ async def run_agent_code_stream(
 
     async def run_agent_task():
         try:
-            result, ops_log = await _execute_agent_code(
-                code=request.code,
-                input_dict=request.input_dict,
-                tools=request.tools,
-                gofannon_agents=request.gofannon_agents,
-                db=db,
-                llm_settings=request.llm_settings,
-                user_id=user.get("uid"),
-                user_basic_info=user_basic_info,
-                agent_name=request.friendly_name or "sandbox_agent",
-                trace=trace,
+            # Path A: run the agent in a separate OS thread with its
+            # own event loop. This keeps THIS worker\'s loop free to
+            # serve other requests while the agent does sync CouchDB
+            # calls. The factory shape (lambda returning a coro) is
+            # what executor.execute_in_thread expects -- the coro
+            # has to be instantiated inside the target thread to bind
+            # to the right loop.
+            def _build_agent_coro():
+                return _execute_agent_code(
+                    code=request.code,
+                    input_dict=request.input_dict,
+                    tools=request.tools,
+                    gofannon_agents=request.gofannon_agents,
+                    db=db,
+                    llm_settings=request.llm_settings,
+                    user_id=user.get("uid"),
+                    user_basic_info=user_basic_info,
+                    agent_name=request.friendly_name or "sandbox_agent",
+                    trace=trace,
+                    env_vars=request.env_vars,
+                )
+            result, ops_log = await execute_in_thread(
+                _build_agent_coro,
+                _cancel_token,
+                thread_name=f"agent-{_run_record.run_id[:8]}",
             )
             schema_warnings = validate_output_against_schema(result, request.output_schema)
             if schema_warnings:
@@ -729,13 +791,96 @@ async def run_agent_code_stream(
             final["result"] = result
             final["schema_warnings"] = schema_warnings or None
             final["ops_log"] = ops_log or None
+            # Update the run registry so /runs and /runs/<id> reflect
+            # completion. Without this, every streaming run sits as
+            # 'running' until eviction at EVICTION_TTL_SECONDS (1 hour).
+            try:
+                _registry.mark_complete(
+                    _run_record,
+                    status="success",
+                    result=result,
+                    schema_warnings=schema_warnings or None,
+                    ops_log=ops_log or None,
+                )
+            except Exception:
+                logger.log(
+                    "ERROR", "run_registry_update_failed",
+                    f"mark_complete failed for run {_run_record.run_id}",
+                    metadata={"traceback": traceback.format_exc()},
+                )
             logger.log(
                 "INFO", "sandbox_run",
                 "Agent code executed successfully (streaming).",
                 metadata={"request": get_sanitized_request_data(req)},
             )
-        except Exception as e:
+        except asyncio.CancelledError:
+            # event_generator's finally cancels agent_task when the
+            # SSE stream closes mid-run (client disconnect, or the
+            # frontend's handleStop aborting the fetch). Without
+            # explicit handling here, CancelledError would skip past
+            # mark_complete and leave the registry record stuck at
+            # 'running' indefinitely -- this was the 'silent death'
+            # case where no traceback was logged and the run never
+            # got a final status.
+            #
+            # Treat the cancel as a stop: flip the token (if not
+            # already) so the agent thread terminates at its next
+            # structural boundary, then mark the registry stopped.
+            # Re-raise so upstream asyncio task accounting still
+            # treats this task as cancelled.
+            if not _cancel_token.is_stopped():
+                _cancel_token.request_stop()
+            try:
+                _registry.mark_complete(
+                    _run_record,
+                    status="stopped",
+                    error="Run cancelled (SSE stream closed)",
+                    ops_log=final.get("ops_log"),
+                )
+            except Exception:
+                logger.log(
+                    "ERROR", "run_registry_update_failed",
+                    f"mark_complete failed for run {_run_record.run_id}",
+                    metadata={"traceback": traceback.format_exc()},
+                )
+            logger.log(
+                "INFO", "sandbox_run_cancelled",
+                f"Streaming run cancelled (SSE closed) for run {_run_record.run_id}",
+                metadata={"request": get_sanitized_request_data(req)},
+            )
+            raise
+        except (Exception, AgentStopped) as e:
+            # AgentStopped now inherits from BaseException so user code
+            # can't swallow it via except Exception; we have to name it
+            # explicitly here to keep our cleanup-and-mark-complete
+            # handler covering it. Same handler logic for error and
+            # stop cases below.
             final["error"] = f"{type(e).__name__}: {e}"
+            # Distinguish a user-initiated stop from a genuine error.
+            # AgentStopped is raised by check_should_stop() when the
+            # cancel token flips, propagated by the data store / LLM
+            # services. Also check the token directly in case the
+            # agent did pure-Python work after the stop, didn't hit
+            # a structural check, and exited some other way.
+            is_stop = isinstance(e, AgentStopped) or _cancel_token.is_stopped()
+            # Wrap registry write in its own try -- if mark_complete
+            # itself raises (registry race, etc.), we still want the
+            # log line and the DONE_SENTINEL to reach the stream so
+            # the client doesn't hang. Leaving the record as 'running'
+            # is the symptom we're explicitly trying to avoid.
+            try:
+                _registry.mark_complete(
+                    _run_record,
+                    status="stopped" if is_stop else "error",
+                    error=f"{type(e).__name__}: {e}",
+                    ops_log=final.get("ops_log"),
+                )
+            except Exception:
+                logger.log(
+                    "ERROR", "run_registry_update_failed",
+                    f"mark_complete failed for run {_run_record.run_id}",
+                    metadata={"traceback": traceback.format_exc()},
+                )
             logger.log(
                 "ERROR", "sandbox_run_failure",
                 f"Error running agent code (streaming, trace events: {len(trace.events)})",
@@ -748,18 +893,35 @@ async def run_agent_code_stream(
             await queue.put(DONE_SENTINEL)
 
     async def event_generator():
+        # emit run_id as the first frame so the
+        # client can render the Stop button without waiting for the
+        # first trace event.
+        yield f"event: run_id\ndata: {json.dumps({'runId': _run_record.run_id, 'status': 'running'})}\n\n"
+
         # Kick off the agent. The task runs concurrently with this
         # generator; events flow through the queue.
         agent_task = asyncio.create_task(run_agent_task())
+        # Give the registry a STRONG reference to the task. This is required
+        # now that the finally block below no longer awaits or cancels it:
+        # once this generator's frame is gone, the registry is the only thing
+        # keeping the task reachable, and asyncio holds only weak references
+        # ("Save a reference to the result of create_task, to avoid a task
+        # disappearing mid-execution" -- asyncio docs).
+        #
+        # The non-streaming /agents/run-code/start handler already does this;
+        # the streaming path never did, because it always awaited or cancelled
+        # before returning. Detaching without binding would leave an
+        # hours-long pipeline eligible for GC.
+        _registry.bind_task(_run_record, agent_task)
 
         try:
             while True:
                 # Use a heartbeat-style wait so a hung agent eventually
                 # frees the connection if the client disconnected.
-                # 30s is generous; nothing in the trace timing matters
-                # at that resolution.
+                # 10s gives margin against Apache's 60s Timeout even
+                # if intermediate proxies buffer small writes.
                 try:
-                    item = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    item = await asyncio.wait_for(queue.get(), timeout=10.0)
                 except asyncio.TimeoutError:
                     # Heartbeat comment frame keeps proxies from
                     # idling out the connection.
@@ -785,13 +947,29 @@ async def run_agent_code_stream(
                     payload = json.dumps(item, default=str)
                     yield f"event: trace\ndata: {payload}\n\n"
         finally:
-            # If the client disconnects mid-run, the generator gets
-            # closed; await the agent so we don't leak the task.
+            # Client disconnect DETACHES from the run; it does not kill it.
+            #
+            # The previous behavior (await up to 5s, then cancel) meant a tab
+            # close, a browser crash, a network glitch, or a render error in
+            # the SSE reader all killed an in-flight run. For LLM pipelines
+            # that run for minutes to hours, the 5s branch was always the kill
+            # path -- it cost 61 of 64 batches on one run and a full scan on
+            # another.
+            #
+            # The task continues; the registry holds a strong reference to it
+            # (bound above) and tracks completion via mark_complete in
+            # run_agent_task's handlers. A new SSE connection to
+            # /runs/{run_id}/stream re-attaches with replay-then-live.
+            # POST /runs/{run_id}/stop is now the ONLY way to cancel work --
+            # implicit cancellation is gone by design.
             if not agent_task.done():
-                try:
-                    await asyncio.wait_for(agent_task, timeout=5.0)
-                except (asyncio.TimeoutError, Exception):
-                    agent_task.cancel()
+                logger.log(
+                    "INFO",
+                    "sse_disconnect_run_continues",
+                    f"SSE closed for run {_run_record.run_id}; run continues "
+                    f"in background (detached)",
+                    metadata={"run_id": _run_record.run_id},
+                )
 
     return StreamingResponse(
         event_generator(),
@@ -807,6 +985,356 @@ async def run_agent_code_stream(
     )
 
 
+@router.post("/agents/run-code/start", status_code=202)
+async def start_agent_run(
+    request: RunCodeRequest,
+    req: Request,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(get_current_user),
+    db: DatabaseService = Depends(get_db),
+    logger: ObservabilityService = Depends(get_logger),
+):
+    """Fire-and-forget agent run. Returns ``{run_id}`` immediately.
+
+    The agent executes in a background asyncio task registered with
+    RunRegistry. Clients subscribe via ``GET /runs/{run_id}/stream``
+    to receive trace events with replay-then-live semantics.
+    """
+    from services.run_registry import get_run_registry
+
+    registry = get_run_registry()
+    record = registry.new_record(
+        user_id=user.get("uid") or "anonymous",
+        agent_name=request.friendly_name or "sandbox_agent",
+    )
+
+    user_basic_info = {
+        "email": user.get("email"),
+        "name": user.get("name") or user.get("displayName"),
+    }
+
+    async def runner():
+        try:
+            result, ops_log = await _execute_agent_code(
+                code=request.code,
+                input_dict=request.input_dict,
+                tools=request.tools,
+                gofannon_agents=request.gofannon_agents,
+                db=db,
+                llm_settings=request.llm_settings,
+                user_id=user.get("uid"),
+                user_basic_info=user_basic_info,
+                agent_name=record.agent_name,
+                trace=record.trace,
+            )
+            warnings = validate_output_against_schema(result, request.output_schema)
+            registry.mark_complete(
+                record,
+                status="success",
+                result=result,
+                schema_warnings=warnings or None,
+                ops_log=ops_log or None,
+            )
+        except Exception as e:
+            logger.log(
+                "ERROR",
+                "run_failure",
+                f"Run {record.run_id} failed: {type(e).__name__}",
+                metadata={"traceback": traceback.format_exc()},
+            )
+            registry.mark_complete(
+                record,
+                status="error",
+                error=f"{type(e).__name__}: {e}",
+            )
+
+    task = asyncio.create_task(runner())
+    registry.bind_task(record, task)
+
+    return {"runId": record.run_id, "status": record.status}
+
+
+# A run that has appended no trace event for this long is treated as
+# abandoned by force_complete_run. Long enough that a slow LLM call
+# (the ASVS pipeline routinely runs 300-600s per call) is never
+# mistaken for a dead worker; short enough to be useful.
+STALE_RUN_SECONDS = 900
+
+
+class ForceCompleteRequest(BaseModel):
+    """Body for POST /runs/{run_id}/force-complete."""
+
+    force: bool = False
+
+
+def _run_idle_seconds(record) -> Optional[float]:
+    """Seconds since this run last appended a trace event.
+
+    Falls back to time since start when the run has produced no events
+    at all. Returns None if neither timestamp is usable, in which case
+    the caller treats staleness as unknown and allows the clear.
+    """
+    from datetime import datetime, timezone
+
+    def _age(ts):
+        if not ts:
+            return None
+        try:
+            if isinstance(ts, str):
+                ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            return (datetime.now(timezone.utc) - ts).total_seconds()
+        except Exception:
+            return None
+
+    events = list(getattr(record.trace, "events", []) or [])
+    for ev in reversed(events):
+        if isinstance(ev, dict):
+            age = _age(ev.get("timestamp") or ev.get("ts"))
+            if age is not None:
+                return age
+        break
+
+    return _age(getattr(record, "started_at", None))
+
+
+@router.get("/runs")
+async def list_runs(
+    user: dict = Depends(get_current_user),
+    agent_id: Optional[str] = None,
+):
+    """List the current user's recent runs (in-memory; up to 100).
+
+    Pass ``?agent_id=<id>`` to restrict to one agent — the per-agent
+    runs screen uses this so its past-runs list only shows that
+    agent's history rather than everything the user has ever run.
+    """
+    from services.run_registry import get_run_registry
+    registry = get_run_registry()
+    records = registry.list_for_user(user.get("uid") or "", agent_id=agent_id)
+    return {"runs": [r.to_summary() for r in records]}
+
+
+@router.get("/runs/{run_id}")
+async def get_run(run_id: str, user: dict = Depends(get_current_user)):
+    """Fetch a run's full state. Returns 404 if not found or not owned."""
+    from services.run_registry import get_run_registry
+    registry = get_run_registry()
+    record = registry.get(run_id)
+    if record is None or record.user_id != user.get("uid"):
+        # 404 not 403 — don't leak existence to non-owners.
+        raise HTTPException(status_code=404, detail="Run not found")
+    return record.to_full()
+
+
+@router.get("/runs/{run_id}/stream")
+async def stream_run(run_id: str, user: dict = Depends(get_current_user)):
+    """Subscribe to a run's trace events via SSE. Replay-then-live.
+
+    Sends every event already in ``record.trace.events`` first, then
+    transitions to live events from a per-subscriber queue. Emits a
+    final ``done`` frame when the run completes. Disconnecting does
+    NOT terminate the underlying run.
+    """
+    from services.run_registry import get_run_registry, DONE_SENTINEL
+    registry = get_run_registry()
+    record = registry.get(run_id)
+    if record is None or record.user_id != user.get("uid"):
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    queue: asyncio.Queue = asyncio.Queue()
+    record.trace.add_subscriber(queue, loop=asyncio.get_running_loop())
+
+    async def event_generator():
+        # 1. Emit the run_id as the first frame so clients can correlate.
+        yield f"event: run_id\ndata: {json.dumps({'runId': run_id})}\n\n"
+
+        # 2. Replay phase — snapshot the events list to avoid races with
+        #    appends from the running task. Each replayed event is sent
+        #    before we begin consuming the queue.
+        replay = list(record.trace.events)
+        for ev in replay:
+            yield f"event: trace\ndata: {json.dumps(ev, default=str)}\n\n"
+
+        # 3. If the run already finished, drain any "missed" tail from
+        #    the queue (the fanout might have placed events while we
+        #    were replaying), then emit done and exit.
+        if record.status != "running":
+            # Send any queued items that arrived during replay.
+            while not queue.empty():
+                item = queue.get_nowait()
+                if item is DONE_SENTINEL:
+                    break
+                yield f"event: trace\ndata: {json.dumps(item, default=str)}\n\n"
+            done_payload = json.dumps({
+                "outcome": record.status,
+                "result": record.result,
+                "error": record.error,
+                "schemaWarnings": record.schema_warnings,
+                "opsLog": record.ops_log,
+            })
+            yield f"event: done\ndata: {done_payload}\n\n"
+            return
+
+        # 4. Live phase — pull from the queue until DONE_SENTINEL.
+        try:
+            while True:
+                try:
+                    item = await asyncio.wait_for(queue.get(), timeout=10.0)
+                except asyncio.TimeoutError:
+                    yield ": heartbeat\n\n"
+                    continue
+                if item is DONE_SENTINEL:
+                    done_payload = json.dumps({
+                        "outcome": record.status,
+                        "result": record.result,
+                        "error": record.error,
+                        "schemaWarnings": record.schema_warnings,
+                        "opsLog": record.ops_log,
+                    })
+                    yield f"event: done\ndata: {done_payload}\n\n"
+                    return
+                yield f"event: trace\ndata: {json.dumps(item, default=str)}\n\n"
+        finally:
+            record.trace.remove_subscriber(queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@router.post("/runs/{run_id}/stop", status_code=202)
+async def stop_run(
+    run_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """Request cooperative stop of an in-flight run.
+
+    Sets the run's ``CancelToken``. The next structural boundary
+    inside the agent (LLM call, data-store op, gofannon-client call,
+    tool entry) raises ``AgentStopped`` and the run terminates with
+    status ``stopped``. In-flight LLM requests finish naturally;
+    cleanup handlers (``finally:`` blocks, ``httpx`` client closes)
+    run before exit.
+
+    Authorization: only the run's owner may stop it; widening to
+    workspace membership is a later change.
+    """
+    # cross-worker stop: the registry's request_stop
+    # method handles both the local-token-flip fast path (when this
+    # worker happens to own the run) and the CouchDB stop_requested
+    # write that the owning worker's polling task picks up.
+    from services.run_registry import get_run_registry
+    outcome = get_run_registry().request_stop(run_id, user.get("uid") or "")
+    if outcome == "not_found":
+        raise HTTPException(status_code=404, detail="Run not found or already complete")
+    if outcome == "forbidden":
+        # Match the pre-persistence behavior: don't leak existence of
+        # other users' runs via a 403.
+        raise HTTPException(status_code=404, detail="Run not found")
+    # outcome is one of 'flipped_local' or 'persisted_remote'. Both
+    # are success cases. The status text gives clients a hint about
+    # whether the stop will be immediate (local) or has a small
+    # polling-window latency (remote).
+    return {"runId": run_id, "status": "stopping", "via": outcome}
+
+
+@router.post("/runs/{run_id}/force-complete", status_code=200)
+async def force_complete_run(
+    run_id: str,
+    request: ForceCompleteRequest = None,
+    user: dict = Depends(get_current_user),
+    logger: ObservabilityService = Depends(get_logger),
+):
+    """Manually clear a run that is stuck in 'running'.
+
+    This is the escape hatch for orphaned records: a run whose owning
+    worker died (api container restart, OOM kill) leaves a row that says
+    'running' forever, because the task that would have called
+    mark_complete no longer exists. POST /stop cannot help -- it flips a
+    cancel token that nothing is left to observe.
+
+    SAFETY: refuses by default unless the run has been silent for at
+    least STALE_RUN_SECONDS. A healthy run appends trace events
+    continuously, so a recent event is strong evidence the pipeline is
+    alive and this is a misclick. Pass {"force": true} to override --
+    the UI does that only behind a second confirmation.
+
+    Marks the run 'error' rather than 'success': we do not know what the
+    pipeline produced, and recording an unverified success would poison
+    any downstream consumer that trusts the status field.
+    """
+    from services.run_registry import get_run_registry
+
+    registry = get_run_registry()
+    record = registry.get(run_id)
+    if record is None or record.user_id != (user.get("uid") or ""):
+        # Same 404-for-forbidden policy as stop_run: don't leak the
+        # existence of other users' runs.
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    if record.status != "running":
+        # Already terminal. Idempotent success so a double-click from the
+        # UI doesn't surface an error.
+        return {
+            "runId": run_id,
+            "status": record.status,
+            "changed": False,
+            "detail": "Run was already complete.",
+        }
+
+    force = bool(request.force) if request is not None else False
+    idle_seconds = _run_idle_seconds(record)
+
+    if not force and idle_seconds is not None and idle_seconds < STALE_RUN_SECONDS:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Run produced an event {int(idle_seconds)}s ago and looks "
+                f"alive. Use /runs/{run_id}/stop to cancel it, or retry with "
+                f'{{"force": true}} to clear it anyway.'
+            ),
+        )
+
+    # A live local task means this worker still owns a running pipeline.
+    # Clearing the record without cancelling would orphan real work that
+    # keeps consuming tokens, so cancel it too.
+    if record.task is not None and not record.task.done():
+        record.task.cancel()
+        logger.log(
+            "WARNING",
+            "force_complete_cancelled_live_task",
+            f"force-complete cancelled a still-live task for run {run_id}",
+            metadata={"run_id": run_id, "idle_seconds": idle_seconds},
+        )
+
+    registry.mark_complete(
+        record,
+        status="error",
+        error=(
+            "Manually cleared by user. The run was stuck in 'running' with "
+            f"no activity for {int(idle_seconds) if idle_seconds is not None else 'an unknown number of'} seconds; "
+            "its owning worker had most likely exited. Any work it completed "
+            "before being cleared is not reflected here."
+        ),
+    )
+    logger.log(
+        "user_action",
+        "run_force_completed",
+        f"Run {run_id} force-completed by user",
+        user_id=user.get("uid"),
+        metadata={"run_id": run_id, "idle_seconds": idle_seconds, "forced": force},
+    )
+    return {"runId": run_id, "status": "error", "changed": True}
+
+
 @router.post("/agents/run-code", response_model=RunCodeResponse)
 async def run_agent_code(
     request: RunCodeRequest,
@@ -816,7 +1344,7 @@ async def run_agent_code(
     logger: ObservabilityService = Depends(get_logger)
 ):
     """Executes agent code in a sandboxed environment."""
-    logger.log("INFO", "user_action", "Attempting to run agent code in sandbox.", metadata={"request": get_sanitized_request_data(req)})
+    logger.log("user_action", "Attempting to run agent code in sandbox.", user_id=user.get("uid"), metadata={"request": get_sanitized_request_data(req)})
     try:
         user_basic_info = {
             "email": user.get("email"),
@@ -842,6 +1370,7 @@ async def run_agent_code(
                 user_basic_info=user_basic_info,
                 agent_name=request.friendly_name or "sandbox_agent",
                 trace=trace,
+                env_vars=request.env_vars,
             )
         except Exception as _exc:
             logger.log(
@@ -865,7 +1394,7 @@ async def run_agent_code(
                 metadata={"warnings": schema_warnings}
             )
 
-        logger.log("INFO", "sandbox_run", "Agent code executed successfully.", metadata={"request": get_sanitized_request_data(req)})
+        logger.log("sandbox_run", "Agent code executed successfully.", user_id=user.get("uid"), metadata={"request": get_sanitized_request_data(req)})
         return RunCodeResponse(
             result=result,
             schema_warnings=schema_warnings or None,
@@ -907,6 +1436,146 @@ async def run_deployed_agent_route(
     )
 
 
+@router.post("/rest/{friendly_name}/start", status_code=202)
+async def start_deployed_agent_run(
+    friendly_name: str,
+    request: Request,
+    user: dict = Depends(get_current_user),
+    db: DatabaseService = Depends(get_db),
+    logger: ObservabilityService = Depends(get_logger),
+):
+    """Run a DEPLOYED agent by friendly_name, detached. Returns ``{runId}``.
+
+    This is the pairing of the two halves that already existed separately:
+
+      * ``POST /rest/{friendly_name}`` has the right STATE model -- it loads
+        code, tools, gofannon_agents and env_vars from the stored agent
+        record, so the caller sends only inputs. But it awaits the result
+        inline, which for a multi-hour pipeline means holding one HTTP
+        connection open with no runId, no trace, and no way to stop it.
+
+      * ``POST /agents/run-code/start`` has the right EXECUTION model --
+        registry record, background task, replay-then-live streaming,
+        stoppable -- but takes code and env_vars as a request payload, so
+        every caller re-sends the agent (and its secrets) on every run.
+
+    This endpoint loads from the record AND registers the run, so
+    /runs/{runId}/stream and /runs/{runId}/stop work on it for free.
+
+    Body is the agent's input_dict, exactly as for the synchronous route:
+
+        POST /rest/asvs_orchestrate/start
+        {"sourceRepo": "apache/apisix", "level": "L3", ...}
+
+    Secrets that are genuinely per-run (source/output tokens) still travel
+    in the body. Everything configured on the agent -- API keys, model
+    tiers, timeouts -- does not.
+    """
+    from services.log_redaction import redact_in_place
+    from services.run_registry import get_run_registry
+
+    input_dict = await request.json()
+    if not isinstance(input_dict, dict):
+        raise HTTPException(status_code=400, detail="Body must be a JSON object")
+
+    # Resolve the deployment BEFORE registering a run, so an unknown
+    # friendly_name is a clean 404 rather than a run that instantly fails.
+    try:
+        deployment_doc = db.get("deployments", friendly_name)
+        agent_id = deployment_doc["agentId"]
+        agent_data = db.get("agents", agent_id)
+        agent = Agent(**agent_data)
+    except HTTPException as e:
+        if e.status_code == 404:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No deployed agent named '{friendly_name}'. "
+                       f"Deploy it first via POST /agents/{{agent_id}}/deploy.",
+            )
+        raise
+    except KeyError:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Deployment '{friendly_name}' has no agentId; record is malformed.",
+        )
+
+    registry = get_run_registry()
+    record = registry.new_record(
+        user_id=user.get("uid") or "anonymous",
+        agent_name=friendly_name,
+        agent_id=agent_id,
+        # The registry persists input_dict to CouchDB verbatim and returns it
+        # from GET /runs/{run_id}, so the raw dict would write live tokens to
+        # the database. redact_in_place() is the same filter agent_trace and
+        # observability_service already use -- it matches on token SHAPE
+        # (github_pat_, sk-ant-, AKIA..., JWT triplets, secret-shaped k=v)
+        # rather than on key name, so it catches a credential wherever it sits.
+        # copy.deepcopy first: the function mutates dicts in place, and the
+        # agent below needs the unredacted inputs.
+        input_dict=redact_in_place(copy.deepcopy(input_dict)),
+    )
+
+    user_basic_info = {
+        "email": user.get("email"),
+        "name": user.get("name") or user.get("displayName"),
+    }
+
+    async def runner():
+        try:
+            result, ops_log = await _execute_agent_code(
+                code=agent.code,
+                input_dict=input_dict,
+                tools=agent.tools,
+                gofannon_agents=agent.gofannon_agents,
+                db=db,
+                user_id=user.get("uid"),
+                user_basic_info=user_basic_info,
+                env_vars=getattr(agent, "env_vars", []),
+                agent_name=friendly_name,
+                trace=record.trace,
+            )
+            warnings = validate_output_against_schema(
+                result, getattr(agent, "output_schema", None)
+            )
+            registry.mark_complete(
+                record,
+                status="success",
+                result=result,
+                schema_warnings=warnings or None,
+                ops_log=ops_log or None,
+            )
+        except Exception as e:
+            logger.log(
+                "ERROR",
+                "deployed_run_failure",
+                f"Deployed run {record.run_id} ({friendly_name}) failed: {type(e).__name__}",
+                metadata={"traceback": traceback.format_exc(),
+                          "run_id": record.run_id,
+                          "friendly_name": friendly_name},
+            )
+            registry.mark_complete(
+                record,
+                status="error",
+                error=f"{type(e).__name__}: {e}",
+            )
+
+    task = asyncio.create_task(runner())
+    # Strong reference; see the note at the streaming endpoint. Without this
+    # the task is GC-eligible as soon as this handler returns.
+    registry.bind_task(record, task)
+
+    logger.log(
+        "user_action",
+        "deployed_run_started",
+        f"Started deployed agent '{friendly_name}' as run {record.run_id}",
+        user_id=user.get("uid"),
+        metadata={"run_id": record.run_id, "friendly_name": friendly_name,
+                  "agent_id": agent_id},
+    )
+    return {"runId": record.run_id, "status": record.status,
+            "agentId": agent_id, "friendlyName": friendly_name}
+
+
 @router.post("/demos/generate-code", response_model=GenerateDemoCodeResponse)
 async def generate_demo_app_code(request: GenerateDemoCodeRequest, user: dict = Depends(get_current_user)):
     """
@@ -940,9 +1609,9 @@ async def create_demo_app(request: CreateDemoAppRequest, db: DatabaseService = D
 
 
 @router.get("/demos", response_model=List[DemoApp])
-async def list_demo_apps(db: DatabaseService = Depends(get_db), user: dict = Depends(get_current_user)):
+async def list_demo_apps(db = Depends(get_async_db), user: dict = Depends(get_current_user)):
     """Lists all saved demo apps."""
-    all_docs = db.list_all("demos")
+    all_docs = await db.list_all("demos")
     return [DemoApp(**doc) for doc in all_docs]
 
 
@@ -1022,14 +1691,14 @@ def _namespace_stats_from_docs(docs: List[Dict[str, Any]]) -> Dict[str, Dict[str
 
 @router.get("/data-store/namespaces", response_model=NamespaceListResponse)
 async def list_data_store_namespaces(
-    db: DatabaseService = Depends(get_db),
+    db = Depends(get_async_db),
     user: dict = Depends(get_current_user),
 ):
     """List every namespace with aggregate stats for the current user."""
     user_id = user.get("uid", "anonymous")
     # list_all + filter: simpler than adding a new service method, and
     # record counts are typically small. Could move to indexed query later.
-    all_docs = db.find("agent_data_store", {"userId": user_id})
+    all_docs = await db.find("agent_data_store", {"userId": user_id})
     stats_map = _namespace_stats_from_docs(all_docs)
     namespaces = [
         NamespaceStats(namespace=ns, **data)

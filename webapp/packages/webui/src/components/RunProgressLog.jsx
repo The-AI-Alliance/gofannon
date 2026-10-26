@@ -31,6 +31,7 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import CloseIcon from '@mui/icons-material/Close';
 import PropTypes from 'prop-types';
+import { parseServerDate } from '../utils/serverTime';
 
 // ---------------------------------------------------------------------
 // Helpers
@@ -39,7 +40,10 @@ import PropTypes from 'prop-types';
 const formatTime = (iso) => {
   if (!iso) return '';
   try {
-    return new Date(iso).toLocaleTimeString([], { hour12: false });
+    // parseServerDate, not new Date(): the API emits NAIVE UTC, which a raw
+    // parse reads as local time.
+    const d = parseServerDate(iso);
+    return d ? d.toLocaleTimeString([], { hour12: false }) : '';
   } catch {
     return iso;
   }

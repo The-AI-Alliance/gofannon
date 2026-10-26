@@ -13,6 +13,7 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import StorageIcon from '@mui/icons-material/Storage';
+import { parseServerDate } from '../utils/serverTime';
 
 // Classify each op into a coarse read/write bucket for the chip color.
 // Writes (set/delete/clear) are salient; reads (get/list) are neutral.
@@ -33,7 +34,10 @@ const categoryStyle = {
 // if we can't parse.
 const fmtTime = (iso) => {
   if (!iso) return '';
-  const d = new Date(iso);
+  // parseServerDate, not new Date(): the API emits NAIVE UTC, which a raw
+  // parse reads as local time.
+  const d = parseServerDate(iso);
+  if (!d) return '';
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleTimeString([], { hour12: false });
 };
