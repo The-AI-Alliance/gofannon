@@ -35,6 +35,8 @@ def mock_db():
     db = Mock()
 
     def _find(db_name, selector, fields=None, limit=10000):
+        # Mirror base.find: limit=None means unbounded (the service now
+        # passes limit=None for namespace-spanning reads).
         all_docs = db.list_all(db_name)
         results = []
         for doc in all_docs:
@@ -43,7 +45,7 @@ def mock_db():
                     results.append({f: doc.get(f) for f in fields})
                 else:
                     results.append(doc)
-                if len(results) >= limit:
+                if limit is not None and len(results) >= limit:
                     break
         return results
 
@@ -379,6 +381,7 @@ class TestIndexedQueries:
             DATA_STORE_DB,
             {"userId": "user-123", "namespace": "default"},
             fields=["key"],
+            limit=None,
         )
 
     def test_list_namespaces_uses_find(self, data_store_service, mock_db):
@@ -393,6 +396,7 @@ class TestIndexedQueries:
             DATA_STORE_DB,
             {"userId": "user-123"},
             fields=["namespace"],
+            limit=None,
         )
 
     def test_list_keys_find_returns_projected_docs(self, mock_db):
@@ -463,9 +467,13 @@ class TestGetAll:
 
         data_store_service.get_all("user-123", "files:repo")
 
+        # get_all now passes limit=None so a namespace with >10k docs is
+        # returned in full (paginated by the real CouchDB backend) rather
+        # than silently capped at the old 10000 default.
         mock_db.find.assert_called_once_with(
             DATA_STORE_DB,
             {"userId": "user-123", "namespace": "files:repo"},
+            limit=None,
         )
 
     def test_get_all_updates_access_metadata(self, data_store_service, mock_db):
