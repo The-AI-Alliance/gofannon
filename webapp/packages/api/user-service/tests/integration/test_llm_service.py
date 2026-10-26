@@ -47,13 +47,13 @@ async def test_call_llm_openai_integration():
 
 
 @pytest.mark.asyncio
-async def test_call_llm_anthropic_integration():
-    """Test call_llm with Anthropic provider."""
-    _skip_if_missing_api_key("anthropic")
+async def test_call_llm_bedrock_integration():
+    """Test call_llm with a small Bedrock model."""
+    _skip_if_missing_api_key("bedrock")
 
     content, thoughts = await llm_service.call_llm(
-        provider="anthropic",
-        model="claude-3-haiku-20240307",
+        provider="bedrock",
+        model="us.anthropic.claude-haiku-4-5-20251001-v1:0",
         messages=[{"role": "user", "content": "Say 'hello' and nothing else."}],
         parameters={"temperature": 0, "max_tokens": 10},
         user_service=None,

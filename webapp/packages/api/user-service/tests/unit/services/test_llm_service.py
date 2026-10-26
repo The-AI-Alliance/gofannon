@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from config.provider_config import PROVIDER_CONFIG
 from services import llm_service
 
 
@@ -534,3 +535,237 @@ class TestBedrockProvider:
 
         assert call_kwargs["temperature"] == 0.7
         assert call_kwargs["max_tokens"] == 1000
+
+class TestThinkingStyle:
+    """_thinking_style() resolves how a model is told to reason, from config.
+
+    Replaces TestIsOpus47OrLater. The adaptive shape used to be decided by
+    substring-matching the model string; it is now declared per model as
+    thinking_style, with a derived default that reproduces the old behavior
+    for every model that does not declare one.
+    """
+
+    SELFHOSTED = {"api_base_env_var": "SELFHOSTED_API_BASE"}
+    PLAIN = {}
+
+    def test_explicit_style_wins(self):
+        for style in llm_service.THINKING_STYLES:
+            assert llm_service._thinking_style(self.PLAIN, {"thinking_style": style}) == style
+
+    def test_explicit_style_wins_over_the_selfhosted_derivation(self):
+        mc = {"supports_thinking": True, "thinking_style": "none"}
+        assert llm_service._thinking_style(self.SELFHOSTED, mc) == "none"
+
+    def test_selfhosted_gate_is_derived_from_api_base_env_var(self):
+        """The inline gate that used to sit in call_llm and stream_llm."""
+        assert llm_service._thinking_style(self.SELFHOSTED, {"supports_thinking": True}) == "enable_thinking"
+
+    def test_supports_thinking_alone_does_not_mean_enable_thinking(self):
+        """Bedrock Claude models set supports_thinking too. Attaching
+        extra_body to them 400s every call on Converse (2026-07-23)."""
+        assert llm_service._thinking_style(self.PLAIN, {"supports_thinking": True}) == "reasoning_effort"
+
+    def test_api_base_without_supports_thinking_is_not_enable_thinking(self):
+        assert llm_service._thinking_style(self.SELFHOSTED, {}) == "reasoning_effort"
+
+    def test_default_is_reasoning_effort_regardless_of_supports_effort(self):
+        """reasoning_effort has always been passed through for every
+        non-adaptive model; litellm decides per model whether it survives.
+        Keying the default on supports_effort would stop sending it to e.g.
+        Sonnet and Haiku (supports_effort=False) -- a behavior change."""
+        assert llm_service._thinking_style(self.PLAIN, {"supports_effort": False}) == "reasoning_effort"
+        assert llm_service._thinking_style(self.PLAIN, {"supports_effort": True}) == "reasoning_effort"
+
+    def test_unknown_style_raises(self):
+        """A config typo must fail loudly, not fall back to a working-looking default."""
+        with pytest.raises(ValueError, match="unknown thinking_style"):
+            llm_service._thinking_style(self.PLAIN, {"thinking_style": "adaptiv"})
+
+    def test_the_name_no_longer_decides_anything(self):
+        """An Opus-4.8-looking model string with no config entry is just an
+        unknown model. The substring match is gone."""
+        assert llm_service._thinking_style(self.PLAIN, {}) == "reasoning_effort"
+        assert not hasattr(llm_service, "_is_opus_4_7_or_later")
+
+    def test_config_reproduces_the_old_name_match_exactly(self):
+        """Parity with the removed code, for every configured model.
+
+        The old decision was: selfhosted gate first, then the name match on
+        claude-opus-4-7 / -4-8 / -5, else reasoning_effort.
+        If a model is added to config that the old match would have caught
+        (or vice versa) this fails, which is the point: declare
+        thinking_style on it deliberately.
+        """
+        def old(provider_cfg, model, mc):
+            if provider_cfg.get("api_base_env_var") and mc.get("supports_thinking"):
+                return "enable_thinking"
+            if any(
+                t in model for t in ("claude-opus-4-7", "claude-opus-4-8", "claude-opus-5")
+            ):
+                return "adaptive"
+            return "reasoning_effort"
+
+        mismatches = [
+            (p, m, old(cfg, m, mc), llm_service._thinking_style(cfg, mc))
+            for p, cfg in PROVIDER_CONFIG.items()
+            for m, mc in cfg.get("models", {}).items()
+            if old(cfg, m, mc) != llm_service._thinking_style(cfg, mc)
+        ]
+        assert not mismatches, mismatches
+
+
+class TestCallLlmAdaptiveThinkingKwargs:
+    """Verify the kwargs that reach litellm.acompletion when reasoning_effort
+    is set on Opus 4.7+ vs. older models. Locks in the parameter-shape
+    contract that Bedrock's converse API enforces."""
+
+    @pytest.fixture
+    def captured(self):
+        """Holds the kwargs the fake acompletion saw, for assertion."""
+        return {}
+
+    @pytest.fixture
+    def patched_llm(self, monkeypatch, captured):
+        async def capturing_acompletion(**kwargs):
+            captured.update(kwargs)
+            return _DummyResponse("ok", total_cost=0.0)
+        monkeypatch.setattr(llm_service.litellm, "acompletion", capturing_acompletion)
+        monkeypatch.setattr(llm_service, "get_observability_service", lambda: Mock())
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("model,effort", [
+        ("us.anthropic.claude-opus-4-7", "low"),
+        ("us.anthropic.claude-opus-4-7", "medium"),
+        ("us.anthropic.claude-opus-4-7", "high"),
+        ("us.anthropic.claude-opus-4-7", "xhigh"),
+        ("us.anthropic.claude-opus-4-7", "max"),
+        ("us.anthropic.claude-opus-4-8", "high"),
+    ])
+    async def test_opus_4_7_plus_with_effort_uses_adaptive_thinking(
+        self, patched_llm, captured, model, effort,
+    ):
+        """For Opus 4.7+, reasoning_effort must be translated into
+        thinking={"type":"adaptive"} and output_config={"effort":...}
+        before litellm sees the call. The legacy `reasoning_effort`
+        kwarg must NOT be passed through, otherwise litellm's internal
+        translation re-injects the rejected thinking.type.enabled shape."""
+        await llm_service.call_llm(
+            provider="bedrock",
+            model=model,
+            messages=[{"role": "user", "content": "hi"}],
+            parameters={"reasoning_effort": effort},
+            user_service=Mock(),
+            user_id="user-1",
+        )
+        assert captured.get("thinking") == {"type": "adaptive"}
+        assert captured.get("output_config") == {"effort": effort}
+        assert "reasoning_effort" not in captured, (
+            "reasoning_effort must be stripped on 4.7+; if it leaks "
+            "through, litellm re-translates it to thinking.type.enabled "
+            "and Bedrock 400s."
+        )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("model", [
+        "us.anthropic.claude-opus-4-6-v1",
+        "us.anthropic.claude-opus-4-5-20251101-v1:0",
+        "us.anthropic.claude-opus-4-1-20250805-v1:0",
+        "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    ])
+    async def test_older_models_pass_reasoning_effort_through(
+        self, patched_llm, captured, model,
+    ):
+        """4.6 and earlier (and all non-Opus Claudes) keep the legacy
+        path: reasoning_effort passes through to litellm unchanged, and
+        no adaptive-thinking params are set."""
+        await llm_service.call_llm(
+            provider="bedrock",
+            model=model,
+            messages=[{"role": "user", "content": "hi"}],
+            parameters={"reasoning_effort": "high"},
+            user_service=Mock(),
+            user_id="user-1",
+        )
+        assert captured.get("reasoning_effort") == "high"
+        assert "thinking" not in captured
+        assert "output_config" not in captured
+
+    @pytest.mark.asyncio
+    async def test_opus_4_8_with_disable_sets_no_thinking_params(
+        self, patched_llm, captured,
+    ):
+        """reasoning_effort='disable' must skip BOTH branches — no
+        thinking dict, no output_config, no reasoning_effort kwarg.
+        Otherwise the model thinks when the caller asked it not to."""
+        await llm_service.call_llm(
+            provider="bedrock",
+            model="us.anthropic.claude-opus-4-8",
+            messages=[{"role": "user", "content": "hi"}],
+            parameters={"reasoning_effort": "disable"},
+            user_service=Mock(),
+            user_id="user-1",
+        )
+        assert "thinking" not in captured
+        assert "output_config" not in captured
+        assert "reasoning_effort" not in captured
+
+    @pytest.mark.asyncio
+    async def test_opus_4_8_without_reasoning_effort_parameter(
+        self, patched_llm, captured,
+    ):
+        """When reasoning_effort isn't supplied at all (no key in the
+        parameters dict), behavior should match 'disable' — no thinking
+        params injected."""
+        await llm_service.call_llm(
+            provider="bedrock",
+            model="us.anthropic.claude-opus-4-8",
+            messages=[{"role": "user", "content": "hi"}],
+            parameters={},
+            user_service=Mock(),
+            user_id="user-1",
+        )
+        assert "thinking" not in captured
+        assert "output_config" not in captured
+        assert "reasoning_effort" not in captured
+    @pytest.mark.asyncio
+
+    async def test_style_none_sends_no_reasoning_parameter(
+        self, patched_llm, captured, monkeypatch,
+    ):
+        """"none" is the opt-out: nothing reaches litellm even when a tier asks
+        for reasoning."""
+        model = "us.anthropic.claude-sonnet-4-6"
+        entry = dict(PROVIDER_CONFIG["bedrock"]["models"][model], thinking_style="none")
+        monkeypatch.setitem(PROVIDER_CONFIG["bedrock"]["models"], model, entry)
+        await llm_service.call_llm(
+            provider="bedrock",
+            model=model,
+            messages=[{"role": "user", "content": "hi"}],
+            parameters={"reasoning_effort": "high"},
+            user_service=Mock(),
+            user_id="user-1",
+        )
+        assert "thinking" not in captured
+        assert "output_config" not in captured
+        assert "reasoning_effort" not in captured
+        assert "extra_body" not in captured
+
+    @pytest.mark.asyncio
+    async def test_unconfigured_opus_looking_string_takes_the_default(
+        self, patched_llm, captured,
+    ):
+        """Behavior change, deliberately: a model string that is NOT a config
+        key used to get the adaptive shape if it contained "claude-opus-4-8".
+        Capabilities now come from config, so an unknown string gets the
+        default. Adding a model means declaring its thinking_style."""
+        await llm_service.call_llm(
+            provider="bedrock",
+            model="us.anthropic.claude-opus-4-8-not-in-config",
+            messages=[{"role": "user", "content": "hi"}],
+            parameters={"reasoning_effort": "high"},
+            user_service=Mock(),
+            user_id="user-1",
+        )
+        assert captured.get("reasoning_effort") == "high"
+        assert "thinking" not in captured

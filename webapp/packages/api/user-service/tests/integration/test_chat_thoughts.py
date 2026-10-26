@@ -30,7 +30,7 @@ def _wait_for_ticket(client: TestClient, ticket_id: str, attempts: int = 5) -> d
     ("provider", "model"),
     [
         ("openai", "gpt-5"),
-        ("anthropic", "claude-opus-4-5-20251101"),
+        ("bedrock", "us.anthropic.claude-opus-4-5-v1:0"),
         ("gemini", "gemini-2.5-pro"),
     ],
 )

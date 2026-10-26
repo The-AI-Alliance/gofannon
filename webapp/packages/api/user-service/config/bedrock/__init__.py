@@ -8,12 +8,162 @@
 
 models = {
     # =========================================================================
+    # Anthropic Claude Opus 5 (Bedrock)
+    # 1M token context, 128K max output. Adaptive thinking format:
+    #   thinking={"type":"adaptive"}, output_config={"effort":"high"}
+    # NOT the legacy thinking={"type":"enabled","budget_tokens":N} shape.
+    # llm_service.py branches on the model string to send the right format.
+    # =========================================================================
+    "us.anthropic.claude-opus-5": {
+        "returns_thoughts": True,
+        "supports_effort": True,
+        "supports_thinking": True,
+        # Anthropic rejects temperature + thinking (HTTP 400) except 1.0.
+        "rejects_temperature_with_thinking": True,
+        "supports_prompt_caching": True,
+        # Adaptive thinking: thinking={"type":"adaptive"} + output_config.effort.
+        # This model rejects the legacy thinking.type.enabled shape.
+        "thinking_style": "adaptive",
+        "context_window": 1000000,
+        "parameters": {
+            "temperature": {
+                "type": "float",
+                "default": 1.0,
+                "min": 0.0,
+                "max": 1.0,
+                "description": "Randomness (0=focused, 1=creative). Locked to 1.0 when thinking enabled.",
+                "mutually_exclusive_with": ["top_p"]
+            },
+            "top_p": {
+                "type": "float",
+                "default": 0.9,
+                "min": 0.0,
+                "max": 1.0,
+                "description": "Nucleus sampling (0.1=conservative, 0.95=diverse)",
+                "mutually_exclusive_with": ["temperature"]
+            },
+            "reasoning_effort": {
+                "type": "choice",
+                "default": "disable",
+                "choices": ["disable", "low", "medium", "high", "xhigh", "max"],
+                "description": "Reasoning Effort: Enables extended thinking. xhigh/max are Opus 4.7+ only."
+            },
+            "max_tokens": {
+                "type": "integer",
+                "default": 16384,
+                "min": 1,
+                "max": 128000,
+                "description": "Maximum tokens in response"
+            },
+        }
+    },
+    # =========================================================================
+    # Anthropic Claude Opus 4.8 (Bedrock)
+    # 1M token context, 128K max output. Adaptive thinking format:
+    #   thinking={"type":"adaptive"}, output_config={"effort":"high"}
+    # NOT the legacy thinking={"type":"enabled","budget_tokens":N} shape.
+    # llm_service.py branches on the model string to send the right format.
+    # =========================================================================
+    "us.anthropic.claude-opus-4-8": {
+        "returns_thoughts": True,
+        "supports_effort": True,
+        "supports_thinking": True,
+        # Anthropic rejects temperature + thinking (HTTP 400) except 1.0.
+        "rejects_temperature_with_thinking": True,
+        "supports_prompt_caching": True,
+        # Adaptive thinking: thinking={"type":"adaptive"} + output_config.effort.
+        # This model rejects the legacy thinking.type.enabled shape.
+        "thinking_style": "adaptive",
+        "context_window": 1000000,
+        "parameters": {
+            "temperature": {
+                "type": "float",
+                "default": 1.0,
+                "min": 0.0,
+                "max": 1.0,
+                "description": "Randomness (0=focused, 1=creative). Locked to 1.0 when thinking enabled.",
+                "mutually_exclusive_with": ["top_p"]
+            },
+            "top_p": {
+                "type": "float",
+                "default": 0.9,
+                "min": 0.0,
+                "max": 1.0,
+                "description": "Nucleus sampling (0.1=conservative, 0.95=diverse)",
+                "mutually_exclusive_with": ["temperature"]
+            },
+            "reasoning_effort": {
+                "type": "choice",
+                "default": "disable",
+                "choices": ["disable", "low", "medium", "high", "xhigh", "max"],
+                "description": "Reasoning Effort: Enables extended thinking. xhigh/max are Opus 4.7+ only."
+            },
+            "max_tokens": {
+                "type": "integer",
+                "default": 16384,
+                "min": 1,
+                "max": 128000,
+                "description": "Maximum tokens in response"
+            },
+        }
+    },
+    # =========================================================================
+    # Anthropic Claude Opus 4.7 (Bedrock)
+    # Same 1M context / 128K output / adaptive thinking as 4.8.
+    # =========================================================================
+    "us.anthropic.claude-opus-4-7": {
+        "returns_thoughts": True,
+        "supports_effort": True,
+        "supports_thinking": True,
+        # Anthropic rejects temperature + thinking (HTTP 400) except 1.0.
+        "rejects_temperature_with_thinking": True,
+        "supports_prompt_caching": True,
+        # Adaptive thinking: thinking={"type":"adaptive"} + output_config.effort.
+        # This model rejects the legacy thinking.type.enabled shape.
+        "thinking_style": "adaptive",
+        "context_window": 1000000,
+        "parameters": {
+            "temperature": {
+                "type": "float",
+                "default": 1.0,
+                "min": 0.0,
+                "max": 1.0,
+                "description": "Randomness (0=focused, 1=creative). Locked to 1.0 when thinking enabled.",
+                "mutually_exclusive_with": ["top_p"]
+            },
+            "top_p": {
+                "type": "float",
+                "default": 0.9,
+                "min": 0.0,
+                "max": 1.0,
+                "description": "Nucleus sampling (0.1=conservative, 0.95=diverse)",
+                "mutually_exclusive_with": ["temperature"]
+            },
+            "reasoning_effort": {
+                "type": "choice",
+                "default": "disable",
+                "choices": ["disable", "low", "medium", "high", "xhigh", "max"],
+                "description": "Reasoning Effort: Enables extended thinking. xhigh/max are Opus 4.7+ only."
+            },
+            "max_tokens": {
+                "type": "integer",
+                "default": 16384,
+                "min": 1,
+                "max": 128000,
+                "description": "Maximum tokens in response"
+            },
+        }
+    },
+    # =========================================================================
     # Anthropic Claude Opus 4.6 (Bedrock)
     # =========================================================================
     "us.anthropic.claude-opus-4-6-v1": {
         "returns_thoughts": True,
         "supports_effort": True,
         "supports_thinking": True,
+        # Anthropic rejects temperature + thinking (HTTP 400) except 1.0.
+        "rejects_temperature_with_thinking": True,
+        "supports_prompt_caching": True,
         "context_window": 200000,
         "parameters": {
             "temperature": {
@@ -54,7 +204,50 @@ models = {
         "returns_thoughts": True,
         "supports_effort": True,
         "supports_thinking": True,
+        # Anthropic rejects temperature + thinking (HTTP 400) except 1.0.
+        "rejects_temperature_with_thinking": True,
+        "supports_prompt_caching": True,
         "context_window": 200000,
+        "parameters": {
+            "temperature": {
+                "type": "float",
+                "default": 1.0,
+                "min": 0.0,
+                "max": 1.0,
+                "description": "Randomness (0=focused, 1=creative). Locked to 1.0 when thinking enabled.",
+                "mutually_exclusive_with": ["top_p"]
+            },
+            "top_p": {
+                "type": "float",
+                "default": 0.9,
+                "min": 0.0,
+                "max": 1.0,
+                "description": "Nucleus sampling (0.1=conservative, 0.95=diverse)",
+                "mutually_exclusive_with": ["temperature"]
+            },
+            "reasoning_effort": {
+                "type": "choice",
+                "default": "disable",
+                "choices": ["disable", "low", "medium", "high"],
+                "description": "Reasoning Effort: Enables extended thinking and controls effort level"
+            },
+            "max_tokens": {
+                "type": "integer",
+                "default": 16384,
+                "min": 1,
+                "max": 64000,
+                "description": "Maximum tokens in response"
+            },
+        }
+    },
+    "us.anthropic.claude-sonnet-4-6": {
+        "returns_thoughts": True,
+        "supports_effort": False,
+        "supports_thinking": True,
+        # Anthropic rejects temperature + thinking (HTTP 400) except 1.0.
+        "rejects_temperature_with_thinking": True,
+        "supports_prompt_caching": True,
+        "context_window": 1000000,
         "parameters": {
             "temperature": {
                 "type": "float",
@@ -91,6 +284,9 @@ models = {
         "returns_thoughts": True,
         "supports_effort": False,
         "supports_thinking": True,
+        # Anthropic rejects temperature + thinking (HTTP 400) except 1.0.
+        "rejects_temperature_with_thinking": True,
+        "supports_prompt_caching": True,
         "context_window": 200000,
         "parameters": {
             "temperature": {
@@ -128,6 +324,9 @@ models = {
         "returns_thoughts": True,
         "supports_effort": False,
         "supports_thinking": True,
+        # Anthropic rejects temperature + thinking (HTTP 400) except 1.0.
+        "rejects_temperature_with_thinking": True,
+        "supports_prompt_caching": True,
         "context_window": 200000,
         "parameters": {
             "temperature": {
@@ -171,6 +370,9 @@ models = {
         "returns_thoughts": True,
         "supports_effort": False,
         "supports_thinking": True,
+        # Anthropic rejects temperature + thinking (HTTP 400) except 1.0.
+        "rejects_temperature_with_thinking": True,
+        "supports_prompt_caching": True,
         "context_window": 200000,
         "parameters": {
             "temperature": {
@@ -208,6 +410,9 @@ models = {
         "returns_thoughts": True,
         "supports_effort": False,
         "supports_thinking": True,
+        # Anthropic rejects temperature + thinking (HTTP 400) except 1.0.
+        "rejects_temperature_with_thinking": True,
+        "supports_prompt_caching": True,
         "context_window": 200000,
         "parameters": {
             "temperature": {
@@ -249,6 +454,7 @@ models = {
         "returns_thoughts": False,
         "supports_effort": False,
         "supports_thinking": False,
+        "supports_prompt_caching": True,
         "context_window": 200000,
         "parameters": {
             "temperature": {
@@ -280,6 +486,7 @@ models = {
         "returns_thoughts": False,
         "supports_effort": False,
         "supports_thinking": False,
+        "supports_prompt_caching": True,
         "context_window": 200000,
         "parameters": {
             "temperature": {
