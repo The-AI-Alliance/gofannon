@@ -31,11 +31,15 @@ import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import StopCircleIcon from '@mui/icons-material/StopCircle';
 import ReplayIcon from '@mui/icons-material/Replay';
 import PropTypes from 'prop-types';
+import { parseServerDate } from '../utils/serverTime';
 
 // Relative-time formatting. Cheap, no dep on a date library.
 const formatRelative = (iso) => {
   if (!iso) return '';
-  const ts = new Date(iso).getTime();
+  // parseServerDate, not new Date(): the API emits NAIVE UTC, which a raw
+  // parse reads as local time -- runs appeared to start hours in the future.
+  const parsed = parseServerDate(iso);
+  const ts = parsed ? parsed.getTime() : NaN;
   if (!Number.isFinite(ts)) return '';
   const delta = Math.max(0, Date.now() - ts);
   const sec = Math.floor(delta / 1000);
@@ -47,7 +51,7 @@ const formatRelative = (iso) => {
   if (hr < 24) return `${hr} hr ago`;
   const day = Math.floor(hr / 24);
   if (day < 7) return `${day} day${day === 1 ? '' : 's'} ago`;
-  return new Date(iso).toLocaleDateString();
+  return parsed.toLocaleDateString();
 };
 
 const formatDuration = (ms) => {
