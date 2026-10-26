@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from pydantic.config import ConfigDict
 
 from .workspace import WorkspaceMembership
+from time_utils import naive_utc_now
 
 
 class Session(BaseModel):
@@ -48,12 +49,12 @@ class Session(BaseModel):
     is_site_admin: bool = Field(default=False, alias="isSiteAdmin")
 
     # Timestamps.
-    created_at: datetime = Field(default_factory=datetime.utcnow, alias="createdAt")
-    updated_at: datetime = Field(default_factory=datetime.utcnow, alias="updatedAt")
+    created_at: datetime = Field(default_factory=naive_utc_now, alias="createdAt")
+    updated_at: datetime = Field(default_factory=naive_utc_now, alias="updatedAt")
     expires_at: datetime = Field(..., alias="expiresAt")
     # The last time we re-queried the provider for workspace memberships.
     # The background refresher uses this to decide whether it needs to run.
-    last_refresh_at: datetime = Field(default_factory=datetime.utcnow, alias="lastRefreshAt")
+    last_refresh_at: datetime = Field(default_factory=naive_utc_now, alias="lastRefreshAt")
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 

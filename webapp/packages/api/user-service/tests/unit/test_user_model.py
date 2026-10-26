@@ -4,6 +4,7 @@ from datetime import datetime
 from pydantic import ValidationError
 
 from models.user import User, UsageEntry, UsageInfo, BillingInfo, BasicInfo, ApiKeys
+from time_utils import naive_utc_now
 
 
 pytestmark = pytest.mark.unit
@@ -200,7 +201,7 @@ class TestUser:
 
     def test_user_creation_full(self):
         """Test creating a User with all fields."""
-        now = datetime.utcnow()
+        now = naive_utc_now()
         user = User(
             _id="test-user-123",
             _rev="test-rev",

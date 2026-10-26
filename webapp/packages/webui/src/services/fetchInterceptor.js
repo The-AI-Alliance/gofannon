@@ -45,7 +45,33 @@ function installFetchInterceptor() {
     if (apiMatches(input) && init.credentials === undefined) {
       init = { ...init, credentials: 'include' };
     }
-    return originalFetch(input, init);
+    const resp = await originalFetch(input, init);
+
+    // surface session expiry as a global event so a top-level
+    // AuthExpiryModal can react. Distinguish session_expired (had a
+    // cookie, server rejected it) from not_authenticated (never had one)
+    // -- only session_expired warrants the modal. Genuinely-anonymous
+    // accidental requests should still produce a normal error.
+    if (
+      resp &&
+      resp.status === 401 &&
+      apiMatches(input) &&
+      typeof window !== 'undefined' &&
+      typeof window.dispatchEvent === 'function'
+    ) {
+      const reason = resp.headers && resp.headers.get
+        ? resp.headers.get('X-Auth-Reason')
+        : null;
+      if (reason === 'session_expired') {
+        const returnTo = window.location
+          ? window.location.pathname + window.location.search
+          : '/';
+        window.dispatchEvent(new CustomEvent('auth:session-expired', {
+          detail: { returnTo },
+        }));
+      }
+    }
+    return resp;
   };
 }
 

@@ -30,7 +30,7 @@ def test_create_app_includes_router_and_observability(monkeypatch):
     app = create_app()
 
     # Verify the router is wired up by calling the route, rather than
-    # introspecting app.router.routes internals -- recent FastAPI nests
+    # introspecting app.router.routes internals -- Starlette 1.3 nests
     # included routers inside a container object instead of flattening
     # their paths into the top-level route list, so structural
     # introspection is version-fragile. Behavior is not.
@@ -38,6 +38,7 @@ def test_create_app_includes_router_and_observability(monkeypatch):
     response = client.get("/dummy/ping")
     assert response.status_code == 200
     assert response.json() == {"ok": True}
+
     assert any(middleware.cls is ObservabilityMiddleware for middleware in app.user_middleware)
 
 

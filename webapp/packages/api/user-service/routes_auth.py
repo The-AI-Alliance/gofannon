@@ -18,7 +18,7 @@ from typing import Optional
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from auth import get_registry
+from auth import DEV_STUB_ALLOWED_ENVS, get_registry
 from auth.base import LoginAllow, LoginDeny
 from config import settings
 from dependencies import get_db
@@ -155,10 +155,30 @@ async def login_callback(
     if not provider:
         raise HTTPException(status_code=404, detail=f"Unknown provider: {provider_type}")
 
-    # CSRF check: the state returned by the provider must match the
-    # state we stashed in the cookie at login-init time.
-    if not state or not expected_state or not secrets.compare_digest(state, expected_state):
-        raise HTTPException(status_code=400, detail="Invalid state; possible CSRF")
+    # The state cookie must be present — its existence proves this browser
+    # started the flow from this app.
+    if not expected_state:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing state cookie; possible CSRF",
+        )
+
+    # Some providers don't echo state back on the callback. Those declare
+    # echoes_state = False and are checked on the cookie alone; every other
+    # provider must return a state that matches it. Defaulting to strict
+    # means a provider that starts omitting state fails loudly instead of
+    # quietly dropping to the weaker check.
+    if provider.echoes_state:
+        if not state or not secrets.compare_digest(state, expected_state):
+            raise HTTPException(
+                status_code=400,
+                detail="State mismatch; possible CSRF",
+            )
+    elif state and not secrets.compare_digest(state, expected_state):
+        raise HTTPException(
+            status_code=400,
+            detail="State mismatch; possible CSRF",
+        )
 
     # Exchange code -> UserInfo. Any provider error becomes a 502 here;
     # the client retries from the login page.
@@ -266,6 +286,9 @@ async def dev_stub_picker(
     Clicking one does a GET to /auth/callback/dev_stub?code=<uid>&state=<state>,
     which completes the login. No OAuth involved.
     """
+    if settings.APP_ENV not in DEV_STUB_ALLOWED_ENVS:
+        raise HTTPException(status_code=404)
+
     user_list = [u for u in users.split(",") if u]
     if not user_list:
         return HTMLResponse(
