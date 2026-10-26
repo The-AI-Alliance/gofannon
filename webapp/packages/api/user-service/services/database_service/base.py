@@ -30,7 +30,7 @@ class DatabaseService(abc.ABC):
         db_name: str,
         selector: Dict[str, Any],
         fields: Optional[List[str]] = None,
-        limit: int = 10000,
+        limit: Optional[int] = 10000,
     ) -> List[Dict[str, Any]]:
         """Query documents matching a selector.
 
@@ -56,7 +56,7 @@ class DatabaseService(abc.ABC):
                     results.append({f: doc.get(f) for f in fields})
                 else:
                     results.append(doc)
-                if len(results) >= limit:
+                if limit is not None and len(results) >= limit:
                     break
         return results
 

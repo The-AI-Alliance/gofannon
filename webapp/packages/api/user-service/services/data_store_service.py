@@ -9,13 +9,14 @@ Data is scoped to users - all agents owned by a user can access the same data po
 
 import json
 import sys
-from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException
 
 from services.database_service import DatabaseService
+from services.cancel_token import check_should_stop
 from services.access_tracking import AccessAccumulator
+from time_utils import naive_utc_now
 
 
 # Database/collection name for data store records
@@ -96,6 +97,7 @@ class DataStoreService:
         key: str,
         agent_name: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
+        check_should_stop()
         """Get a value from the data store."""
         doc_id = self._make_doc_id(user_id, namespace, key)
 
@@ -104,7 +106,7 @@ class DataStoreService:
 
             if agent_name and doc:
                 doc["lastAccessedByAgent"] = agent_name
-                doc["lastAccessedAt"] = datetime.utcnow().isoformat()
+                doc["lastAccessedAt"] = naive_utc_now().isoformat()
                 doc["accessCount"] = doc.get("accessCount", 0) + 1
                 self.db.save(DATA_STORE_DB, doc_id, doc)
 
@@ -123,6 +125,7 @@ class DataStoreService:
         agent_name: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
+        check_should_stop()
         """Set a value in the data store.
 
         Optimistic-write: tries save() with no pre-read.  If the doc
@@ -140,7 +143,7 @@ class DataStoreService:
         absorbs the common race.
         """
         doc_id = self._make_doc_id(user_id, namespace, key)
-        now = datetime.utcnow()
+        now = naive_utc_now()
 
         self._ensure_namespace_indexed(user_id, namespace)
 
@@ -187,6 +190,7 @@ class DataStoreService:
         return record_data
 
     def delete(self, user_id: str, namespace: str, key: str) -> bool:
+        check_should_stop()
         """Delete a value from the data store."""
         doc_id = self._make_doc_id(user_id, namespace, key)
 
@@ -208,10 +212,14 @@ class DataStoreService:
 
         Uses an indexed query instead of scanning all documents.
         """
+        check_should_stop()
         docs = self.db.find(
             DATA_STORE_DB,
             {"userId": user_id, "namespace": namespace},
             fields=["key"],
+            limit=None,  # fetch ALL keys; a fixed cap silently truncates
+                         # large namespaces (e.g. repos with >10k files),
+                         # leaving orphaned docs after clear().
         )
 
         keys = [doc.get("key", "") for doc in docs]
@@ -227,10 +235,12 @@ class DataStoreService:
         data for the specified user. Useful for discovering what data
         exists before querying specific namespaces.
         """
+        check_should_stop()
         docs = self.db.find(
             DATA_STORE_DB,
             {"userId": user_id},
             fields=["namespace"],
+            limit=None,
         )
         namespaces = {doc.get("namespace") or "default" for doc in docs}
         return sorted(namespaces)
@@ -250,9 +260,11 @@ class DataStoreService:
         a one-shot bulk read into N+1 HTTP calls and forking each
         doc's revision history.
         """
+        check_should_stop()
         docs = self.db.find(
             DATA_STORE_DB,
             {"userId": user_id, "namespace": namespace},
+            limit=None,
         )
 
         results = {}
@@ -277,6 +289,7 @@ class DataStoreService:
         keys: List[str],
         agent_name: Optional[str] = None
     ) -> Dict[str, Any]:
+        check_should_stop()
         """Get multiple values at once.
 
         Uses the backend's bulk-fetch primitive (CouchDB
@@ -315,6 +328,7 @@ class DataStoreService:
         items: List[Tuple[str, str, Any, Optional[Dict[str, Any]]]],
         agent_name: Optional[str] = None
     ) -> int:
+        check_should_stop()
         """Set multiple values at once via the backend's bulk primitive.
 
         One get_many() to fetch existing docs (so we get _revs and
@@ -343,7 +357,7 @@ class DataStoreService:
         # One bulk fetch for any existing docs.
         existing_map = self.db.get_many(DATA_STORE_DB, doc_ids)
 
-        now_iso = datetime.utcnow().isoformat()
+        now_iso = naive_utc_now().isoformat()
         new_docs: List[Dict[str, Any]] = []
         # Index from doc_id back to the items tuple so we can retry
         # the losers individually after the bulk save.
@@ -411,10 +425,36 @@ class DataStoreService:
         (or 3 because delete_many internally does a get_many to fetch
         _revs, but that's still O(1) regardless of N).
         """
+        check_should_stop()
         keys = self.list_keys(user_id, namespace)
         if not keys:
             return 0
         doc_ids = [self._make_doc_id(user_id, namespace, k) for k in keys]
+        results = self.db.delete_many(DATA_STORE_DB, doc_ids)
+        return sum(1 for r in results if r.get("ok"))
+
+
+    def delete_many(
+        self,
+        user_id: str,
+        namespace: str,
+        keys: List[str],
+    ) -> int:
+        check_should_stop()
+        """Delete multiple keys at once via the backend's bulk primitive.
+
+        One get_many() to fetch existing _revs, then one _bulk_docs
+        call with delete markers. Two HTTP round trips regardless of
+        N, vs. the per-key loop which was up to 3N (exists + get +
+        delete) HTTP calls.
+
+        Returns the count of keys successfully deleted. Missing keys
+        are treated as already-deleted (idempotent), counted as
+        successful.
+        """
+        if not keys:
+            return 0
+        doc_ids = [self._make_doc_id(user_id, namespace, key) for key in keys]
         results = self.db.delete_many(DATA_STORE_DB, doc_ids)
         return sum(1 for r in results if r.get("ok"))
 
@@ -470,7 +510,7 @@ class AgentDataStoreProxy:
             "op": op,
             "namespace": self._namespace,
             "agent": self._agent_name,
-            "ts": datetime.utcnow().isoformat(),
+            "ts": naive_utc_now().isoformat(),
             **fields,
         }
         self._ops_log.append(entry)
@@ -522,6 +562,18 @@ class AgentDataStoreProxy:
         result = self._service.delete(self._user_id, self._namespace, key)
         self._log("delete", key=key, found=result)
         return result
+
+    def delete_many(self, keys: List[str]) -> int:
+        """Delete multiple keys at once via the backend's bulk primitive.
+
+        Use this instead of looping over delete() when you have a
+        list of keys to remove (e.g. orphan cleanup after a partial
+        rerun). One bulk call regardless of N. For wiping the whole
+        namespace, use clear() instead -- it's even simpler.
+        """
+        count = self._service.delete_many(self._user_id, self._namespace, list(keys))
+        self._log("delete_many", count=count, keys=list(keys)[:10])
+        return count
 
     def list_keys(self, prefix: Optional[str] = None) -> List[str]:
         """List all keys, optionally filtered by prefix."""

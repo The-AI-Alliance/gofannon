@@ -80,9 +80,18 @@ class CouchDBService(DatabaseService):
         db_name: str,
         selector: Dict[str, Any],
         fields: Optional[List[str]] = None,
-        limit: int = 10000,
+        limit: Optional[int] = 10000,
     ) -> List[Dict[str, Any]]:
         """Query using CouchDB Mango selector (uses indexes instead of full scan).
+
+        limit semantics:
+          - an int: return at most that many rows (single request).
+          - None:   return ALL matching rows, paginating with Mango
+                    bookmarks. Use this for namespace-spanning operations
+                    (list_keys, clear, get_all) where a fixed cap silently
+                    truncates large namespaces — e.g. a repo with >10,000
+                    files would otherwise only list/clear the first 10,000,
+                    leaving orphaned stale docs behind.
 
         Falls back to the base-class in-Python filter if the Mango
         request fails for any reason (e.g. missing _find endpoint on
@@ -90,15 +99,51 @@ class CouchDBService(DatabaseService):
         """
         try:
             db = self._get_or_create_db(db_name)
-            query: Dict[str, Any] = {"selector": selector, "limit": limit}
+            field_list = None
             if fields:
-                # Always include _id so callers can identify docs
-                field_set = set(fields) | {"_id"}
-                query["fields"] = list(field_set)
-            return [dict(row) for row in db.find(query)]
+                field_list = list(set(fields) | {"_id"})
+
+            if limit is not None:
+                query: Dict[str, Any] = {"selector": selector, "limit": limit}
+                if field_list:
+                    query["fields"] = field_list
+                return [dict(row) for row in db.find(query)]
+
+            # limit is None -> fetch ALL rows via bookmark pagination.
+            # CouchDB returns a bookmark with every _find response; passing
+            # it on the next request continues after the last row. A page
+            # smaller than page_size (or an unchanged bookmark) means done.
+            PAGE = 10000
+            out: List[Dict[str, Any]] = []
+            bookmark = None
+            seen_bookmarks = set()
+            while True:
+                query = {"selector": selector, "limit": PAGE}
+                if field_list:
+                    query["fields"] = field_list
+                if bookmark:
+                    query["bookmark"] = bookmark
+                # python-cloudant's db.find accepts bookmark in the query
+                # dict and exposes the returned bookmark on the result;
+                # fall back to raw _find if the bound method doesn't surface
+                # it. We read rows first, then advance the bookmark.
+                result = db.find(query)
+                rows = [dict(row) for row in result]
+                out.extend(rows)
+                # Obtain the next bookmark. python-cloudant attaches it to
+                # the QueryResult; if unavailable, stop to avoid a loop.
+                next_bookmark = getattr(result, "bookmark", None)
+                if not next_bookmark or next_bookmark in seen_bookmarks:
+                    break
+                seen_bookmarks.add(next_bookmark)
+                bookmark = next_bookmark
+                if len(rows) < PAGE:
+                    break
+            return out
         except Exception as e:
             print(f"CouchDB Mango find failed, falling back to list_all filter: {e}")
-            return super().find(db_name, selector, fields, limit)
+            return super().find(db_name, selector, fields,
+                                 limit if limit is not None else 10**9)
 
     def ensure_index(
         self,

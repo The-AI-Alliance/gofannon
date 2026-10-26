@@ -1,9 +1,9 @@
-from datetime import datetime
 from typing import Optional, Any, List, Dict
 
 from fastapi import HTTPException
 
 from models.user import User, UsageEntry, ApiKeys
+from time_utils import naive_utc_now
 
 
 # Maps PROVIDER_CONFIG keys to the corresponding field on the ApiKeys model.
@@ -22,7 +22,7 @@ class UserService:
         self.db = db_service
 
     def _create_default_user(self, user_id: str, basic_info: Optional[dict] = None) -> User:
-        now = datetime.utcnow()
+        now = naive_utc_now()
         basic_info = basic_info or {}
         user = User(
             _id=user_id,
@@ -49,7 +49,7 @@ class UserService:
         return [User(**user_doc) for user_doc in self.db.list_all("users")]
 
     def save_user(self, user: User) -> User:
-        user.updated_at = datetime.utcnow()
+        user.updated_at = naive_utc_now()
         saved = self.db.save("users", user.id, user.model_dump(by_alias=True, mode="json"))
         user.rev = saved.get("rev")
         return user
