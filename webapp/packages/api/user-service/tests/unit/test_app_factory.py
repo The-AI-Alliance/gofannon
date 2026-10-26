@@ -7,6 +7,7 @@ import types
 import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.testclient import TestClient
 
 from app_factory import _configure_cors, create_app
 from services.observability_service import ObservabilityMiddleware
@@ -28,8 +29,15 @@ def test_create_app_includes_router_and_observability(monkeypatch):
 
     app = create_app()
 
-    route_paths = {route.path for route in app.router.routes}
-    assert "/dummy/ping" in route_paths
+    # Verify the router is wired up by calling the route, rather than
+    # introspecting app.router.routes internals -- recent FastAPI nests
+    # included routers inside a container object instead of flattening
+    # their paths into the top-level route list, so structural
+    # introspection is version-fragile. Behavior is not.
+    client = TestClient(app)
+    response = client.get("/dummy/ping")
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
     assert any(middleware.cls is ObservabilityMiddleware for middleware in app.user_middleware)
 
 
