@@ -202,3 +202,8 @@ models = {
         default_output=2_048,
     ),
 }
+
+# Anthropic via OpenRouter carries Anthropic's constraint: temperature with
+# thinking on is rejected (HTTP 400) except 1.0. llm_service drops it.
+for _k in ("anthropic/claude-sonnet-4.5", "anthropic/claude-opus-4.1"):
+    models[_k]["rejects_temperature_with_thinking"] = True

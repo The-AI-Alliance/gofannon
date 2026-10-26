@@ -6,6 +6,7 @@ from datetime import datetime
 import asyncio
 
 from services.llm_service import call_llm, stream_llm
+from time_utils import naive_utc_now
 
 class ChatService:
     def __init__(self, storage_dir: str = "/tmp/chat_tickets"):
@@ -28,7 +29,7 @@ class ChatService:
             "id": ticket_id,
             "session_id": session_id,
             "status": "processing",
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": naive_utc_now().isoformat(),
             "model": model,
             "messages": messages,
             "config": config,
@@ -61,9 +62,16 @@ class ChatService:
             if "/" in model:
                 provider, model_name = model.split("/", 1)
             else:
-                # Default to openai if no provider specified
-                provider = "openai"
-                model_name = model
+                # No silent default. A bare model name used to fall through to
+                # "openai", which meant a typo or a dropped prefix quietly ran
+                # on a different provider than intended -- and after the
+                # provider cleanup it would fail deep in litellm with an
+                # unrelated-looking error. Fail here, where the cause is
+                # obvious.
+                raise ValueError(
+                    f"Model '{model}' has no provider prefix. Use "
+                    f"'provider/model', e.g. 'bedrock/us.anthropic.claude-opus-5'."
+                )
 
             # Call LLM through the centralized service
             content, thoughts = await call_llm(
@@ -87,7 +95,7 @@ class ChatService:
                 "finish_reason": "stop",
                 "thoughts": thoughts
             }
-            ticket_data["completed_at"] = datetime.utcnow().isoformat()
+            ticket_data["completed_at"] = naive_utc_now().isoformat()
 
             with open(ticket_path, 'w') as f:
                 json.dump(ticket_data, f)
@@ -99,7 +107,7 @@ class ChatService:
 
             ticket_data["status"] = "failed"
             ticket_data["error"] = str(e)
-            ticket_data["completed_at"] = datetime.utcnow().isoformat()
+            ticket_data["completed_at"] = naive_utc_now().isoformat()
 
             with open(ticket_path, 'w') as f:
                 json.dump(ticket_data, f)
@@ -132,9 +140,16 @@ class ChatService:
             if "/" in model:
                 provider, model_name = model.split("/", 1)
             else:
-                # Default to openai if no provider specified
-                provider = "openai"
-                model_name = model
+                # No silent default. A bare model name used to fall through to
+                # "openai", which meant a typo or a dropped prefix quietly ran
+                # on a different provider than intended -- and after the
+                # provider cleanup it would fail deep in litellm with an
+                # unrelated-looking error. Fail here, where the cause is
+                # obvious.
+                raise ValueError(
+                    f"Model '{model}' has no provider prefix. Use "
+                    f"'provider/model', e.g. 'bedrock/us.anthropic.claude-opus-5'."
+                )
 
             # Stream through the centralized service
             async for chunk in stream_llm(
@@ -166,7 +181,7 @@ class ChatService:
         """Clean up old ticket files"""
         from datetime import timedelta
         
-        cutoff_time = datetime.utcnow() - timedelta(hours=max_age_hours)
+        cutoff_time = naive_utc_now() - timedelta(hours=max_age_hours)
         
         for ticket_file in self.storage_dir.glob("*.json"):
             try:

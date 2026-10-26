@@ -34,7 +34,7 @@ class TestProviderContextWindowMetadata:
 
     # Ollama models are local/user-supplied and don't ship with context_window
     PROVIDERS_REQUIRING_CONTEXT_WINDOW = [
-        "openai", "anthropic", "gemini", "perplexity", "bedrock",
+        "openai", "gemini", "perplexity", "bedrock",
     ]
 
     @pytest.fixture
@@ -66,9 +66,8 @@ class TestProviderContextWindowMetadata:
     #   python3 -c "from config.provider_config import PROVIDER_CONFIG; ..."
     # to verify if a test starts failing after a config change.
     @pytest.mark.parametrize("provider,model,expected_cw", [
-        ("anthropic", "claude-opus-4-6", 200_000),
         ("openai", "gpt-5.2", 400_000),
-        ("bedrock", "anthropic.claude-opus-4-6-v1", 200_000),
+        ("bedrock", "us.anthropic.claude-opus-4-5-20251101-v1:0", 200_000),
     ])
     def test_known_context_window_values(self, config, provider, model, expected_cw):
         """Sanity-check that flagship models have the documented context window."""
@@ -111,11 +110,11 @@ class TestGetContextWindow:
 
     def test_lookup_known_model(self):
         fn = self._make_get_context_window()
-        assert fn("anthropic", "claude-opus-4-6") == 200_000
+        assert fn("bedrock", "us.anthropic.claude-opus-4-5-20251101-v1:0") == 200_000
 
     def test_lookup_returns_default_for_unknown_model(self):
         fn = self._make_get_context_window()
-        assert fn("anthropic", "nonexistent-model") == 128_000
+        assert fn("bedrock", "nonexistent-model") == 128_000
 
     def test_lookup_returns_default_for_unknown_provider(self):
         fn = self._make_get_context_window()
@@ -210,8 +209,8 @@ class TestContextWindowOverflowHandling:
 
         with pytest.raises(ValueError, match="context window"):
             await llm_service.call_llm(
-                provider="anthropic",
-                model="claude-opus-4-6",
+                provider="bedrock",
+                model="us.anthropic.claude-opus-4-5-20251101-v1:0",
                 messages=[{"role": "user", "content": "x" * 1_000_000}],
                 parameters={},
                 user_service=user_service,
@@ -222,8 +221,8 @@ class TestContextWindowOverflowHandling:
         observability.log.assert_called_once()
         call_kwargs = observability.log.call_args[1]
         assert call_kwargs["event_type"] == "context_window_exceeded"
-        assert call_kwargs["metadata"]["provider"] == "anthropic"
-        assert call_kwargs["metadata"]["model"] == "claude-opus-4-6"
+        assert call_kwargs["metadata"]["provider"] == "bedrock"
+        assert call_kwargs["metadata"]["model"] == "us.anthropic.claude-opus-4-5-20251101-v1:0"
 
     @pytest.mark.asyncio
     async def test_overflow_error_includes_context_window_size(self, monkeypatch):
@@ -240,8 +239,8 @@ class TestContextWindowOverflowHandling:
 
         with pytest.raises(ValueError) as exc_info:
             await llm_service.call_llm(
-                provider="anthropic",
-                model="claude-opus-4-6",
+                provider="bedrock",
+                model="us.anthropic.claude-opus-4-5-20251101-v1:0",
                 messages=[{"role": "user", "content": "big prompt"}],
                 parameters={},
                 user_service=user_service,
@@ -395,7 +394,7 @@ class TestAgentSandboxContextWindow:
 
         code = """
 async def run(input_dict, tools):
-    cw = get_context_window("anthropic", "claude-opus-4-6")
+    cw = get_context_window("bedrock", "us.anthropic.claude-opus-4-5-20251101-v1:0")
     return {"outputText": str(cw)}
 """
         db_service = Mock()
