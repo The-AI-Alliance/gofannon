@@ -15,7 +15,7 @@ os.environ["AWS_ACCESS_KEY_ID"] = "test_key"
 os.environ["AWS_SECRET_ACCESS_KEY"] = "test_secret"
 os.environ["AWS_REGION"] = "us-east-1"
 os.environ["S3_BUCKET_NAME"] = "test-bucket"
-os.environ["S3_ENDPOINT_URL"] = "http://test-minio:9000"
+os.environ["S3_ENDPOINT_URL"] = "http://test-seaweedfs:8333"
 
 from app_factory import create_app
 
