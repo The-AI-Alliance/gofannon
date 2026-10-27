@@ -2,7 +2,20 @@ fastapi[all]
 uvicorn[standard]
 boto3  # For S3/MinIO
 python-dotenv
-litellm>=1.77.5
+# Ceiling, not a pin. litellm 1.106.0 added
+# 'from mcp.types import CacheableResult' to
+# litellm/proxy/_experimental/mcp_server/catalog.py, which
+# _responses_try_dispatch_mcp_gateway loads on every litellm.aresponses
+# call. No released mcp defines that symbol (checked 1.16.0 - 2.3.0), so
+# aresponses raises APIConnectionError and the Responses API path is dead.
+# 1.105.0 and earlier are clean. Lift this when litellm fixes the import.
+litellm>=1.77.5,<1.106
+# Security floor. The eMudhra intermediate CAs were compromised in October
+# 2026 and certifi dropped them in 2026.10.19. httpx verifies against
+# certifi's own copy of the Mozilla roots, so the host trust store does not
+# govern it. litellm 1.106 requires this itself and nothing else here does,
+# so capping litellm above would otherwise remove the floor.
+certifi>=2026.10.19
 fastmcp>=2.12.4,<4
 google-auth
 pytest>=8.0.0
