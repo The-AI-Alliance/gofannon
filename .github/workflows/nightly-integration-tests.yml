@@ -75,9 +75,9 @@ jobs:
           timeout 60s bash -c 'until curl -s -o /dev/null http://localhost:5984; do sleep 2; done'
           echo "CouchDB is up."
 
-          echo "Waiting for MinIO to be ready..."
-          timeout 60s bash -c 'until curl -s -o /dev/null http://localhost:9000; do sleep 2; done'
-          echo "MinIO is up."
+          echo "Waiting for SeaweedFS to be ready..."
+          timeout 60s bash -c 'until curl -s -o /dev/null http://localhost:8333; do sleep 2; done'
+          echo "SeaweedFS is up."
 
       - name: Run backend integration tests
         working-directory: ./webapp/packages/api/user-service
@@ -106,8 +106,8 @@ jobs:
           docker compose logs webui
           echo "=== CouchDB Logs ==="
           docker compose logs couchdb
-          echo "=== MinIO Logs ==="
-          docker compose logs minio
+          echo "=== SeaweedFS Logs ==="
+          docker compose logs seaweedfs
 
       - name: Stop services
         if: always()
