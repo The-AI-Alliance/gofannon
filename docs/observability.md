@@ -154,8 +154,10 @@ COUCHDB_PASSWORD=password
 
 # --- Observability Settings ---
 
-# To enable AWS CloudWatch logging, provide all four AWS variables below.
-# The AWS keys will be used for both S3 (MinIO) and CloudWatch.
+# To enable AWS CloudWatch logging, provide all four variables below. These
+# are used for CloudWatch only — object storage reads S3_ACCESS_KEY_ID and
+# S3_SECRET_ACCESS_KEY instead, and setting the AWS keys for that purpose
+# will also redirect every other AWS call away from the instance role.
 # AWS_ACCESS_KEY_ID=your_aws_access_key
 # AWS_SECRET_ACCESS_KEY=your_aws_secret_key
 # AWS_DEFAULT_REGION=us-east-1
