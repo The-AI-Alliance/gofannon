@@ -77,8 +77,8 @@ def test_chat_returns_thoughts_for_provider(monkeypatch, provider, model):
 
         ticket_data = _wait_for_ticket(client, ticket_id)
 
-        assert ticket_data.get("status") == "completed"
-        thoughts = ticket_data["result"].get("thoughts")
-        assert thoughts
+        assert ticket_data.get("status") == "completed", ticket_data
+        thoughts = (ticket_data.get("result") or {}).get("thoughts")
+        assert thoughts, ticket_data
     finally:
         app.dependency_overrides = {}
