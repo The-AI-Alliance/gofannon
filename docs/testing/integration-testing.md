@@ -31,7 +31,7 @@ Integration tests require running Docker services:
 
 ```bash
 # Start required services
-docker compose up -d couchdb minio
+docker compose up -d couchdb seaweedfs
 ```
 
 ## Writing Integration Tests
