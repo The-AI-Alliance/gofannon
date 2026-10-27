@@ -79,11 +79,23 @@ def test_chat_returns_thoughts_for_provider(monkeypatch, provider, model):
 
         # A provider-side failure is not this repo's bug: a depleted billing
         # account, a rate limit or a rejected key says nothing about whether
-        # /chat returns thoughts. Skip those, and let everything else fail --
-        # including import and connection errors, which have caught real
-        # dependency breakage here.
+        # /chat returns thoughts. Match the provider's own response rather
+        # than litellm's exception class -- litellm has mapped the same
+        # Gemini 402 to both PaymentRequiredError and BadRequestError across
+        # versions. Everything else still fails, including import and
+        # connection errors, which have caught real dependency breakage.
+        _unavailable = (
+            "resource_exhausted",
+            "credits are depleted",
+            "insufficient_quota",
+            "quota exceeded",
+            "paymentrequirederror",
+            "ratelimiterror",
+            "authenticationerror",
+            "invalid api key",
+        )
         err = ticket_data.get("error") or ""
-        if any(e in err for e in ("PaymentRequiredError", "RateLimitError", "AuthenticationError")):
+        if any(marker in err.lower() for marker in _unavailable):
             pytest.skip(f"{provider} unavailable: {err[:120]}")
 
         assert ticket_data.get("status") == "completed", ticket_data
