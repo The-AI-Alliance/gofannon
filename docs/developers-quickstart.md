@@ -81,7 +81,7 @@ The project is a monorepo containing a Python backend and a React frontend. You 
 
 ## 3. Running the Application Locally
 
-The recommended workflow is `./dev-tail.sh` from the repo root, which runs the full dev stack — CouchDB, MinIO, the api in docker-compose, and the frontend on the host via vite — and tails the logs in one terminal:
+The recommended workflow is `./dev-tail.sh` from the repo root, which runs the full dev stack — CouchDB, SeaweedFS, the api in docker-compose, and the frontend on the host via vite — and tails the logs in one terminal:
 
 ```bash
 ./dev-tail.sh

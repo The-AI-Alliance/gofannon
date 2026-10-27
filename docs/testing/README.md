@@ -127,7 +127,7 @@ webapp/
 ### Integration Tests
 - **Location**: `tests/integration/`
 - **Purpose**: Test multiple components working together
-- **Services**: Require running Docker services (CouchDB, MinIO, etc.)
+- **Services**: Require running Docker services (CouchDB, SeaweedFS, etc.)
 - **Speed**: Slower (500ms - 5s per test)
 - **Run**: Nightly via GitHub Actions
 
