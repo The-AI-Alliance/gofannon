@@ -12,7 +12,7 @@ permissions:
 jobs:
   integration-tests:
     name: Backend Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
@@ -116,7 +116,7 @@ jobs:
 
   e2e-tests:
     name: End-to-End Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
@@ -208,7 +208,7 @@ jobs:
 
   notify-on-failure:
     name: Notify on Failure
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [integration-tests, e2e-tests]
     if: failure()
 
