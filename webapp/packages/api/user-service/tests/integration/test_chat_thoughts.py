@@ -77,6 +77,15 @@ def test_chat_returns_thoughts_for_provider(monkeypatch, provider, model):
 
         ticket_data = _wait_for_ticket(client, ticket_id)
 
+        # A provider-side failure is not this repo's bug: a depleted billing
+        # account, a rate limit or a rejected key says nothing about whether
+        # /chat returns thoughts. Skip those, and let everything else fail --
+        # including import and connection errors, which have caught real
+        # dependency breakage here.
+        err = ticket_data.get("error") or ""
+        if any(e in err for e in ("PaymentRequiredError", "RateLimitError", "AuthenticationError")):
+            pytest.skip(f"{provider} unavailable: {err[:120]}")
+
         assert ticket_data.get("status") == "completed", ticket_data
         thoughts = (ticket_data.get("result") or {}).get("thoughts")
         assert thoughts, ticket_data
