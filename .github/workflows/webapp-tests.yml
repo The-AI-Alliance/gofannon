@@ -14,15 +14,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js and pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.34.4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
-          cache-dependency-path: 'webapp/pnpm-lock.yaml'
+
+      # corepack ships with Node, so pnpm needs no third-party action.
+      # setup-node has to run first for corepack to exist, which is why
+      # its built-in `cache: pnpm` is replaced by the explicit cache step
+      # below -- that option resolves the pnpm store path at the time
+      # setup-node runs, when pnpm is not yet on PATH.
+      - name: Activate pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.34.4 --activate
+          pnpm --version
+
+      - name: Locate pnpm store
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('webapp/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
 
       - name: Set up Python
         uses: actions/setup-python@v5
