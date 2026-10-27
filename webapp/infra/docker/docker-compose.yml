@@ -31,9 +31,13 @@ services:
     environment:
       - APP_ENV=local
       - STORAGE_PROVIDER=s3
-      - S3_ENDPOINT_URL=http://minio:9000
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minioadmin}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minioadmin}
+      - S3_ENDPOINT_URL=http://seaweedfs:8333
+      # S3_* rather than AWS_*: the standard AWS names are read by boto3 for
+      # every AWS call, so setting them here makes any other AWS integration
+      # in this process authenticate as the object store. config/__init__.py
+      # reads the S3_ names, so the old ones left the credentials unset.
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-gofannon}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-gofannonsecret}
       - AWS_DEFAULT_REGION=us-east-1
       - DATABASE_PROVIDER=${DATABASE_PROVIDER:-couchdb}
       - COUCHDB_URL=${COUCHDB_URL:-http://couchdb:5984/}
@@ -45,24 +49,33 @@ services:
     depends_on:
       couchdb:
         condition: service_healthy
-      minio:
+      seaweedfs:
         condition: service_started
     networks:
       - gofannon-net
 
-  minio:
-    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+  # SeaweedFS replaces MinIO: Community Edition was archived 2026-04-24 and
+  # its images were deleted from Docker Hub 2026-09-11, with Quay closed to
+  # anonymous pulls, so minio/minio can no longer be fetched at all.
+  # `weed mini` runs master, volume, filer and the S3 gateway in one process
+  # and creates S3_BUCKET on start -- which nothing did previously.
+  #
+  # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY are how SeaweedFS takes its own
+  # root credentials. This is the storage server, not an AWS client, so there
+  # is nothing here to shadow -- do not rename these to S3_*.
+  seaweedfs:
+    image: chrislusf/seaweedfs@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d  # 4.48, 2026-09-28
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "8333:8333"
     environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin
+      - AWS_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-gofannon}
+      - AWS_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-gofannonsecret}
+      - S3_BUCKET=${S3_BUCKET_NAME:-local-bucket}
     volumes:
-      - minio-data:/data
+      - seaweed-data:/data
     networks:
       - gofannon-net
-    command: server /data --console-address ":9001"
+    command: mini -dir=/data
 
   couchdb:
     image: couchdb:3.4
@@ -87,5 +100,5 @@ networks:
     driver: bridge
 
 volumes:
-  minio-data:
+  seaweed-data:
   couchdb-data:

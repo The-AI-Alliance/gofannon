@@ -5,7 +5,7 @@
 #   - You're running this from the repo root (where ./webapp lives), OR you've
 #     set REPO_ROOT below to point at it.
 #   - Docker Compose stack from webapp/infra/docker is already up (couchdb,
-#     minio, api, webui) — required for integration + E2E tests.
+#     seaweedfs, api, webui) — required for integration + E2E tests.
 #   - `uv`, `pnpm`, and `docker` are on your PATH.
 #
 # The script does NOT fail-fast: every suite runs, results are collected, and a
@@ -69,8 +69,8 @@ if ! docker ps --format '{{.Names}}' | grep -Eq '(^|-)couchdb(-|$)'; then
   warn "couchdb container not detected — integration/E2E tests will likely fail"
   DOCKER_OK=0
 fi
-if ! docker ps --format '{{.Names}}' | grep -Eq '(^|-)minio(-|$)'; then
-  warn "minio container not detected — integration tests may fail"
+if ! docker ps --format '{{.Names}}' | grep -Eq '(^|-)seaweedfs(-|$)'; then
+  warn "seaweedfs container not detected — integration tests may fail"
   DOCKER_OK=0
 fi
 if ! docker ps --format '{{.Names}}' | grep -Eq '(^|-)api(-|$)'; then
