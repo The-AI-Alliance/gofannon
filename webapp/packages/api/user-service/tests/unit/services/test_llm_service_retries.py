@@ -552,3 +552,41 @@ async def test_bad_gateway_shares_the_overloaded_budget(monkeypatch):
     assert acompletion.state["n"] == budget + 1, (
         f"should make {budget} retries plus the initial attempt"
     )
+
+
+# --- 529 must be a status code, not three digits in a longer string --------
+
+
+@pytest.mark.parametrize(
+    "label,err",
+    [
+        ("anthropic status line", 'Error code: 529 - {"type":"error"}'),
+        ("bare status code", "529"),
+        ("json field", '{"code":529}'),
+        ("http status line", "HTTP/1.1 529 Overloaded"),
+    ],
+)
+def test_real_529_still_opens_the_retry_budget(label, err):
+    assert llm_service._is_overloaded_error(err.lower()), f"{label} is a real 529"
+
+
+@pytest.mark.parametrize(
+    "label,err",
+    [
+        ("token count", "prompt contains at least 5290 input tokens"),
+        ("truncation offset", "response truncated at 1529 tokens"),
+        ("model name", "model qwen-529b is not available"),
+        ("request identifier", "request req_529_ab failed: invalid api key"),
+        ("context window with 529 in the count", "ContextWindowExceededError: prompt is 5293 tokens"),
+    ],
+)
+def test_digits_that_merely_contain_529_do_not_open_the_retry_budget(label, err):
+    """These are terminal errors that happen to contain the digits 529.
+
+    Retrying them sleeps through the whole backoff budget, fails identically
+    on every attempt, and then fails the call anyway -- and in the
+    context-window case it hides a caller bug behind five slow retries.
+    """
+    err_str = err.lower()
+    assert not llm_service._is_overloaded_error(err_str), f"{label} is not an overload"
+    assert not llm_service._is_transient_5xx_error(err_str), f"{label} is not transient"
