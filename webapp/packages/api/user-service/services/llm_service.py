@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import random
+import re
 from config import settings
 from config.provider_config import PROVIDER_CONFIG
 # services.anthropic_wif (which imports boto3) is imported lazily inside the
@@ -153,6 +154,16 @@ RATE_LIMIT_BACKOFF_CAP_SECONDS = int(os.getenv("LLM_RATE_LIMIT_BACKOFF_CAP", "60
 # does with str(e).lower().
 
 
+# 529 as a standalone token, not as three digits inside a longer run of
+# characters. A bare `"529" in err_str` also matched a token count ("5290
+# input tokens"), a truncation offset ("1529 tokens"), a model name
+# ("qwen-529b") and an identifier ("req_529_ab"), each of which would open
+# the retry budget for an error that then fails identically on every
+# attempt. The boundaries exclude digits, letters and underscores on both
+# sides, so the status code in "Error code: 529 - {...}" still matches.
+_HTTP_529_RE = re.compile(r"(?<![0-9a-z_])529(?![0-9a-z_])")
+
+
 def _is_overloaded_error(err_str: str) -> bool:
     """Provider overload: HTTP 529 / overloaded_error.
 
@@ -161,10 +172,14 @@ def _is_overloaded_error(err_str: str) -> bool:
     the same exponential-backoff-with-jitter as rate-limit before falling
     through to the terminal error classifier. 529 means "provider busy,
     retry" and is highly likely to succeed on a backed-off retry.
+
+    "overloaded" remains the primary matcher: a real 529 carries
+    overloaded_error in its body, so narrowing the numeric test cannot lose
+    a genuine overload.
     """
     return (
         "overloaded" in err_str
-        or "529" in err_str
+        or bool(_HTTP_529_RE.search(err_str))
         or "\"type\":\"overloaded_error\"" in err_str
     )
 
