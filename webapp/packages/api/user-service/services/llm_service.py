@@ -142,6 +142,78 @@ MAX_OVERLOADED_RETRIES = int(os.getenv("LLM_OVERLOADED_RETRIES", "5"))
 RATE_LIMIT_BACKOFF_CAP_SECONDS = int(os.getenv("LLM_RATE_LIMIT_BACKOFF_CAP", "60"))
 
 
+# --- Transient-failure classification ------------------------------------
+#
+# These predicates decide whether a provider exception is retried from the
+# MAX_OVERLOADED_RETRIES budget or fails the call on first contact. They are
+# module-level rather than inline in the retry loop so they can be unit-tested
+# directly: see tests/unit/services/test_llm_service_retries.py.
+#
+# All three take the exception string ALREADY LOWERCASED, as the call site
+# does with str(e).lower().
+
+
+def _is_overloaded_error(err_str: str) -> bool:
+    """Provider overload: HTTP 529 / overloaded_error.
+
+    litellm surfaces this as APIConnectionError or a generic exception, NOT
+    RateLimitError, so it is caught in the generic handler and routed through
+    the same exponential-backoff-with-jitter as rate-limit before falling
+    through to the terminal error classifier. 529 means "provider busy,
+    retry" and is highly likely to succeed on a backed-off retry.
+    """
+    return (
+        "overloaded" in err_str
+        or "529" in err_str
+        or "\"type\":\"overloaded_error\"" in err_str
+    )
+
+
+def _is_gateway_error(err_str: str) -> bool:
+    """A 502 from a reverse proxy in front of the model endpoint.
+
+    When the upstream drops the connection mid-response, the proxy answers
+    502 and litellm maps it to BadGatewayError. That is the same transient
+    condition as a 503 or a 500 api_error: the request never reached a
+    verdict, so a backed-off retry is likely to get one.
+
+    The tests match a class name or a full phrase, never a bare "502", so an
+    error string that merely contains those digits -- a token count like
+    "50200 input tokens", a model named qwen-502b -- does not open the retry
+    budget.
+
+    504 is deliberately excluded. A gateway timeout means the proxy gave up
+    waiting, so if its limit is shorter than the caller's, every long call
+    would 504 and then retry, each attempt burning the full proxy timeout
+    before failing again -- turning one slow failure into several. It belongs
+    here only once the proxy's own limit has been measured against the
+    request timeouts in use.
+    """
+    return (
+        "badgateway" in err_str
+        or "bad gateway" in err_str
+        or "502 proxy error" in err_str
+    )
+
+
+def _is_transient_5xx_error(err_str: str) -> bool:
+    """Transient server-side failures from the provider.
+
+    HTTP 500 with "api_error", litellm's ServiceUnavailableError, endpoints
+    that return "The server had an error while processing your request" under
+    load, and gateway-class 502s. These succeed on a backed-off retry just
+    like a 529, but are NOT matched by the overloaded checks (different
+    type/status), so without this they fail the call on the first hit.
+    """
+    return (
+        "serviceunavailable" in err_str
+        or "500 internal server error" in err_str
+        or "\"type\":\"api_error\"" in err_str
+        or "the server had an error" in err_str
+        or _is_gateway_error(err_str)
+    )
+
+
 def _extract_response_cost(response_obj: Any) -> Optional[float]:
     standard_logging = None
     if hasattr(response_obj, "_hidden_params") and isinstance(response_obj._hidden_params, dict):
@@ -952,33 +1024,14 @@ async def call_llm(
                 )
                 raise
             except Exception as e:
-                # Provider overload (HTTP 529 / overloaded_error). litellm
-                # surfaces this as APIConnectionError or a generic exception,
-                # NOT RateLimitError, so it is caught here and routed through
-                # the same exponential-backoff-with-jitter as rate-limit before
-                # falling through to the terminal error classifier. 529 means
-                # "provider busy, retry" and is highly likely to succeed on a
-                # backed-off retry.
+                # Retryable provider failures -- overload (529) and transient
+                # 5xx, including gateway-class 502 -- share one backoff budget
+                # and are classified by the module-level predicates above, so
+                # a flapping endpoint cannot exceed MAX_OVERLOADED_RETRIES in
+                # total however its errors are spelled.
                 _err_str = str(e).lower()
-                _is_overloaded = (
-                    "overloaded" in _err_str
-                    or "529" in _err_str
-                    or "\"type\":\"overloaded_error\"" in _err_str
-                )
-                # Transient server-side failures from the provider: HTTP 500
-                # with "api_error", and litellm's ServiceUnavailableError. The
-                # Mantle endpoint returns these under load ("The server had an
-                # error while processing your request") and they succeed on a
-                # backed-off retry just like a 529 -- but they are NOT caught by
-                # the overloaded checks above (different type/status), so
-                # without this they fail the work item on the first hit. Routed
-                # through the same backoff budget as overload.
-                _is_transient_5xx = (
-                    "serviceunavailable" in _err_str
-                    or "500 internal server error" in _err_str
-                    or "\"type\":\"api_error\"" in _err_str
-                    or "the server had an error" in _err_str
-                )
+                _is_overloaded = _is_overloaded_error(_err_str)
+                _is_transient_5xx = _is_transient_5xx_error(_err_str)
                 if (_is_overloaded or _is_transient_5xx) and overloaded_attempts_used < MAX_OVERLOADED_RETRIES:
                     last_exception = e
                     backoff = min(
@@ -987,7 +1040,12 @@ async def call_llm(
                         + random.uniform(0, overloaded_attempts_used + 1),
                     )
                     overloaded_attempts_used += 1
-                    _kind = "overloaded (529)" if _is_overloaded else "server error (5xx)"
+                    if _is_overloaded:
+                        _kind = "overloaded (529)"
+                    elif _is_gateway_error(_err_str):
+                        _kind = "bad gateway (502)"
+                    else:
+                        _kind = "server error (5xx)"
                     print(
                         f"  {_kind} on attempt {attempt + 1} "
                         f"for {model_string}; sleeping {backoff:.1f}s "
