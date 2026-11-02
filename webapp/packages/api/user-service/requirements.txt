@@ -1,6 +1,11 @@
-fastapi[all]
+# Floor, not a pin. FastAPI is pre-1.0 and changes internals across minor
+# releases: _IncludedRouter arrived somewhere between 0.120 and 0.139 and has
+# no .path attribute, which broke the route-registration test. Deploys resolve
+# from requirements.lock, so no ceiling is needed here -- the lock is what
+# pins, and CI resolves against the lock too.
+fastapi[all]>=0.139
 uvicorn[standard]
-boto3  # For S3/MinIO
+boto3  # S3-compatible object storage (SeaweedFS locally)
 python-dotenv
 # Ceiling, not a pin. litellm 1.106.0 added
 # 'from mcp.types import CacheableResult' to
@@ -30,6 +35,16 @@ certifi>=2026.10.19
 # question. Ceiling stays at 4: fastmcp 4.0 ships metadata-only and drops
 # fastmcp.tools.tool.
 fastmcp>=3.2.0,<4
+#
+# Historical note, kept because it cost a downstream deployment 24 hours of
+# API downtime on 2026-10-22 and the shape recurs: mcp (pulled in by fastmcp)
+# used to import pydantic._internal._typing_extra.eval_type_backport, which
+# pydantic 2.14 removed. pydantic is not named here -- it arrives transitively
+# via fastapi[all], fastmcp and litellm -- so a rebuild that re-resolved the
+# tree picked up 2.14 and the API failed to import. mcp 1.30.0, which
+# fastmcp 3.2.0 requires, no longer touches that private API, so no pydantic
+# ceiling is needed. The real fix is requirements.lock: a transitive
+# dependency cannot be pinned from this file, only from a lock.
 google-auth
 pytest>=8.0.0
 pytest-asyncio>=0.23.0

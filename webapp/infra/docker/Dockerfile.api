@@ -7,9 +7,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 
 WORKDIR /app
 
-COPY requirements.txt .
+# Install from the lock, not from requirements.txt. requirements.txt states
+# constraints; requirements.lock states the exact resolved tree, transitive
+# dependencies included. Installing from constraints means a rebuild can
+# silently re-resolve a transitive dependency -- which is how a pydantic
+# minor release took the API down for 24h on 2026-10-22.
+COPY requirements.lock .
 RUN pip install --no-cache-dir --root-user-action=ignore --upgrade pip \
-    && pip install --no-cache-dir --root-user-action=ignore -r requirements.txt
+    && pip install --no-cache-dir --root-user-action=ignore -r requirements.lock
 
 COPY . .
 
