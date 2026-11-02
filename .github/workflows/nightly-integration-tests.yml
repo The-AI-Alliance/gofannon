@@ -60,7 +60,7 @@ jobs:
 
       - name: Install Python dependencies
         working-directory: ./webapp/packages/api/user-service
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.lock
 
       - name: Create .env file for Docker Compose
         working-directory: ./webapp/infra/docker
@@ -184,7 +184,7 @@ jobs:
 
       - name: Install Python dependencies
         working-directory: ./webapp/packages/api/user-service
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.lock
 
       - name: Install Playwright Browsers
         working-directory: ./webapp

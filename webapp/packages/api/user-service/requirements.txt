@@ -1,6 +1,11 @@
-fastapi[all]
+# Floor, not a pin. FastAPI is pre-1.0 and changes internals across minor
+# releases: _IncludedRouter arrived somewhere between 0.120 and 0.139 and has
+# no .path attribute, which broke the route-registration test. Deploys resolve
+# from requirements.lock, so no ceiling is needed here -- the lock is what
+# pins, and CI resolves against the lock too.
+fastapi[all]>=0.139
 uvicorn[standard]
-boto3  # For S3/MinIO
+boto3  # S3-compatible object storage (SeaweedFS locally)
 python-dotenv
 # Ceiling, not a pin. litellm 1.106.0 added
 # 'from mcp.types import CacheableResult' to

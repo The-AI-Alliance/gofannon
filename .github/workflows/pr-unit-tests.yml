@@ -87,11 +87,29 @@ jobs:
         with:
           python-version: '3.10'
           cache: 'pip'
-          cache-dependency-path: 'webapp/packages/api/user-service/requirements.txt'
+          cache-dependency-path: 'webapp/packages/api/user-service/requirements.lock'
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+
+      # requirements.lock must stay a faithful resolution of requirements.txt.
+      # Recompiling preserves existing pins, so this only fails when the
+      # constraints changed and the lock was not regenerated -- not merely
+      # because a dependency published a new release.
+      - name: Verify requirements.lock is in sync
+        working-directory: ./webapp/packages/api/user-service
+        run: |
+          cp requirements.lock /tmp/lock.committed
+          uv pip compile requirements.txt --universal --python-version 3.12 \
+            --no-header -o requirements.lock
+          if ! diff -u /tmp/lock.committed requirements.lock; then
+            echo "::error::requirements.lock is stale. Regenerate it with:"
+            echo "  uv pip compile requirements.txt --universal --python-version 3.12 --no-header -o requirements.lock"
+            exit 1
+          fi
 
       - name: Install Python dependencies
         working-directory: ./webapp/packages/api/user-service
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.lock
 
       - name: Run backend unit tests with coverage
         working-directory: ./webapp/packages/api/user-service
