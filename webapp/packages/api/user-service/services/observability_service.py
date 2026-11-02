@@ -58,7 +58,11 @@ class GoogleCloudLoggingProvider(LogProvider):
             # Map our levels to GCP's severity
             level_map = {"INFO": "INFO", "WARN": "WARNING", "ERROR": "ERROR", "DEBUG": "DEBUG"}
             severity = level_map.get(payload.get("level", "INFO").upper(), "DEFAULT")
-            self.logger.log_struct(payload, severity=severity)
+            # google-cloud-logging's client is synchronous, so the write goes
+            # to a worker thread rather than blocking the event loop.
+            await asyncio.to_thread(
+                self.logger.log_struct, payload, severity=severity
+            )
         except Exception as e:
             print(f"Error logging to Google Cloud: {e}")
 
@@ -101,10 +105,16 @@ class AWSCloudWatchLogsProvider(LogProvider):
             'message': json.dumps(payload, default=str)
         }
 
-        # NOTE: The standard boto3 client is synchronous. This log call will block
-        # the asyncio task that runs it. For high-throughput applications,
-        # consider using a library like 'aioboto3' to make this operation
-        # fully non-blocking.
+        # boto3's client is synchronous. Called directly it blocks the event
+        # loop for a full HTTPS round trip, which stalls every other
+        # coroutine on that loop -- including litellm's logging worker,
+        # whose queued callbacks then exceed their own 20s budget and are
+        # reported as LoggingWorker timeouts that have nothing to do with
+        # litellm. Hand the write to a worker thread instead.
+        await asyncio.to_thread(self._write_log_event, log_stream_name, log_event)
+
+    def _write_log_event(self, log_stream_name: str, log_event: Dict[str, Any]) -> None:
+        """Blocking CloudWatch write. Runs in a worker thread, never on the loop."""
         try:
             self.client.put_log_events(
                 logGroupName=self.log_group_name,
@@ -146,6 +156,8 @@ class ConsoleProvider(LogProvider):
 class ObservabilityService:
     def __init__(self):
         self.providers: List[LogProvider] = []
+        # Strong references to in-flight log tasks. See log() for why.
+        self._pending_logs = set()
         self._initialize_providers()
 
     def _initialize_providers(self):
@@ -237,11 +249,27 @@ class ObservabilityService:
         payload = self._sanitize_for_json(raw_payload)
 
         async def _log_async():
-            tasks = [provider.log(payload) for provider in self.providers]
-            await asyncio.gather(*tasks)
+            # return_exceptions keeps one failing provider from cancelling
+            # the writes to the others.
+            results = await asyncio.gather(
+                *(provider.log(payload) for provider in self.providers),
+                return_exceptions=True,
+            )
+            for provider, result in zip(self.providers, results):
+                if isinstance(result, BaseException):
+                    print(
+                        f"Error logging to {type(provider).__name__}: {result}",
+                        flush=True,
+                    )
 
-        # Run in the background without blocking the caller
-        asyncio.create_task(_log_async())
+        # Fire and forget, but hold a reference until it finishes. A task with
+        # no strong reference anywhere can be garbage-collected mid-flight, and
+        # its exception is then never retrieved -- so a provider that fails
+        # every time does so silently, and the only symptom surfaces somewhere
+        # unrelated.
+        task = asyncio.create_task(_log_async())
+        self._pending_logs.add(task)
+        task.add_done_callback(self._pending_logs.discard)
 
     def log_exception(self, exc: Exception, user_id: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None):
         """Logs a Python exception."""

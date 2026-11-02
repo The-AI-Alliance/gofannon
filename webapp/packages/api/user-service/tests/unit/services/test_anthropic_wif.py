@@ -1,7 +1,7 @@
 """Unit tests for the Anthropic 1P WIF token helper.
 
 Focus is the concurrency behavior. gofannon dispatches LLM calls in
-parallel (ASVS_MEDIUM_CONCURRENCY is 5, HEAVY 4, filter 4), so the token
+parallel (commonly 4-5 at a time per tier), so the token
 helper is entered concurrently on every cold start and after every
 invalidation. Without serialisation each of those coroutines performs its
 own STS mint and its own Anthropic exchange.

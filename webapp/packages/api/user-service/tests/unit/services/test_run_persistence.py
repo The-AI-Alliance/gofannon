@@ -313,7 +313,7 @@ def test_record_carries_agent_id_for_deep_linking():
     """Deployed runs should link back to their agent in the runs UI."""
     reg = RunRegistry()
     record = reg.new_record(
-        user_id="alice", agent_name="asvs_orchestrate", agent_id="agent-123",
+        user_id="alice", agent_name="my_orchestrator", agent_id="agent-123",
         input_dict={"level": "L3"},
     )
     assert record.agent_id == "agent-123"

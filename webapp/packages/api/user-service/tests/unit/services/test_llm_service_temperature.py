@@ -1,8 +1,8 @@
 """Temperature, reconciled in llm_service against what each model accepts.
 
-This used to live in every ASVS agent's _make_tier, keyed on provider NAME
-({"bedrock", "anthropic"}). Two of those providers no longer
-exist, and "anthropic-1p"-1p", was never listed. The rule
+This used to live in every agent's own tier builder, keyed on provider NAME
+({"bedrock", "anthropic"}). Two of those providers no longer exist, and
+"anthropic-1p" was never listed. The rule
 that selfhosted models loop at temperature 0.0 with thinking on existed only as a
 comment. These tests pin all three flags on the request actually sent.
 """

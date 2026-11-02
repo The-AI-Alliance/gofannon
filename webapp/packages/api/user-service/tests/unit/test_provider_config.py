@@ -262,7 +262,7 @@ class TestTemperatureDeclarations:
         assert not bad, bad
 
     def test_every_selfhosted_model_requires_nonzero_with_thinking(self):
-        """This knowledge lived only in comments in the ASVS agents. Losing
+        """This knowledge lived only in comments in the agents. Losing
         it means 0.0 + thinking and a model looping inside its think block."""
         models = provider_config.PROVIDER_CONFIG["selfhosted"]["models"]
         missing = [m for m, mc in models.items()

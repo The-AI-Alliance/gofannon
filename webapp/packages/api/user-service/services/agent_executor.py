@@ -6,7 +6,7 @@ the request. Inside, the user agent calls ``files_ns.set("foo", bar)``
 synchronously — that\'s a blocking HTTP call to CouchDB. While that call
 is in flight, the worker\'s event loop is fully blocked, no other
 coroutine on that loop progresses. With many sequential sync calls
-(asvs_download_repo does ~1300 of them) the worker is effectively
+(a repo-ingest agent can make ~1300 of them) the worker is effectively
 unavailable for the duration of an agent run, even though only one of
 N workers is supposed to be busy.
 

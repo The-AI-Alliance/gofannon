@@ -255,3 +255,86 @@ def test_observability_middleware_logs_breadcrumb_on_session_lookup_failure(monk
     ]
     assert len(breadcrumbs) == 1
     assert "simulated DB outage" in breadcrumbs[0].getMessage()
+
+
+# --- Fire-and-forget logging must not lose tasks or block the loop --------
+
+
+@pytest.mark.asyncio
+async def test_observability_log_holds_reference_to_in_flight_task(monkeypatch):
+    """A log task with no strong reference can be GC'd mid-flight.
+
+    Without the reference, a provider write can simply vanish, and any
+    exception it raised is never retrieved -- so a provider that fails every
+    time does so silently.
+    """
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    class _SlowProvider:
+        async def log(self, payload):
+            started.set()
+            await release.wait()
+
+    monkeypatch.setattr(ObservabilityService, "_initialize_providers", lambda self: None)
+    service = ObservabilityService()
+    service.providers = [_SlowProvider()]
+
+    service.log(event_type="audit", message="hello")
+
+    await started.wait()
+    assert len(service._pending_logs) == 1, "in-flight task must be referenced"
+
+    release.set()
+    await asyncio.gather(*service._pending_logs)
+    assert service._pending_logs == set(), "finished task must be discarded"
+
+
+@pytest.mark.asyncio
+async def test_observability_log_survives_a_failing_provider(monkeypatch):
+    """One provider raising must not cancel the writes to the others."""
+    failing = AsyncMock()
+    failing.log.side_effect = RuntimeError("cloudwatch is down")
+    working = AsyncMock()
+
+    monkeypatch.setattr(ObservabilityService, "_initialize_providers", lambda self: None)
+    service = ObservabilityService()
+    service.providers = [failing, working]
+
+    service.log(event_type="audit", message="hello")
+    await asyncio.gather(*service._pending_logs)
+
+    failing.log.assert_awaited_once()
+    working.log.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_cloudwatch_write_runs_off_the_event_loop():
+    """boto3 is synchronous, so the write must not happen on the loop thread.
+
+    Called inline it blocks the loop for a full HTTPS round trip, which stalls
+    every other coroutine -- including litellm's logging worker, whose queued
+    callbacks then time out and are reported as LoggingWorker errors unrelated
+    to litellm.
+    """
+    import threading
+
+    from services.observability_service import AWSCloudWatchLogsProvider
+
+    provider = object.__new__(AWSCloudWatchLogsProvider)
+    provider.log_group_name = "test-group"
+    provider.client = Mock()
+
+    seen = {}
+
+    def _record(log_stream_name, log_event):
+        seen["thread"] = threading.get_ident()
+        seen["stream"] = log_stream_name
+
+    provider._write_log_event = _record
+
+    loop_thread = threading.get_ident()
+    await provider.log({"service": "user-service", "level": "INFO", "metadata": {"a": 1}})
+
+    assert seen["stream"] == "user-service"
+    assert seen["thread"] != loop_thread, "blocking write ran on the event loop thread"

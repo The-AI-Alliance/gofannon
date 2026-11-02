@@ -3,12 +3,13 @@
 cache_prefix is a guaranteed-delivered input: a cache_control block on models
 that declare supports_prompt_caching, prepended text on everything else. It
 is never dropped -- it used to be, on every non-Claude model, which is how
-asvs_audit ran its HEAVY analysis with no system prompt on self-hosted models.
+an audit agent ran its heaviest analysis with no system prompt on self-hosted
+models.
 
 Callers pass the stable text ONLY as cache_prefix and keep only the variable
 text in the message. The prepend path guards against a caller that inlines it
-too; the cache-block path does not, and would send it twice. The ASVS agents
-are written to that contract, so it is pinned here.
+too; the cache-block path does not, and would send it twice. Callers are
+written to that contract, so it is pinned here.
 """
 
 from __future__ import annotations

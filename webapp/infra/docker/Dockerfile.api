@@ -1,6 +1,13 @@
 # webapp/infra/docker/Dockerfile.api
 FROM python:3.12-slim
 
+# Unbuffered stdout/stderr. Without this, Python buffers when not attached to
+# a tty, so print() output sits in the buffer and `docker logs` shows nothing
+# until the buffer flushes or the process exits. The observability providers
+# and the retry paths in llm_service report through print(), so during an
+# incident the logs lag behind what the container is actually doing.
+ENV PYTHONUNBUFFERED=1
+
 # curl is needed by the entrypoint to wait for / init CouchDB
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
