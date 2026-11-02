@@ -9,14 +9,27 @@ python-dotenv
 # call. No released mcp defines that symbol (checked 1.16.0 - 2.3.0), so
 # aresponses raises APIConnectionError and the Responses API path is dead.
 # 1.105.0 and earlier are clean. Lift this when litellm fixes the import.
-litellm>=1.77.5,<1.106
+# Re-verified 2026-11-02 against mcp 1.30.0: still missing, still raises.
+#
+# The floor is a security floor, not a compatibility one. GHSA advisories
+# affecting litellm are patched in 1.95.0 and 1.100.4; with no lockfile in
+# this tree, a resolver is free to pick the lowest permitted version, so the
+# floor is what actually keeps a vulnerable release out of an install.
+litellm>=1.100.4,<1.106
 # Security floor. The eMudhra intermediate CAs were compromised in October
 # 2026 and certifi dropped them in 2026.10.19. httpx verifies against
 # certifi's own copy of the Mozilla roots, so the host trust store does not
 # govern it. litellm 1.106 requires this itself and nothing else here does,
 # so capping litellm above would otherwise remove the floor.
 certifi>=2026.10.19
-fastmcp>=2.12.4,<4
+# Security floor. Advisories against fastmcp are patched in 2.13.0, 2.14.0,
+# 2.14.2 and 3.2.0, the last being an SSRF and path traversal in the OpenAPI
+# provider. Nothing here constructs a server from an OpenAPI spec -- fastmcp
+# is used only as a client (fastmcp.Client, fastmcp.tools.tool,
+# fastmcp.client.auth) -- but the floor costs nothing and removes the
+# question. Ceiling stays at 4: fastmcp 4.0 ships metadata-only and drops
+# fastmcp.tools.tool.
+fastmcp>=3.2.0,<4
 google-auth
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
