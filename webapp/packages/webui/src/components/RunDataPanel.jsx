@@ -174,9 +174,14 @@ const aggregateByNamespace = (ops) => {
   return Array.from(byNs.values()).sort((a, b) => a.namespace.localeCompare(b.namespace));
 };
 
+// Module scope so the reference is stable across renders. Inline `opsLog || []`
+// builds a new array every render whenever opsLog is falsy, which changes the
+// dependency of all three useMemo hooks below and defeats them.
+const EMPTY_OPS = [];
+
 const RunDataPanel = ({ opsLog }) => {
   const [tab, setTab] = useState(0);
-  const ops = opsLog || [];
+  const ops = opsLog || EMPTY_OPS;
   const aggregated = useMemo(() => aggregateByNamespace(ops), [ops]);
 
   const readCount = useMemo(() => ops.filter((o) => opCategory(o.op) === 'read').length, [ops]);
