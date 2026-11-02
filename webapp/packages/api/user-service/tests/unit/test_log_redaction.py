@@ -274,17 +274,17 @@ def test_real_world_pat_leak_from_user_logs():
     GitHub PAT it was about to use."""
     pat = _gh_pat()
     raw = (
-        "DEBUG raw input: 'repo: apache/tooling-runbooks\\n"
+        "DEBUG raw input: 'repo: example-org/example-repo\\n"
         f"pat: {pat}\\n"
-        "directories: ASVS/reports/mahout/245aad3/all\\n"
-        "output: ASVS/reports/mahout/245aad3'"
+        "directories: reports/example/245aad3/all\\n"
+        "output: reports/example/245aad3'"
     )
     out = redact(raw)
     assert "[REDACTED:github_pat]" in out
     assert pat[:20] not in out  # original PAT prefix is gone
     # The non-secret context survives.
-    assert "apache/tooling-runbooks" in out
-    assert "ASVS/reports/mahout" in out
+    assert "example-org/example-repo" in out
+    assert "reports/example" in out
 
 
 def test_multiple_secrets_in_one_line():

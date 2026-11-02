@@ -138,8 +138,8 @@ async def test_stop_interrupts_mid_await():
 @pytest.mark.asyncio
 async def test_agent_stopped_escapes_except_exception():
     """Regression: agents' broad `except Exception as e: log; continue`
-    patterns must not swallow AgentStopped. The asvs_orchestrate agent
-    in particular wraps an ASVS-load call in try/except Exception; with
+    patterns must not swallow AgentStopped. An orchestrator agent here
+    wrapped a data-store load in try/except Exception; with
     AgentStopped as Exception the agent caught it, logged a warning per
     chapter, dropped sections it couldn't classify, and rolled through
     to a useless 0-section output instead of stopping. Making
@@ -158,7 +158,7 @@ async def test_agent_stopped_escapes_except_exception():
             try:
                 check_should_stop()
                 survivors += 1
-            except Exception:  # the asvs_* pattern
+            except Exception:  # the broad-catch pattern
                 survivors += 100  # marker: if this fires, test fails
         return survivors
 

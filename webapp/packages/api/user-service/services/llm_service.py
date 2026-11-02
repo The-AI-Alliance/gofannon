@@ -328,7 +328,7 @@ def _thinking_style(provider_cfg: Dict[str, Any], model_config: Dict[str, Any]) 
 #       selfhosted's config default is 0.0 ("deterministic classification"), so any
 #       caller taking defaults and turning thinking on lands exactly here.
 #
-# This replaces a copy of the same rule in each ASVS agent's _make_tier, keyed
+# This replaces a copy of the same rule in each agent's own tier builder, keyed
 # on provider NAME rather than on what the model accepts, which meant any
 # provider added later was missing from the set and silently unprotected.
 # The non-zero rule existed there only as a comment; nothing enforced it.
@@ -408,10 +408,11 @@ def _prepend_prefix_to_message(
     model, on providers that cannot carry it as a cache_control block.
 
     Without this, a caller passing cache_prefix= to a non-caching provider
-    has the content silently discarded. asvs_audit did exactly that: it built
-    the analysis system prompt and code inventory as a cache_prefix and passed
-    nothing else, so every self-hosted HEAVY call analysed raw source with no
-    auditor role, no ASVS rubric and no severity guidance. It looked like the
+    has the content silently discarded. An audit agent here did exactly that:
+    it built the analysis system prompt and code inventory as a cache_prefix and
+    passed nothing else, so every self-hosted call on the heaviest tier analysed
+    raw source with no auditor role, no rubric and no severity guidance. It
+    looked like the
     model finding less; it was the model being asked less.
 
     Returns a NEW list; the caller's is not mutated.
@@ -504,7 +505,7 @@ async def call_llm(
 
     Args:
         timeout: Per-call timeout in seconds. Defaults to LLM_TIMEOUT_SECONDS env var (600).
-        cache_prefix: Optional large, stable text (system prompt, ASVS
+        cache_prefix: Optional large, stable text (system prompt, rubric or
             requirement text, shared inventory) to cache across calls that
             share it. When provided for a Claude model, it is sent as a
             separate content block marked cache_control={"type":"ephemeral"}
