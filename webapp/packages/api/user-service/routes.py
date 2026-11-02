@@ -1056,7 +1056,7 @@ async def start_agent_run(
 
 # A run that has appended no trace event for this long is treated as
 # abandoned by force_complete_run. Long enough that a slow LLM call
-# (the ASVS pipeline routinely runs 300-600s per call) is never
+# (long-running analysis pipelines routinely take 300-600s per call) is never
 # mistaken for a dead worker; short enough to be useful.
 STALE_RUN_SECONDS = 900
 
@@ -1464,7 +1464,7 @@ async def start_deployed_agent_run(
 
     Body is the agent's input_dict, exactly as for the synchronous route:
 
-        POST /rest/asvs_orchestrate/start
+        POST /rest/my_orchestrator/start
         {"sourceRepo": "apache/apisix", "level": "L3", ...}
 
     Secrets that are genuinely per-run (source/output tokens) still travel

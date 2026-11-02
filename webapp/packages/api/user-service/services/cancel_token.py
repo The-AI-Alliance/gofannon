@@ -30,7 +30,7 @@ class AgentStopped(BaseException):
     cancellation signals must propagate through user code unimpeded. If
     AgentStopped were Exception, a single ``except Exception`` anywhere
     in the agent code would swallow the cancel and the agent would
-    continue. The asvs_* agents in particular do exactly this -- broad
+    continue. Long-running analysis agents in particular do exactly this -- broad
     try/except around data store loads -- and a stop request would log
     a warning per chapter and roll on regardless. Making AgentStopped
     BaseException forces it to bubble past those handlers to the

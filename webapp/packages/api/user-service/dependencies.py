@@ -275,9 +275,9 @@ async def _execute_agent_code(
         # gets Sonnet's overrides rather than whatever was set on the
         # first invokable model in the list.
         #
-        # OPT-OUT: an agent whose parameters are fully env-driven (the ASVS
-        # tier refactor) sets ASVS_IGNORE_LLM_SETTINGS=true (or
-        # GOFANNON_IGNORE_LLM_SETTINGS=true) in its env_vars. For those agents
+        # OPT-OUT: an agent whose parameters are fully env-driven sets
+        # GOFANNON_IGNORE_LLM_SETTINGS=true in its env_vars. The older
+        # ASVS_IGNORE_LLM_SETTINGS spelling is still honoured. For those agents
         # the UI/request llm_settings are ignored entirely, so the per-call-site
         # parameters the agent computed from env flow through untouched.
         #
@@ -290,8 +290,9 @@ async def _execute_agent_code(
         # any other way, so they opt out of the override mechanism entirely.
         import os as _os
         _ignore_llm_settings = (
-            _os.environ.get("ASVS_IGNORE_LLM_SETTINGS", "").lower() in ("1", "true", "yes")
-            or _os.environ.get("GOFANNON_IGNORE_LLM_SETTINGS", "").lower() in ("1", "true", "yes")
+            _os.environ.get("GOFANNON_IGNORE_LLM_SETTINGS", "").lower() in ("1", "true", "yes")
+            # Deprecated alias, kept so existing agent env_vars keep working.
+            or _os.environ.get("ASVS_IGNORE_LLM_SETTINGS", "").lower() in ("1", "true", "yes")
         )
         override = None if _ignore_llm_settings else (
             llm_settings.for_call(provider, model) if llm_settings else None

@@ -84,7 +84,7 @@ _ANTHROPIC_1P_TOKEN_CACHE: dict = {}
 # Why this matters. The window between "cache miss" and "cache write" spans two
 # network calls -- STS GetWebIdentityToken then the Anthropic exchange, roughly
 # 300ms combined. gofannon dispatches LLM calls concurrently
-# (ASVS_MEDIUM_CONCURRENCY is 5, HEAVY 4, filter 4), so on a cold start or
+# (commonly 4-5 at a time per tier), so on a cold start or
 # immediately after invalidate_anthropic_1p_token() every one of those
 # coroutines misses and performs a full exchange. N-1 of them are wasted work:
 # extra STS calls, extra rows in Anthropic's authentication event feed, extra
@@ -290,7 +290,7 @@ async def get_anthropic_1p_bearer_token(min_validity_seconds: int = 0) -> str:
 
     min_validity_seconds: require the token to remain valid for at least
     this long, not merely to be valid at dispatch. Anthropic access tokens
-    last ~600s; ASVS HEAVY-tier calls run with a 1800s timeout and single
+    last ~600s; the heaviest calls here run with a 1800s timeout and single
     Opus calls have been measured at 3+ minutes. A token that is valid when
     the request goes out can therefore expire mid-flight, and the retry
     then replays the SAME dead token and fails identically -- which from
