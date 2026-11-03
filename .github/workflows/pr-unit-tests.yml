@@ -46,7 +46,7 @@ jobs:
           pnpm --version
           echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: ${{ runner.os }}-pnpm-${{ hashFiles('webapp/pnpm-lock.yaml') }}
@@ -61,7 +61,7 @@ jobs:
         run: pnpm test:coverage
 
       # - name: Upload frontend coverage to Codecov
-      #   uses: codecov/codecov-action@v4
+      #   uses: codecov/codecov-action@v7
       #   with:
       #     files: ./webapp/packages/webui/coverage/lcov.info
       #     flags: frontend
@@ -116,7 +116,7 @@ jobs:
         run: python -m pytest tests/unit -v --cov=. --cov-report=xml --cov-report=term-missing
 
       # - name: Upload backend coverage to Codecov
-      #   uses: codecov/codecov-action@v4
+      #   uses: codecov/codecov-action@v7
       #   with:
       #     files: ./webapp/packages/api/user-service/coverage.xml
       #     flags: backend
@@ -161,7 +161,7 @@ jobs:
           pnpm --version
           echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: ${{ runner.os }}-pnpm-${{ hashFiles('webapp/pnpm-lock.yaml') }}

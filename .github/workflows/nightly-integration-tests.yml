@@ -43,7 +43,7 @@ jobs:
           pnpm --version
           echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: ${{ runner.os }}-pnpm-${{ hashFiles('webapp/pnpm-lock.yaml') }}
@@ -110,7 +110,7 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
 
       - name: Upload integration test coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           files: ./webapp/packages/api/user-service/coverage.xml
           flags: integration
@@ -167,7 +167,7 @@ jobs:
           pnpm --version
           echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: ${{ runner.os }}-pnpm-${{ hashFiles('webapp/pnpm-lock.yaml') }}
