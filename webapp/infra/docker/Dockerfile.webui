@@ -4,8 +4,8 @@ WORKDIR /app
 ARG VITE_APP_ENV=local
 ENV VITE_APP_ENV=$VITE_APP_ENV
 
-# Pin pnpm to match webapp/package.json's packageManager field for reproducible builds.
-RUN npm install -g pnpm@10.28.2
+# corepack installs the pnpm version named in package.json's packageManager field.
+RUN corepack enable
 
 COPY ./packages/webui/package.json ./packages/config/package.json ./package.json ./pnpm-workspace.yaml ./
 COPY ./pnpm-lock.yaml ./
@@ -17,7 +17,7 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm build
 
 # Stage 2: Serve the static files with Nginx
-FROM nginx:1.23-alpine
+FROM nginx:1.29-alpine
 COPY --from=builder /app/packages/webui/dist /usr/share/nginx/html
 
 COPY ./infra/docker/nginx.conf /etc/nginx/conf.d/default.conf 
