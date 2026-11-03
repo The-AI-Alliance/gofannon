@@ -16,7 +16,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       # corepack ships with Node, so pnpm needs no third-party action.
       # setup-node has to run first for corepack to exist, which is why
